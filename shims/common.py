@@ -209,6 +209,9 @@ def strip_url(value: str) -> str | None:
     This is the TES-side projection rule (spec section 3.3, six steps), kept
     here as the executable definition of the golden URL cases:
 
+    0. Tab and newline: omit any value containing TAB, LF or CR (WHATWG
+       deletes them before parsing, so ``https://<TAB>/u:p@h/p`` would
+       leak ``u:p``).
     1. Scheme: only an RFC 3986 scheme (``ALPHA *(ALPHA/DIGIT/+/-/.)``)
        directly followed by ``://`` at the start counts. Split into
        ``scheme://``, the region W up to the first ``/`` (or the end) and
@@ -234,6 +237,8 @@ def strip_url(value: str) -> str | None:
     Returns:
         The stripped URL, or ``None`` if the field must be omitted.
     """
+    if any(char in value for char in "\t\n\r"):
+        return None
     match = _URL_SCHEME.match(value)
     if match is None:
         return value if "@" not in value and "?" not in value else None
