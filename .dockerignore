@@ -1,0 +1,19 @@
+# No image is built from the repository root yet (the services in
+# `compose.yaml` mount their code read-only); should one be, re-include only
+# the files it needs below `*`. Local secrets (e.g. `.env`, `.env.local`,
+# `.envrc`) and other secret files must never reach a build, also not within
+# re-included paths
+*
+**/.env*
+**/*.env
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+**/id_ecdsa*
+**/*.p12
+**/*.pfx
+**/.git-credentials
+**/.pypirc
+**/credentials*.json
+**/.netrc
