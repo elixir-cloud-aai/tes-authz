@@ -3,11 +3,21 @@
 #   make up     start everything      make down   stop and remove
 #
 # Host ports (loopback only) can be changed with the variables below.
+#
+# This is a local test and reference setup. OPA's and OpenFGA's own APIs are
+# published on loopback for the findings tests and are NOT authenticated:
+# any local process can change policy data or tuples. A deployment publishes
+# only the shims and enables OPA token authz / OpenFGA preshared keys.
 name: tes-authz
 
-x-python: &python
-  image: python:3.13.18-slim
+x-hardening: &hardening
   read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+x-python: &python
+  <<: *hardening
+  image: python:3.13.18-slim
   user: "65534:65534"
   environment: &python-env
     PYTHONDONTWRITEBYTECODE: "1"
@@ -17,8 +27,10 @@ x-python: &python
 
 services:
   opa:
+    <<: *hardening
     image: openpolicyagent/opa:1.22.4
     container_name: tes-authz-opa
+    user: "65534:65534"
     command:
       - run
       - --server
@@ -46,11 +58,15 @@ services:
       - "127.0.0.1:${TES_AUTHZ_OPA_FRONT_PORT:-18190}:8080"
 
   openfga:
+    <<: *hardening
     image: openfga/openfga:v1.22.1
     container_name: tes-authz-openfga
     command: ["run"]
     environment:
       OPENFGA_EXPERIMENTALS: authzen
+      # The default CEL cost budget fails conditions over a handful of list
+      # items; this covers SHIM_MAX_LIST_ITEMS (1024) entitlements or images.
+      OPENFGA_MAX_CONDITION_EVALUATION_COST: "${TES_AUTHZ_OPENFGA_MAX_COST:-100000}"
       OPENFGA_DATASTORE_ENGINE: memory
       OPENFGA_PLAYGROUND_ENABLED: "false"
     ports:
@@ -80,7 +96,6 @@ services:
     environment:
       <<: *python-env
       FGA_URL: http://openfga:8080
-      FGA_CLAIMS: entitlements=eduperson_entitlement
       SHIM_BASE_URL: http://127.0.0.1:${TES_AUTHZ_OPENFGA_SHIM_PORT:-18191}
     volumes:
       - ./shims:/shims:ro

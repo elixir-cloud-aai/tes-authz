@@ -117,7 +117,8 @@ def main() -> None:
     state = Path(os.environ.get("FGA_STATE_FILE", "/state/openfga.json"))
     state.parent.mkdir(parents=True, exist_ok=True)
     tmp = state.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"store_id": store_id, "model_id": model_id}))
+    claims = {"entitlements": policy["entitlement_claim"]}
+    tmp.write_text(json.dumps({"store_id": store_id, "model_id": model_id, "claims": claims}))
     tmp.replace(state)
     print(f"store={store_id} model={model_id} tuples={len(tuples)}")
 

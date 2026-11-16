@@ -12,8 +12,10 @@ A golden file is either a wrapper ``{"name", "case", "description",
 "request", "expect": {"<policy>": {"decision": bool}}}`` or a bare AuthZEN
 request. Bare requests (and wrappers without an expectation for a policy)
 get expectations from ``golden/expectations.json``
-(``{"<file stem>": {"<policy>": {"decision": bool}}}``); without one they
-are reported and skipped.
+(``{"<label>/<file stem>": {"<policy>": {"decision": bool}}}``, where
+the label is the directory relative to ``tes-authz/``, e.g. ``golden``);
+without one, ``test_every_golden_case_has_an_expectation`` fails. Two files
+with the same name are an error, as is a non-boolean ``decision``.
 """
 
 from __future__ import annotations
@@ -69,6 +71,21 @@ def golden_dirs() -> list[Path]:
     return [d for d in dirs if d.is_dir()]
 
 
+def _label(directory: Path) -> str:
+    """Name a shared golden directory uniquely (path relative to the work folder).
+
+    Args:
+        directory: The directory.
+
+    Returns:
+        Its label.
+    """
+    try:
+        return str(directory.resolve().relative_to(SERVICE_ROOT.parent.resolve()))
+    except ValueError:
+        return str(directory.resolve()).lstrip("/")
+
+
 def _expectations() -> dict[str, dict[str, Any]]:
     if EXPECTATIONS.exists():
         data: dict[str, dict[str, Any]] = json.loads(EXPECTATIONS.read_text())
@@ -85,7 +102,7 @@ def load_cases() -> list[GoldenCase]:
     sidecar = _expectations()
     found: dict[str, GoldenCase] = {}
     for directory in golden_dirs():
-        prefix = "" if directory == LOCAL_DIR else f"{directory.name}/"
+        prefix = "" if directory == LOCAL_DIR else f"{_label(directory)}/"
         for path in sorted(directory.rglob("*.json")):
             data = json.loads(path.read_text())
             if not isinstance(data, dict):
@@ -100,7 +117,13 @@ def load_cases() -> list[GoldenCase]:
                 continue
             for policy, value in sidecar.get(stem, {}).items():
                 expect_raw.setdefault(policy, value)
-            expect = {p: bool(v["decision"]) for p, v in expect_raw.items() if isinstance(v, dict)}
+            expect = {}
+            for policy, value in expect_raw.items():
+                if not isinstance(value, dict) or not isinstance(value.get("decision"), bool):
+                    raise ValueError(f"{path}: expectation for {policy!r} needs a boolean 'decision'")
+                expect[policy] = value["decision"]
+            if stem in found:
+                raise ValueError(f"duplicate golden case {stem!r}: {found[stem].path} and {path}")
             found[stem] = GoldenCase(
                 stem, path, request, expect, str(data.get("case", "")), str(data.get("description", ""))
             )

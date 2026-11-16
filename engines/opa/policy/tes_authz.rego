@@ -110,19 +110,17 @@ owner_or_admin if {
 
 owner_or_admin if admin
 
-executors := e if {
-	e := object.get(input.resource, ["properties", "task", "executors"], [])
-	is_array(e)
-}
-
-default executors := []
-
 images_ok if count(cfg.image_prefixes) == 0
 
+# With an allowlist, task.executors must be an array of objects whose
+# images all match; a missing or malformed task or executor list is denied.
 images_ok if {
 	count(cfg.image_prefixes) > 0
+	executors := object.get(input.resource, ["properties", "task", "executors"], null)
+	is_array(executors)
 	every ex in executors {
-		image := object.get(ex, "image", "")
+		is_object(ex)
+		image := object.get(ex, "image", null)
 		is_string(image)
 		some p in cfg.image_prefixes
 		startswith(image, p)

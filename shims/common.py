@@ -44,6 +44,9 @@ TASK_SET_IDS = frozenset({"own", "all"})
 MAX_BODY_BYTES = 1024 * 1024
 """Largest request body a shim accepts."""
 
+SOCKET_TIMEOUT = 5.0
+"""Seconds a client may stall while sending a request."""
+
 log = logging.getLogger("tes-authz-shim")
 
 
@@ -94,6 +97,12 @@ def validate_request(req: Any) -> None:
         raise ContractError("context.tes.profile is missing or unsupported")
     if not isinstance(tes.get("service_id"), str) or not tes["service_id"]:
         raise ContractError("context.tes.service_id must be a non-empty string")
+    try:
+        json.dumps(req, ensure_ascii=False).encode("utf-8")
+    except UnicodeEncodeError as exc:
+        # Lone surrogates: engines would decode them differently (Go maps
+        # them to U+FFFD, so distinct IDs could compare equal).
+        raise ContractError("request contains strings that are not valid UTF-8") from exc
 
 
 def string_list(value: Any) -> list[str]:
@@ -160,7 +169,7 @@ def encode_id(value: str) -> str:
     Returns:
         An identifier that is safe for OpenFGA objects and users.
     """
-    if _SAFE_ID.match(value) and not value.startswith("h-"):
+    if _SAFE_ID.fullmatch(value) and not value.startswith("h-"):
         return value
     return "h-" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -273,6 +282,7 @@ def make_handler(decide: Decide, metadata: dict[str, Any]) -> type[BaseHTTPReque
 
         server_version = "tes-authz-shim"
         sys_version = ""
+        timeout = SOCKET_TIMEOUT
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             """Route access logs to the module logger.
@@ -308,8 +318,11 @@ def make_handler(decide: Decide, metadata: dict[str, Any]) -> type[BaseHTTPReque
             if self.path != "/access/v1/evaluation":
                 self._send(HTTPStatus.NOT_FOUND, {"error": "not found"}, request_id)
                 return
+            if "Content-Length" not in self.headers or self.headers.get("Transfer-Encoding"):
+                self._send(HTTPStatus.LENGTH_REQUIRED, {"error": "Content-Length required"}, request_id)
+                return
             try:
-                length = int(self.headers.get("Content-Length", "0"))
+                length = int(self.headers["Content-Length"])
             except ValueError:
                 length = -1
             if length < 0 or length > MAX_BODY_BYTES:
@@ -332,6 +345,10 @@ def make_handler(decide: Decide, metadata: dict[str, Any]) -> type[BaseHTTPReque
             except UpstreamError as exc:
                 log.warning("engine error: %s request_id=%s", exc, request_id)
                 self._send(HTTPStatus.BAD_GATEWAY, {"error": "decision engine error"}, request_id)
+                return
+            except Exception:
+                log.exception("shim error request_id=%s", request_id)
+                self._send(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "shim error"}, request_id)
                 return
             log.info(
                 "decision=%s action=%s resource=%s:%s request_id=%s",

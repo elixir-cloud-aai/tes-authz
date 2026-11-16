@@ -130,7 +130,8 @@ def project(task: dict[str, Any]) -> dict[str, Any]:
     """Project a submitted task for ``CreateTask`` (spec section 3.3).
 
     Args:
-        task: The submitted task.
+        task: The submitted task, already checked to have a list of
+            executors with string images.
 
     Returns:
         The fixed projection.
@@ -145,7 +146,7 @@ def project(task: dict[str, Any]) -> dict[str, Any]:
             for k, v in task["resources"].items()
             if k in ("cpu_cores", "ram_gb", "disk_gb", "preemptible", "zones")
         }
-    out["executors"] = [{"image": ex.get("image")} for ex in task.get("executors", []) if isinstance(ex, dict)]
+    out["executors"] = [{"image": ex["image"]} for ex in task["executors"]]
     for key in ("inputs", "outputs"):
         items = []
         for item in task.get(key, []) or []:
@@ -185,12 +186,14 @@ class Hook:
             The subject.
         """
         c = p.claims
-        props: dict[str, Any] = {"iss": c.get("iss"), "sub": c.get("sub")}
+        props: dict[str, Any] = {k: c[k] for k in ("iss", "sub") if k in c}
         client_id = c.get("azp", c.get("client_id"))
         if client_id is not None:
             props["client_id"] = client_id
         if isinstance(c.get("scope"), str):
             props["scope"] = c["scope"].split()
+        elif isinstance(c.get("scope"), list):
+            props["scope"] = c["scope"]
         claims = {}
         for name in self.settings.claims:
             value = lookup(c, name)
@@ -281,6 +284,11 @@ class Hook:
             HttpError: On deny or failure.
         """
         self.gate(p)
+        executors = task.get("executors")
+        if not isinstance(executors, list) or not all(
+            isinstance(ex, dict) and isinstance(ex.get("image"), str) for ex in executors
+        ):
+            raise HttpError(HTTPStatus.BAD_REQUEST, "executors must be a list of objects with an image")
         for key in ("id", "state", "creation_time", "logs"):
             task.pop(key, None)
         if self.settings.pdp_url and not self.ask(

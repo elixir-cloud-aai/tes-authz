@@ -27,7 +27,10 @@ Settings (environment):
     FGA_STORE_ID / FGA_MODEL_ID: Override the state file.
     FGA_CLAIMS: Comma-separated ``param=claim`` pairs; each claim from
         ``subject.properties.claims`` is passed as list parameter
-        ``subject_<param>`` (default ``entitlements=eduperson_entitlement``).
+        ``subject_<param>``. Default: taken from the state file, where the
+        setup job writes ``entitlements=<entitlement_claim>`` from the
+        policy data file; a disagreeing value refuses to start.
+    SHIM_MAX_LIST_ITEMS: Largest claim or executor list (default 1024).
     SHIM_PORT: Port to listen on (default ``8080``).
     SHIM_TIMEOUT: Timeout for OpenFGA calls in seconds (default ``1.5``).
 """
@@ -44,6 +47,13 @@ from common import UpstreamError, encode_id, hash_id, post_json, serve, string_l
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 TIMEOUT = float(os.environ.get("SHIM_TIMEOUT", "1.5"))
+MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
+"""Largest claim or executor list passed to OpenFGA.
+
+OpenFGA bounds the CEL cost of a condition (``OPENFGA_MAX_CONDITION_EVALUATION_COST``);
+compose.yaml raises it so that lists up to this size are evaluated. Longer lists
+fail the request (502, so 503 at the TES) instead of risking a cost error.
+"""
 
 
 def parse_claim_map(spec: str) -> dict[str, str]:
@@ -102,10 +112,13 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     props = resource.get("properties", {})
     owner = props.get("owner")
     task = props.get("task")
-    executors: list[Any] = []
     if isinstance(task, dict) and isinstance(task.get("executors"), list):
-        executors = task["executors"]
-    images = [ex["image"] if isinstance(ex, dict) and isinstance(ex.get("image"), str) else "" for ex in executors]
+        executors: list[Any] = task["executors"]
+        images = [ex["image"] if isinstance(ex, dict) and isinstance(ex.get("image"), str) else "" for ex in executors]
+    else:
+        # Missing or malformed executors: one empty image, which no allowlist
+        # prefix matches (OPA denies these as well when an allowlist is set).
+        images = [""]
     resource_props = {"owner": owner if isinstance(owner, str) else "", "images": images}
 
     service_id = req["context"]["tes"]["service_id"]
@@ -149,17 +162,22 @@ class OpenFgaShim:
         Raises:
             UpstreamError: If OpenFGA fails or answers without a boolean.
         """
+        mapped = to_openfga(req, self.claim_map)
+        lists = [mapped["resource"]["properties"]["images"]]
+        lists += [mapped["subject"]["properties"][param] for param in self.claim_map]
+        if any(len(items) > MAX_LIST_ITEMS for items in lists):
+            raise UpstreamError(f"request has more than {MAX_LIST_ITEMS} claim values or executors")
         extra = dict(headers)
         if self.model_id:
             extra["Openfga-Authorization-Model-Id"] = self.model_id
-        answer = post_json(self.url, to_openfga(req, self.claim_map), TIMEOUT, extra)
+        answer = post_json(self.url, mapped, TIMEOUT, extra)
         decision = answer.get("decision") if isinstance(answer, dict) else None
         if not isinstance(decision, bool):
             raise UpstreamError("OpenFGA answer has no boolean decision")
         return decision
 
 
-def load_state(path: str, wait_seconds: float = 60.0) -> dict[str, str]:
+def load_state(path: str, wait_seconds: float = 60.0) -> dict[str, Any]:
     """Read the store and model IDs written by the setup job.
 
     Args:
@@ -176,7 +194,7 @@ def load_state(path: str, wait_seconds: float = 60.0) -> dict[str, str]:
     while True:
         try:
             with open(path, encoding="utf-8") as handle:
-                state: dict[str, str] = json.load(handle)
+                state: dict[str, Any] = json.load(handle)
                 return state
         except FileNotFoundError:
             if time.monotonic() > deadline:
@@ -189,10 +207,17 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("SHIM_LOG_LEVEL", "INFO"))
     store_id = os.environ.get("FGA_STORE_ID")
     model_id = os.environ.get("FGA_MODEL_ID")
+    state_claims: dict[str, str] | None = None
     if not store_id:
         state = load_state(os.environ.get("FGA_STATE_FILE", "/state/openfga.json"))
         store_id, model_id = state["store_id"], state.get("model_id")
-    claim_map = parse_claim_map(os.environ.get("FGA_CLAIMS", "entitlements=eduperson_entitlement"))
+        state_claims = state.get("claims")
+    env_claims = os.environ.get("FGA_CLAIMS")
+    claim_map = parse_claim_map(env_claims) if env_claims else state_claims
+    if not claim_map:
+        raise SystemExit("no claim map: set FGA_CLAIMS or run the setup job")
+    if state_claims is not None and claim_map != state_claims:
+        raise SystemExit(f"FGA_CLAIMS {claim_map} disagrees with the policy data file {state_claims}")
     shim = OpenFgaShim(store_id, model_id, claim_map)
     base = os.environ.get("SHIM_BASE_URL", "http://localhost:8080")
     serve(

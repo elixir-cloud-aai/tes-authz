@@ -6,6 +6,8 @@ README's findings section reports the results.
 
 from __future__ import annotations
 
+import json
+import urllib.error
 import urllib.request
 
 import pytest
@@ -129,6 +131,54 @@ def test_opa_front_fails_closed_when_opa_is_down(monkeypatch):
     monkeypatch.setattr(opa_front, "OPA_URL", "http://127.0.0.1:9")
     with pytest.raises(UpstreamError):
         opa_front.decide({"input": "x"}, {})
+
+
+def _get_request(subject_id: str, owner: str, service_id: str = "tes-authz-test") -> dict:
+    return {
+        "subject": {"type": "user", "id": subject_id},
+        "action": {"name": "GetTask"},
+        "resource": {"type": "tes_task", "id": "t1", "properties": {"owner": owner}},
+        "context": {"tes": {"profile": "tes-authzen/1", "service_id": service_id}},
+    }
+
+
+def test_shims_deny_lone_surrogates(services):
+    """Lone surrogates would compare equal in OPA (U+FFFD); both shims deny them."""
+    body = json.dumps(_get_request("\ud800", "\udbff")).encode()
+    for engine in ENGINES.values():
+        req = urllib.request.Request(engine.host_url, method="POST", data=body)
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert json.loads(response.read()) == {"decision": False}, engine.name
+
+
+def test_shims_deny_service_id_with_newline(services):
+    """A trailing newline must not slip through identifier encoding."""
+    for engine in ENGINES.values():
+        expected = (200, {"decision": False})
+        assert http("POST", engine.host_url, _get_request("u1", "u1", "tes-authz-test\n")) == expected, engine.name
+
+
+def test_shims_require_content_length(services):
+    """Chunked or length-less requests get 411, not a silent deny."""
+    for engine in ENGINES.values():
+        req = urllib.request.Request(engine.host_url, method="POST", data=iter([b"{}"]))
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Transfer-Encoding", "chunked")
+        try:
+            urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 411, engine.name
+        else:
+            raise AssertionError(f"{engine.name} accepted a chunked request")
+
+
+def test_openfga_shim_rejects_lists_over_limit(services):
+    """Above SHIM_MAX_LIST_ITEMS the OpenFGA shim fails the request (502) instead of guessing."""
+    req = _get_request("u1", "u1")
+    req["subject"]["properties"] = {"claims": {"eduperson_entitlement": [f"urn:x:{i}" for i in range(1025)]}}
+    assert http("POST", ENGINES["openfga"].host_url, req)[0] == 502
+    assert http("POST", ENGINES["opa"].host_url, req) == (200, {"decision": True})
 
 
 def test_shims_publish_authzen_metadata(services):

@@ -1,0 +1,3150 @@
+{
+  "case": "17",
+  "description": "1023 allowed images, the last one denied",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "create-1024-executors-last-denied",
+  "request": {
+    "action": {
+      "name": "CreateTask"
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "properties": {
+        "task": {
+          "executors": [
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-0:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-2:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-3:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-4:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-5:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-6:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-7:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-8:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-9:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-10:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-11:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-12:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-13:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-14:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-15:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-16:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-17:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-18:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-19:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-20:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-21:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-22:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-23:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-24:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-25:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-26:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-27:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-28:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-29:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-30:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-31:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-32:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-33:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-34:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-35:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-36:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-37:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-38:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-39:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-40:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-41:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-42:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-43:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-44:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-45:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-46:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-47:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-48:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-49:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-50:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-51:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-52:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-53:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-54:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-55:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-56:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-57:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-58:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-59:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-60:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-61:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-62:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-63:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-64:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-65:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-66:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-67:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-68:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-69:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-70:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-71:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-72:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-73:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-74:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-75:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-76:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-77:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-78:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-79:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-80:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-81:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-82:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-83:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-84:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-85:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-86:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-87:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-88:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-89:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-90:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-91:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-92:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-93:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-94:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-95:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-96:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-97:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-98:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-99:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-100:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-101:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-102:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-103:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-104:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-105:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-106:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-107:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-108:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-109:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-110:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-111:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-112:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-113:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-114:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-115:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-116:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-117:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-118:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-119:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-120:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-121:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-122:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-123:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-124:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-125:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-126:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-127:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-128:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-129:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-130:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-131:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-132:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-133:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-134:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-135:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-136:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-137:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-138:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-139:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-140:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-141:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-142:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-143:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-144:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-145:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-146:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-147:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-148:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-149:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-150:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-151:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-152:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-153:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-154:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-155:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-156:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-157:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-158:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-159:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-160:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-161:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-162:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-163:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-164:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-165:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-166:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-167:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-168:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-169:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-170:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-171:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-172:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-173:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-174:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-175:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-176:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-177:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-178:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-179:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-180:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-181:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-182:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-183:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-184:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-185:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-186:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-187:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-188:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-189:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-190:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-191:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-192:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-193:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-194:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-195:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-196:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-197:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-198:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-199:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-200:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-201:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-202:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-203:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-204:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-205:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-206:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-207:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-208:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-209:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-210:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-211:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-212:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-213:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-214:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-215:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-216:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-217:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-218:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-219:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-220:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-221:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-222:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-223:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-224:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-225:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-226:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-227:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-228:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-229:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-230:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-231:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-232:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-233:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-234:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-235:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-236:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-237:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-238:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-239:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-240:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-241:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-242:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-243:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-244:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-245:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-246:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-247:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-248:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-249:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-250:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-251:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-252:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-253:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-254:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-255:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-256:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-257:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-258:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-259:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-260:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-261:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-262:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-263:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-264:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-265:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-266:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-267:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-268:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-269:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-270:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-271:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-272:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-273:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-274:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-275:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-276:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-277:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-278:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-279:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-280:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-281:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-282:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-283:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-284:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-285:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-286:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-287:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-288:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-289:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-290:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-291:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-292:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-293:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-294:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-295:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-296:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-297:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-298:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-299:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-300:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-301:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-302:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-303:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-304:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-305:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-306:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-307:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-308:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-309:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-310:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-311:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-312:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-313:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-314:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-315:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-316:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-317:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-318:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-319:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-320:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-321:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-322:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-323:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-324:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-325:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-326:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-327:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-328:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-329:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-330:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-331:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-332:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-333:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-334:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-335:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-336:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-337:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-338:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-339:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-340:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-341:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-342:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-343:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-344:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-345:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-346:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-347:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-348:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-349:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-350:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-351:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-352:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-353:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-354:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-355:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-356:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-357:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-358:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-359:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-360:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-361:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-362:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-363:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-364:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-365:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-366:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-367:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-368:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-369:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-370:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-371:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-372:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-373:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-374:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-375:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-376:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-377:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-378:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-379:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-380:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-381:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-382:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-383:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-384:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-385:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-386:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-387:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-388:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-389:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-390:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-391:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-392:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-393:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-394:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-395:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-396:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-397:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-398:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-399:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-400:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-401:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-402:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-403:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-404:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-405:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-406:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-407:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-408:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-409:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-410:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-411:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-412:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-413:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-414:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-415:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-416:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-417:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-418:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-419:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-420:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-421:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-422:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-423:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-424:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-425:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-426:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-427:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-428:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-429:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-430:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-431:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-432:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-433:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-434:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-435:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-436:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-437:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-438:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-439:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-440:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-441:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-442:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-443:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-444:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-445:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-446:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-447:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-448:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-449:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-450:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-451:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-452:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-453:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-454:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-455:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-456:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-457:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-458:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-459:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-460:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-461:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-462:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-463:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-464:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-465:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-466:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-467:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-468:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-469:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-470:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-471:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-472:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-473:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-474:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-475:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-476:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-477:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-478:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-479:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-480:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-481:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-482:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-483:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-484:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-485:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-486:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-487:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-488:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-489:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-490:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-491:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-492:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-493:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-494:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-495:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-496:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-497:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-498:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-499:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-500:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-501:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-502:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-503:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-504:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-505:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-506:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-507:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-508:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-509:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-510:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-511:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-512:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-513:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-514:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-515:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-516:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-517:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-518:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-519:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-520:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-521:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-522:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-523:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-524:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-525:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-526:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-527:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-528:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-529:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-530:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-531:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-532:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-533:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-534:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-535:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-536:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-537:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-538:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-539:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-540:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-541:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-542:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-543:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-544:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-545:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-546:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-547:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-548:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-549:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-550:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-551:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-552:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-553:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-554:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-555:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-556:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-557:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-558:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-559:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-560:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-561:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-562:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-563:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-564:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-565:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-566:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-567:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-568:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-569:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-570:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-571:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-572:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-573:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-574:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-575:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-576:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-577:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-578:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-579:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-580:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-581:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-582:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-583:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-584:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-585:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-586:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-587:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-588:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-589:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-590:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-591:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-592:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-593:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-594:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-595:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-596:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-597:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-598:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-599:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-600:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-601:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-602:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-603:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-604:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-605:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-606:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-607:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-608:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-609:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-610:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-611:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-612:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-613:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-614:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-615:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-616:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-617:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-618:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-619:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-620:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-621:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-622:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-623:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-624:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-625:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-626:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-627:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-628:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-629:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-630:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-631:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-632:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-633:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-634:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-635:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-636:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-637:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-638:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-639:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-640:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-641:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-642:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-643:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-644:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-645:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-646:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-647:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-648:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-649:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-650:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-651:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-652:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-653:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-654:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-655:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-656:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-657:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-658:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-659:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-660:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-661:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-662:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-663:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-664:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-665:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-666:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-667:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-668:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-669:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-670:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-671:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-672:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-673:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-674:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-675:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-676:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-677:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-678:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-679:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-680:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-681:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-682:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-683:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-684:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-685:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-686:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-687:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-688:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-689:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-690:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-691:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-692:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-693:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-694:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-695:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-696:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-697:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-698:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-699:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-700:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-701:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-702:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-703:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-704:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-705:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-706:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-707:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-708:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-709:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-710:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-711:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-712:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-713:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-714:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-715:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-716:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-717:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-718:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-719:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-720:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-721:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-722:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-723:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-724:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-725:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-726:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-727:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-728:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-729:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-730:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-731:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-732:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-733:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-734:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-735:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-736:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-737:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-738:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-739:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-740:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-741:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-742:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-743:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-744:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-745:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-746:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-747:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-748:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-749:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-750:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-751:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-752:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-753:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-754:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-755:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-756:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-757:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-758:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-759:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-760:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-761:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-762:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-763:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-764:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-765:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-766:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-767:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-768:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-769:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-770:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-771:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-772:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-773:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-774:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-775:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-776:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-777:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-778:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-779:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-780:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-781:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-782:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-783:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-784:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-785:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-786:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-787:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-788:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-789:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-790:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-791:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-792:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-793:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-794:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-795:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-796:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-797:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-798:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-799:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-800:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-801:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-802:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-803:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-804:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-805:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-806:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-807:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-808:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-809:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-810:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-811:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-812:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-813:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-814:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-815:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-816:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-817:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-818:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-819:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-820:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-821:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-822:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-823:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-824:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-825:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-826:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-827:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-828:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-829:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-830:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-831:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-832:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-833:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-834:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-835:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-836:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-837:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-838:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-839:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-840:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-841:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-842:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-843:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-844:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-845:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-846:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-847:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-848:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-849:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-850:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-851:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-852:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-853:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-854:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-855:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-856:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-857:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-858:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-859:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-860:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-861:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-862:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-863:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-864:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-865:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-866:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-867:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-868:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-869:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-870:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-871:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-872:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-873:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-874:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-875:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-876:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-877:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-878:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-879:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-880:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-881:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-882:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-883:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-884:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-885:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-886:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-887:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-888:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-889:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-890:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-891:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-892:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-893:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-894:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-895:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-896:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-897:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-898:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-899:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-900:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-901:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-902:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-903:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-904:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-905:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-906:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-907:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-908:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-909:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-910:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-911:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-912:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-913:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-914:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-915:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-916:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-917:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-918:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-919:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-920:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-921:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-922:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-923:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-924:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-925:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-926:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-927:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-928:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-929:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-930:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-931:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-932:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-933:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-934:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-935:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-936:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-937:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-938:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-939:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-940:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-941:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-942:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-943:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-944:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-945:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-946:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-947:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-948:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-949:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-950:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-951:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-952:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-953:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-954:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-955:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-956:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-957:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-958:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-959:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-960:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-961:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-962:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-963:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-964:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-965:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-966:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-967:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-968:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-969:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-970:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-971:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-972:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-973:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-974:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-975:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-976:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-977:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-978:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-979:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-980:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-981:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-982:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-983:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-984:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-985:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-986:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-987:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-988:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-989:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-990:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-991:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-992:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-993:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-994:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-995:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-996:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-997:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-998:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-999:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1000:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1001:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1002:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1003:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1004:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1005:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1006:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1007:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1008:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1009:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1010:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1011:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1012:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1013:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1014:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1015:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1016:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1017:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1018:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1019:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1020:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1021:1"
+            },
+            {
+              "image": "ghcr.io/elixir-cloud-aai/tool-1022:1"
+            },
+            {
+              "image": "quay.io/evil/miner:1"
+            }
+          ],
+          "inputs": [
+            {
+              "path": "/data/in.txt",
+              "type": "FILE",
+              "url": "s3://bucket/in.txt"
+            }
+          ],
+          "name": "hello",
+          "outputs": [
+            {
+              "path": "/data/out",
+              "type": "DIRECTORY",
+              "url": "https://storage.example.org/out/"
+            }
+          ],
+          "resources": {
+            "cpu_cores": 1,
+            "disk_gb": 5.0,
+            "preemptible": false,
+            "ram_gb": 1.0,
+            "zones": []
+          },
+          "tags": {
+            "project": "demo"
+          },
+          "volumes": [
+            "/vol/a"
+          ]
+        }
+      },
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "alice-sub",
+      "properties": {
+        "claims": {
+          "eduperson_entitlement": [
+            "urn:geant:lifescience-ri.eu:group:example-vo:analysts#login.aai.lifescience-ri.eu",
+            "urn:geant:lifescience-ri.eu:group:other-vo:sub#login.aai.lifescience-ri.eu"
+          ]
+        },
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "alice-sub"
+      },
+      "type": "user"
+    }
+  }
+}

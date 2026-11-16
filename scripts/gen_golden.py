@@ -181,6 +181,19 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
     wrong_profile = {"tes": {"profile": "tes-authzen/2", "service_id": SERVICE}}
     unknown_service = {"tes": {"profile": "tes-authzen/1", "service_id": "other-tes"}}
     odd_task_id = "task:with#odd@chars-" + "y" * 300
+    others = [f"urn:geant:lifescience-ri.eu:group:vo-{i}:sub#login.aai.lifescience-ri.eu" for i in range(1023)]
+    many_member = subject("kim-sub", [*others, SUBGROUP])
+    many_other = subject("lou-sub", others)
+    many_admin = subject("max-sub", [*others, ADMIN])
+    allowed_images = with_images(*[f"ghcr.io/elixir-cloud-aai/tool-{i}:1" for i in range(1024)])
+    malformed: dict[str, tuple[str, dict[str, Any]]] = {
+        "create-executors-object": ("executors as an object", {**TASK, "executors": {"image": "evil.io/x"}}),
+        "create-executors-string": ("executors as a string", {**TASK, "executors": "evil.io/x"}),
+        "create-executors-null": ("executors null", {**TASK, "executors": None}),
+        "create-executor-not-object": ("executor entry as a string", {**TASK, "executors": ["evil.io/x"]}),
+        "create-executor-no-image": ("executor without image", {**TASK, "executors": [{"command": ["x"]}]}),
+        "create-task-missing-executors": ("task without executors", {"name": "x"}),
+    }
     T, F = True, False  # noqa: N806 (readable decision column)
     return [
         # CreateTask (cases 3, 4, 4b, 5, 5d, 6, 7, 17, plus contract checks)
@@ -461,6 +474,36 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "14",
             "action outside the profile",
             request(DAVE, "DeleteTask", "tes_task_set", "all", None, view),
+            F,
+        ),
+        # Realistic sizes: LS Login users carry many entitlements (review 1 of the service)
+        ("create-1024-entitlements-member-last", "4", "member entitlement after 1023 others", create(many_member), T),
+        ("create-1023-entitlements-non-member", "5", "1023 entitlements, none matching", create(many_other), F),
+        (
+            "list-all-1024-entitlements-admin",
+            "12",
+            "admin entitlement after 1023 others",
+            request(many_admin, "ListTasks", "tes_task_set", "all", None, view),
+            T,
+        ),
+        ("create-1024-executors-allowed", "17", "1024 executors, all images allowed", create(ALICE, allowed_images), T),
+        (
+            "create-1024-executors-last-denied",
+            "17",
+            "1023 allowed images, the last one denied",
+            create(
+                ALICE,
+                {**allowed_images, "executors": [*allowed_images["executors"][:-1], {"image": "quay.io/evil/miner:1"}]},
+            ),
+            F,
+        ),
+        # Malformed task projections are denied when an image allowlist is set
+        *[(name, "17", desc, create(ALICE, task), F) for name, (desc, task) in malformed.items()],
+        (
+            "create-task-missing",
+            "17",
+            "no task projection at all",
+            request(ALICE, "CreateTask", "tes_task_set", "own", {}),
             F,
         ),
     ]

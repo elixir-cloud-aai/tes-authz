@@ -127,7 +127,8 @@ def test_openfga_mapping_always_passes_condition_parameters():
     req = _valid()
     out = openfga_shim.to_openfga(req, {"entitlements": "eduperson_entitlement"})
     assert out["subject"]["properties"] == {"id": "u", "entitlements": []}
-    assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": []}}
+    # No task projection: one empty image, which no allowlist prefix matches.
+    assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": [""]}}
     assert out["subject"]["id"].startswith("h-")
     assert "context" not in out
 

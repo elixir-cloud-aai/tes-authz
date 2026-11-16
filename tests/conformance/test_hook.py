@@ -215,6 +215,21 @@ def test_case_15_pdp_failure_is_503(start, stub, response):
     assert tes.call("GET", "/tasks", ALICE)[1]["tasks"] == []
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "action"),
+    [("GET", "/tasks/{id}", "GetTask"), ("POST", "/tasks/{id}:cancel", "CancelTask"), ("GET", "/tasks", "ListTasks")],
+)
+def test_case_15_pdp_failure_on_every_action(start, stub, method, path, action):
+    """Case 15: a PDP 500 gives 503 on get, cancel and list as well, and changes nothing."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub")
+    task_id = tes.create(ALICE)[1]["id"]
+    stub.script(default=ALLOW, rules=[rule({"status": 500, "body": {}}, action=action)])
+    assert tes.call(method, path.format(id=task_id), ALICE)[0] == 503
+    stub.script(default=ALLOW)
+    assert tes.call("GET", f"/tasks/{task_id}?view=BASIC", ALICE)[1]["state"] == "QUEUED"
+
+
 def test_case_17_rule_passes_pdp_denies(start, stub):
     """Case 17: claim rule AND PDP: a PDP deny wins over a passing rule."""
     stub.script(default=DENY)
