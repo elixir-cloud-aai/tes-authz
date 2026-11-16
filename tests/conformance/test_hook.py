@@ -141,7 +141,57 @@ def test_case_11_missing_task(start, stub, decision):
     assert tes.call("GET", "/tasks/no-such-task", ALICE)[0] == 404
     (recorded,) = stub.requests()
     assert recorded["body"]["resource"]["id"] == "no-such-task"
-    assert recorded["body"]["resource"].get("properties", {}) == {}
+    assert recorded["body"]["resource"]["properties"] == {}
+    assert recorded["body"]["action"]["properties"] == {"view": "MINIMAL"}
+
+
+@pytest.mark.parametrize("decision", [ALLOW, DENY], ids=["allow", "deny"])
+def test_case_11c_cancel_parity(start, stub, decision):
+    """Case 11c: cancel on a missing task asks CancelTask then GetTask, like a denied existing task."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub")
+    task_id = tes.create(BOB)[1]["id"]
+    stub.reset()
+    stub.script(default=decision)
+    assert tes.call("POST", "/tasks/no-such-task:cancel", ALICE)[0] == 404
+    missing = stub.requests()
+    assert [r["body"]["action"]["name"] for r in missing] == ["CancelTask", "GetTask"]
+    for r in missing:
+        assert r["body"]["resource"] == {"type": "tes_task", "id": "no-such-task", "properties": {}}
+        assert r["body"]["action"]["properties"] == {}
+    request_ids = [r["headers"]["X-Request-ID"] for r in missing]
+    assert None not in request_ids and len(set(request_ids)) == 2
+    if decision is DENY:
+        stub.reset()
+        stub.script(default=DENY)
+        assert tes.call("POST", f"/tasks/{task_id}:cancel", ALICE)[0] == 404
+        assert [r["body"]["action"]["name"] for r in stub.requests()] == ["CancelTask", "GetTask"]
+
+
+def test_request_shape(start, stub, adapter):
+    """Spec section 3.7: action properties always present, no properties on list sets, no null subject keys."""
+    stub.script(default=ALLOW, rules=[rule(DENY, action="ListTasks", resource_id="all")])
+    tes = start(decision_service="stub")
+    task_id = tes.create(ALICE)[1]["id"]
+    tes.call("GET", f"/tasks/{task_id}?view=BASIC", ALICE)
+    tes.call("GET", "/tasks?view=FULL", ALICE)
+    tes.call("POST", f"/tasks/{task_id}:cancel", ALICE)
+    recorded = stub.requests()
+    by_action = {}
+    for r in recorded:
+        by_action.setdefault(r["body"]["action"]["name"], []).append(r["body"])
+        subject = r["body"]["subject"]
+        assert None not in subject["properties"].values()
+        assert subject["properties"]["claims"] == {}
+    assert by_action["CreateTask"][0]["action"]["properties"] == {}
+    assert by_action["GetTask"][0]["action"]["properties"] == {"view": "BASIC"}
+    assert set(by_action["GetTask"][0]["resource"]["properties"]) == {"owner", "state", "tags"}
+    assert by_action["CancelTask"][0]["action"]["properties"] == {}
+    for body in by_action["ListTasks"]:
+        assert body["action"]["properties"] == {"view": "FULL"}
+        assert "properties" not in body["resource"]
+    request_ids = [r["headers"]["X-Request-ID"] for r in recorded]
+    assert len(set(request_ids)) == len(request_ids)
 
 
 def test_case_11b_pdp_down_same_answer(start, stub):

@@ -341,15 +341,16 @@ class Hook:
         """
         self.gate(p)
         meta = self._meta(task_id)
-        if self.settings.pdp_url:
-            allow = self.ask(p, "CancelTask", self._res(task_id, meta))
-        else:
-            allow = meta is not None and meta["owner"] == p.owner_id
-        if meta is None:
+        if not self.settings.pdp_url:
+            if meta is None or meta["owner"] != p.owner_id:
+                raise HttpError(HTTPStatus.NOT_FOUND, "not found")
+        elif not (self.ask(p, "CancelTask", self._res(task_id, meta)) and meta is not None):
+            # Missing or denied: the same calls either way (case 11c), then
+            # 403 only for an existing task the caller may read.
+            readable = self.ask(p, "GetTask", self._res(task_id, meta))
+            if meta is not None and readable:
+                raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
-        if not allow:
-            readable = bool(self.settings.pdp_url) and self.ask(p, "GetTask", self._res(task_id, meta))
-            raise HttpError(HTTPStatus.FORBIDDEN if readable else HTTPStatus.NOT_FOUND, "forbidden")
         self.store.tasks[task_id]["state"] = "CANCELED"
         return {}
 

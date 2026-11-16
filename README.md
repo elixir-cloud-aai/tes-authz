@@ -90,14 +90,14 @@ curl -s localhost:18190/access/v1/evaluation -d @<(jq .request golden/requests/c
 
 | Layer (spec §8.1) | File | What | Phase-1 result |
 |---|---|---|---|
-| unit | `tests/test_common.py` | URL stripping (13 golden cases), prefix expansion vs `startswith`, validation, OpenFGA mapping | 31 pass |
+| unit | `tests/test_common.py` | URL stripping (the 15 golden rows of the six-step rule, spec §3.3), prefix expansion vs `startswith`, validation, OpenFGA mapping | 33 pass |
 | golden | `tests/test_golden.py` | golden files match the generator, every case has an expectation, allowed cases follow the profile | 3 pass |
 | 2: engine conformance | `tests/test_engines.py` | 71 golden requests (65 generated + 6 recorded by Poiesis in `../golden/poiesis/`) × {OPA via front, OPA Data API, OpenFGA via shim} | 213 pass |
 | findings | `tests/test_findings.py`, `test_openfga_model.py` | engine behaviours the spec marked unverified (below), shim hardening | 21 pass |
-| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 12, 13, 14, 15 (×5 failure kinds on create, plus get, cancel and list), 16, 17, 18, 19, 22 against the stub | 31 pass (mock TES) |
+| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 11c (cancel parity), 12, 13, 14, 15 (×5 failure kinds on create, plus get, cancel and list), 16, 17, 18, 19, 22, and the exact request shape of §3.7, against the stub | 34 pass (mock TES) |
 | 3: smoke | `tests/conformance/test_smoke.py` | TES × {OPA, OpenFGA}: allow, deny, foreign get 404, missing get and cancel 404, list scopes | 2 pass (mock TES) |
 
-Total: 301 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
+Total: 306 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
 
 The golden requests cover spec cases 3, 4, 4b, 5, 5d, 6, 7, 9–14 and 17, plus contract checks: missing or wrong profile, unknown service, wrong subject type, unknown set or action. They also cover legacy tasks without an owner, issuer-qualified (`<iss>|<sub>`) and 600-character subject IDs, and task IDs containing `:#@`. Realistic sizes: 1024 entitlements with the match last, 1023 non-matching ones, 1024 executors (all allowed, or the last denied). Malformed projections (executors as object, string or null; entries without image; no task) are denied when an image allowlist is set.
 
