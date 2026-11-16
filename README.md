@@ -50,7 +50,7 @@ The policy implements spec §7 with LS Login entitlements:
 | Action | Resource | Allowed if |
 |---|---|---|
 | `CreateTask` | `tes_task_set:own` | the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
-| `GetTask`, `CancelTask` | `tes_task:<id>` | `resource.properties.owner == subject.id` (owner present and not empty), or the caller is an admin; a missing or legacy owner: admins only |
+| `GetTask`, `CancelTask` | `tes_task:<id>` | the caller is a member and `resource.properties.owner == subject.id` (owner present and not empty), or the caller is an admin; a missing or legacy owner: admins only. Owners need a current entitlement: revoking it ends their access at once (spec Q11, option b) |
 | `ListTasks` | `tes_task_set:own` | the caller is a member |
 | `ListTasks` | `tes_task_set:all` | the caller is an admin |
 
@@ -65,7 +65,7 @@ Anything else is denied, and so is any request with another profile or an unknow
 | `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties |
 | `action.name` | the relation of the same name |
 
-OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3). Ownership is the condition `is_owner` on a `user:*` tuple. Membership and admin rights are the condition `entitled` on `user:*` tuples, whose tuple context holds the allowed values and prefixes from the data file.
+OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3). Ownership is the condition `is_owner` on a `user:*` tuple. Membership and admin rights are the condition `entitled` on `user:*` tuples, whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `(owner and member) or admin`, with a `member` relation carrying the members' `entitled` tuple.
 
 The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec §7 only names the `tes_service` rewrite for tasks, so this is a small addition.
 
@@ -198,7 +198,7 @@ Results come from OPA 1.22.4 and OpenFGA v1.22.1 (`OPENFGA_EXPERIMENTALS=authzen
 
 Not checked here: Cedar entity tags, Cerbos role mapping and Topaz directory behaviour (not in phase 1); OpenFGA Search paging (Search isn't used); Passport validation.
 
-Observation for the policy (no spec change needed): under the reference policy, owners read and cancel their own tasks without a current entitlement, as §7 says. When the claim rule is set, it blocks such users before the PDP is asked (AND, Q10). In a PDP-only deployment, a user who has lost the entitlement keeps access to their old tasks. If that's unwanted, add `member` to the owner branch.
+Owner rule (Q11, decided option b): owners read and cancel their own tasks only while they hold a member entitlement, so in a PDP-only deployment revoking the entitlement ends access at once, as the claim rule does when it is set. An operator who wants owners to keep access after leaving the group drops `member` from the owner branch in their copy of the policy (OPA: `owner_or_admin`; OpenFGA: `owner and member`). Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `get-other-no-entitlement` and `get-own-admin`.
 
 ## What phase 2 needs
 
