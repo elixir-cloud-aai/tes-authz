@@ -22,7 +22,7 @@ class MockTes:
     """Runs ``tes.mock.server`` in a thread of the test process."""
 
     name = "mock"
-    features = frozenset({"keyset-cursor", "userinfo"})
+    features = frozenset({"keyset-cursor", "userinfo", "userinfo-timeout"})
 
     def __init__(self) -> None:
         """Start without a running server."""
@@ -47,6 +47,7 @@ class MockTes:
         settings = server.Settings(
             pdp_url=pdp,
             timeout=config.timeout,
+            userinfo_timeout=config.timeout,
             claims=config.claims,
             rule_name=rule.name if rule else None,
             rule_values=rule.values if rule else (),

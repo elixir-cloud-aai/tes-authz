@@ -8,6 +8,7 @@ lacks; they are listed in the README as phase-2 work.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -302,14 +303,18 @@ def test_case_06b_userinfo_claims(start, stub, oidc, adapter):
 
 @pytest.mark.parametrize(
     "behaviour",
-    [{"sub": "mallory-sub"}, {"status": 500}, {"close": True}, {"delay": 4}, {"mode": "jwt"}],
+    [{"sub": "mallory-sub"}, {"status": 500}, {"close": True}, {"delay": 3}, {"mode": "jwt"}],
     ids=["sub-mismatch", "500", "connection-dropped", "timeout", "application-jwt"],
 )
 def test_case_20_userinfo_failure_is_401(start, stub, oidc, adapter, behaviour):
     """Case 20: userinfo ``sub`` mismatch, failure, timeout or signed answer gives 401; PDP not called."""
     _needs_userinfo(adapter)
+    if "sub" in behaviour and "opaque-tokens" in adapter.features:
+        pytest.skip("opaque tokens carry no sub to compare userinfo with")
+    if "delay" in behaviour and "userinfo-timeout" not in adapter.features:
+        pytest.skip("adapter cannot bound userinfo calls by HookConfig.timeout")
     stub.script(default=ALLOW)
-    tes = start(decision_service="stub", userinfo=True)
+    tes = start(decision_service="stub", userinfo=True, timeout=1.0)
     oidc.userinfo_behaviour(behaviour)
     assert tes.create(ALICE)[0] == 401
     assert tes.call("GET", "/tasks", ALICE)[0] == 401
@@ -325,4 +330,5 @@ def test_case_21_userinfo_cached(start, stub, oidc, adapter):
     tes = start(decision_service="stub", userinfo=True)
     assert tes.create(ALICE)[0] == 200
     assert tes.call("GET", "/tasks", ALICE)[0] == 200
-    assert [c["status"] for c in oidc.userinfo_calls() if c["sub"] == ALICE.sub] == [200]
+    token = hashlib.sha256(adapter.token(ALICE).encode()).hexdigest()[:16]
+    assert [c["status"] for c in oidc.userinfo_calls() if c["token_sha256"] == token] == [200]

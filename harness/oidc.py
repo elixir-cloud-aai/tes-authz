@@ -16,14 +16,17 @@ mint tokens with the same ``base``::
     OIDC.token_for(identity, base=NETWORK_BASE)                  # JWT
     OIDC.token_for(identity, base=NETWORK_BASE, fmt="opaque")    # TESK
 
-Tokens are cached per identity and options until ``reset()``, so one
-identity presents the same token across calls (spec case 21).
+Tokens are cached per identity and options until ``reset()`` or until 10
+minutes before they expire, so one identity presents the same token
+across calls (spec case 21).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 from typing import Any
 
@@ -38,11 +41,11 @@ HOST_BASE = f"http://127.0.0.1:{OIDC_PORT}"
 NETWORK_BASE = "http://tes-authz-oidc:8080"
 """Issuer base as seen from containers on the compose network ``tes-authz_default``."""
 
-ISSUERS = ("a", "b")
-"""Issuer names; ``b`` is for multi-issuer cases (``<iss>|<sub>`` owners)."""
-
 AUDIENCE = "tes-authz"
 """Default ``aud`` of minted tokens; configure TESes to require it."""
+
+TOKEN_MARGIN = 600.0
+"""Seconds before expiry when ``token_for`` mints a fresh token instead of reusing one."""
 
 CLIENT_ID = "tes-client"
 """``azp`` of user tokens minted by ``token_for``."""
@@ -92,14 +95,18 @@ class OidcClient:
             base_url: The issuer's base URL as seen from the test process.
         """
         self.base_url = base_url.rstrip("/")
-        self._cache: dict[str, str] = {}
+        self._cache: dict[str, tuple[float, str]] = {}
 
     def _call(self, method: str, path: str, body: Any = None) -> Any:
         data = None if body is None else json.dumps(body).encode("utf-8")
         request = urllib.request.Request(self.base_url + path, data=data, method=method)
         request.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.loads(response.read())
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            raise urllib.error.HTTPError(exc.url, exc.code, f"{exc.reason}: {detail}", exc.headers, None) from exc
 
     def mint(self, sub: str, **options: Any) -> dict[str, Any]:
         """Mint a token with full control (see ``oidc/issuer.py`` for options).
@@ -157,9 +164,12 @@ class OidcClient:
             "userinfo": userinfo,
         }
         key = json.dumps(request, sort_keys=True)
-        if key not in self._cache:
-            self._cache[key] = str(self._call("POST", "/_control/tokens", request)["access_token"])
-        return self._cache[key]
+        cached = self._cache.get(key)
+        if cached is None or cached[0] < time.time() + TOKEN_MARGIN:
+            answer = self._call("POST", "/_control/tokens", request)
+            cached = (time.time() + float(answer["expires_in"]), str(answer["access_token"]))
+            self._cache[key] = cached
+        return cached[1]
 
     def reset(self, keys: bool = False) -> None:
         """Forget tokens, userinfo behaviours and calls (issuer and cache).

@@ -242,6 +242,12 @@ def test_control_validation(issuer, body):
     [
         ("PUT", "/_control/userinfo", {"default": {"mode": "xml"}}),
         ("PUT", "/_control/userinfo", {"subjects": {"a": 1}}),
+        ("PUT", "/_control/userinfo", {"default": {"status": "x"}}),
+        ("PUT", "/_control/userinfo", {"default": {"status": 99}}),
+        ("PUT", "/_control/userinfo", {"default": {"delay": -1}}),
+        ("PUT", "/_control/userinfo", {"default": {"delay": "1"}}),
+        ("PUT", "/_control/userinfo", {"default": {"close": "yes"}}),
+        ("PUT", "/_control/userinfo", {"subjects": {"a": {"sub": 1}}}),
         ("PUT", "/_control/userinfo", []),
         ("POST", "/_control/keys/rotate", {"issuer": "z"}),
         ("POST", "/_control/keys/retire", {"kid": "nope"}),

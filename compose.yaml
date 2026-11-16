@@ -122,7 +122,8 @@ services:
 
   # Mock OIDC issuer with issuers "a" and "b" (oidc/issuer.py). The issuer
   # URL follows the host name a TES uses: http://127.0.0.1:18193/a from the
-  # host, http://tes-authz-oidc:8080/a from the compose network.
+  # host, http://tes-authz-oidc:8080/a from the compose network. For kind
+  # pods, attach the container to the kind network (README, "Add a TES").
   oidc:
     <<: *python
     container_name: tes-authz-oidc

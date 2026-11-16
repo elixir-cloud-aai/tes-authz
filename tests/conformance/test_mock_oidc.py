@@ -1,14 +1,17 @@
 """The mock TES against the mock OIDC issuer: AuthN as a real TES does it.
 
 These pin what every adapter relies on: tokens from the issuer validate
-through discovery and JWKS, bad tokens are refused, key rotation works, and
-a TES pinned to both issuers stamps ``<iss>|<sub>`` owners (spec section
-3.1). They run the mock TES directly, so they need no adapter.
+through discovery and JWKS, bad tokens are refused, key rotation works, the
+userinfo cache behaves as spec section 3.6 says, and a TES pinned to both
+issuers stamps ``<iss>|<sub>`` owners (spec section 3.1). They run the mock
+TES directly, so they need no adapter.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
 
@@ -25,12 +28,12 @@ TASK = {"name": "t", "executors": [{"image": "docker.io/library/alpine:3.20"}]}
 
 
 @pytest.fixture
-def tes_for() -> Iterator:
+def tes_for() -> Iterator[Callable[..., str]]:
     """Start mock TESes pinned to given issuers; stop them afterwards."""
     started = []
 
-    def _start(*issuers: str, pdp: str | None = None) -> str:
-        srv, url = server.start(server.Settings(pdp_url=pdp, issuers=issuers, audience=AUDIENCE))
+    def _start(*issuers: str, pdp: str | None = None, **settings: Any) -> str:
+        srv, url = server.start(server.Settings(pdp_url=pdp, issuers=issuers, audience=AUDIENCE, **settings))
         started.append(srv)
         return url
 
@@ -51,7 +54,7 @@ def _create(url: str, token: str | None) -> int:
         {"alg": "none"},
         {"key": "unpublished"},
         {"aud": "other-service"},
-        {"expires_in": -5},
+        {"expires_in": -3600},
         {"issuer": "b"},
         {"issuer": "b", "claims": {"iss": issuer_url("a")}},
         {"header": {"kid": "no-such-key"}},
@@ -73,6 +76,14 @@ def test_missing_and_opaque_tokens_refused(oidc: OidcClient, tes_for):
     assert _create(url, oidc.mint("alice")["access_token"]) == 200
 
 
+def test_no_issuer_or_unreachable_issuer(oidc: OidcClient, tes_for):
+    """Without pinned issuers, or with an unreachable one, every token gets 401."""
+    token = oidc.mint("alice")["access_token"]
+    assert _create(tes_for(), token) == 401
+    down = "http://127.0.0.1:9/a"
+    assert _create(tes_for(down), oidc.mint("alice", claims={"iss": down})["access_token"]) == 401
+
+
 def test_rotation_refetches_jwks(oidc: OidcClient, tes_for):
     """After a rotation without overlap, tokens with the new key are accepted (JWKS refetch)."""
     url = tes_for(issuer_url("a"))
@@ -81,10 +92,39 @@ def test_rotation_refetches_jwks(oidc: OidcClient, tes_for):
     assert _create(url, oidc.mint("alice")["access_token"]) == 200
 
 
-def test_multi_issuer_owners(oidc: OidcClient, tes_for):
+def test_userinfo_wrong_content_type_refused(oidc: OidcClient, tes_for):
+    """Userinfo answers that are not ``application/json`` give 401."""
+    url = tes_for(issuer_url("a"), userinfo=True)
+    oidc.userinfo_behaviour({"content_type": "text/plain"})
+    assert _create(url, oidc.mint("alice")["access_token"]) == 401
+
+
+def test_userinfo_cache_ttl_and_size(oidc: OidcClient, tes_for, monkeypatch):
+    """Cached answers expire after the TTL, and the cache keeps at most its size (LRU)."""
+    monkeypatch.setattr(server, "USERINFO_TTL", 0.5)
+    monkeypatch.setattr(server, "USERINFO_CACHE_SIZE", 1)
+    url = tes_for(issuer_url("a"), userinfo=True)
+    first, second = (oidc.mint(sub)["access_token"] for sub in ("alice", "bob"))
+    assert _create(url, first) == 200 and _create(url, first) == 200
+    assert len(oidc.userinfo_calls()) == 1
+    time.sleep(0.6)
+    assert _create(url, first) == 200
+    assert len(oidc.userinfo_calls()) == 2
+    assert _create(url, second) == 200 and _create(url, first) == 200
+    assert [c["sub"] for c in oidc.userinfo_calls()] == ["alice", "alice", "bob", "alice"]
+
+
+def test_userinfo_cache_ends_with_token(oidc: OidcClient, tes_for):
+    """A cached answer never outlives its token: an expired token is refused, not served from cache."""
+    url = tes_for(issuer_url("a"), userinfo=True)
+    token = oidc.mint("alice", expires_in=2)["access_token"]
+    assert _create(url, token) == 200
+    time.sleep(2.1)
+    assert _create(url, token) == 401
+
+
+def test_multi_issuer_owners(oidc: OidcClient, stub: StubClient, tes_for):
     """Pinned to two issuers, the same ``sub`` from each is a different owner ``<iss>|<sub>``."""
-    stub = StubClient(STUB.host_url.removesuffix("/access/v1/evaluation"))
-    stub.reset()
     stub.script(default=ALLOW)
     url = tes_for(issuer_url("a"), issuer_url("b"), pdp=STUB.host_url)
     from_a = oidc.mint("alice", issuer="a")["access_token"]

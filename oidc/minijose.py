@@ -20,7 +20,7 @@ import math
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeGuard
 
 PUBLIC_EXPONENT = 65537
 """RSA public exponent."""
@@ -33,6 +33,10 @@ _SMALL_PRIMES = [p for p in range(3, 2000, 2) if all(p % d for d in range(3, mat
 
 class JoseError(ValueError):
     """Raised when a token is malformed or fails validation."""
+
+
+class UnknownKeyError(JoseError):
+    """Raised when the token's signing key is not (or not unambiguously) in the JWKS."""
 
 
 def b64url_encode(data: bytes) -> str:
@@ -310,6 +314,11 @@ def decode_unverified(token: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return header, payload
 
 
+def _is_number(value: Any) -> TypeGuard[int | float]:
+    """Tell whether a claim is a finite JSON number (not a boolean, NaN or infinity)."""
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+
+
 def verify_jwt(
     token: str, jwks: dict[str, Any], issuer: str, audience: str, now: float | None = None, leeway: float = 0
 ) -> dict[str, Any]:
@@ -341,7 +350,7 @@ def verify_jwt(
     kid = header.get("kid")
     candidates = [k for k in keys if k.get("kid") == kid] if kid is not None else keys
     if len(candidates) != 1:
-        raise JoseError("signing key not in JWKS")
+        raise UnknownKeyError("signing key not in JWKS")
     signing_input, _, signature = token.rpartition(".")
     if not rs256_verify(public_key_from_jwk(candidates[0]), signing_input.encode("ascii"), b64url_decode(signature)):
         raise JoseError("bad signature")
@@ -352,10 +361,10 @@ def verify_jwt(
     if not (aud == audience or (isinstance(aud, list) and audience in aud)):
         raise JoseError("wrong audience")
     exp = claims.get("exp")
-    if not isinstance(exp, int | float) or isinstance(exp, bool) or exp + leeway <= current:
+    if not _is_number(exp) or exp + leeway <= current:
         raise JoseError("expired or no exp")
     for name in ("nbf", "iat"):
-        if name in claims and (not isinstance(claims[name], int | float) or isinstance(claims[name], bool)):
+        if name in claims and not _is_number(claims[name]):
             raise JoseError(f"{name} is not a number")
     if "nbf" in claims and claims["nbf"] - leeway > current:
         raise JoseError("not yet valid")

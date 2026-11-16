@@ -51,7 +51,8 @@ connection without an answer.
 
 Settings (environment): OIDC_PORT (default 8080), OIDC_ISSUERS (default
 ``a,b``), OIDC_KEY_BITS (default 2048), OIDC_DEFAULT_AUDIENCE (default
-``tes-authz``), OIDC_MAX_TOKENS (default 100000).
+``tes-authz``), OIDC_MAX_TOKENS (default 100000), OIDC_LOG_LEVEL (default
+INFO).
 """
 
 from __future__ import annotations
@@ -379,6 +380,30 @@ def mint(state: State, request: Any, host_base: str) -> dict[str, Any]:
     return {"access_token": token, "token_type": "Bearer", "expires_in": expires_in, "iss": iss, "kid": kid}
 
 
+def check_behaviour(behaviour: dict[str, Any]) -> None:
+    """Validate one userinfo behaviour.
+
+    Args:
+        behaviour: The behaviour.
+
+    Raises:
+        ControlError: If a field has the wrong type or value.
+    """
+    if behaviour.get("mode", "json") not in ("json", "jwt"):
+        raise ControlError("mode must be json or jwt")
+    status = behaviour.get("status", 200)
+    if not isinstance(status, int) or isinstance(status, bool) or not 100 <= status <= 599:
+        raise ControlError("status must be an HTTP status code")
+    delay = behaviour.get("delay", 0)
+    if not isinstance(delay, int | float) or isinstance(delay, bool) or not 0 <= delay <= 60:
+        raise ControlError("delay must be a number of seconds from 0 to 60")
+    if not isinstance(behaviour.get("close", False), bool):
+        raise ControlError("close must be a boolean")
+    for key in ("sub", "content_type"):
+        if key in behaviour and not isinstance(behaviour[key], str):
+            raise ControlError(f"{key} must be a string")
+
+
 def discovery(issuer: str) -> dict[str, Any]:
     """Build the discovery document (OpenID Connect Discovery 1.0).
 
@@ -504,8 +529,7 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
                 if not all(isinstance(v, dict) for v in subjects.values()):
                     raise ControlError("each subject behaviour must be an object")
                 for behaviour in (default, *subjects.values()):
-                    if behaviour.get("mode", "json") not in ("json", "jwt"):
-                        raise ControlError("mode must be json or jwt")
+                    check_behaviour(behaviour)
             except ControlError as exc:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                 return
@@ -562,22 +586,28 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             valid = record is not None and record.issuer == name and record.exp > time.time()
             behaviour = state.behaviour_for(record.sub if record else None)
             mode = str(behaviour.get("mode", "json"))
+            status = int(behaviour.get("status", 200))
+            # Record on arrival, before any delay: a delayed call must not
+            # show up after a later reset (it would count for the next test).
+            if behaviour.get("close"):
+                outcome = 0
+            elif not valid or record is None:
+                outcome = HTTPStatus.UNAUTHORIZED
+            else:
+                outcome = status
+            state.record_call(name, token, record.sub if record else None, outcome, mode)
             if behaviour.get("delay"):
                 time.sleep(float(behaviour["delay"]))
             if behaviour.get("close"):
-                state.record_call(name, token, record.sub if record else None, 0, mode)
                 self.close_connection = True
                 return
             if not valid or record is None:
-                state.record_call(name, token, record.sub if record else None, HTTPStatus.UNAUTHORIZED, mode)
                 self._json(
                     HTTPStatus.UNAUTHORIZED,
                     {"error": "invalid_token"},
                     {"WWW-Authenticate": 'Bearer error="invalid_token"'},
                 )
                 return
-            status = int(behaviour.get("status", 200))
-            state.record_call(name, token, record.sub, status, mode)
             if status != HTTPStatus.OK:
                 self._json(status, {"error": "server_error"})
                 return

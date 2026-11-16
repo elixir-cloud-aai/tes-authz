@@ -130,19 +130,28 @@ The replay (all golden cases), the smoke tests and every TES adapter then pick i
    - `owner_id(Identity)` returns the owner the TES stamps (`identity.sub` for a single-issuer TES).
    - `subject_fixtures(Identity)` returns `iss` (`issuer_url("a", base)`) and `client_id` (`harness.oidc.default_claims(identity)["azp"]` for users, `["client_id"]` for client-credentials identities; `None` where the TES can't fill them, e.g. TESK for user tokens).
    - `stop()` stops it.
-   - `features` names optional features (`userinfo`, `grpc`, `scope-bound-cursor`, …). With `userinfo`, cases 6b, 20 and 21 run.
+   - `features` names optional features (`userinfo`, `userinfo-timeout`, `opaque-tokens`, `grpc`, `scope-bound-cursor`, …). With `userinfo`, cases 6b, 20 and 21 run. Case 20's timeout variant runs only with `userinfo-timeout`: the adapter bounds discovery, JWKS and userinfo calls by `HookConfig.timeout` (the test sets 1 s and delays userinfo by 3 s). With `opaque-tokens` (TESK), case 20's `sub`-mismatch variant is skipped, because there is no token `sub` to compare.
 2. OIDC wiring (mock issuer, compose service `oidc`, container `tes-authz-oidc`):
 
    | TES runs | Issuer URL to configure | Mint with |
    |---|---|---|
    | on the host | `issuer_url("a")` = `http://127.0.0.1:18193/a` | `OIDC.token_for(identity)` |
    | on the compose network | `issuer_url("a", NETWORK_BASE)` = `http://tes-authz-oidc:8080/a` | `OIDC.token_for(identity, base=NETWORK_BASE)` |
-   | elsewhere (e.g. kind pods) | `http://<host:port the TES reaches>/a` | `OIDC.token_for(identity, base="http://<same host:port>")` |
+   | in kind pods (Poiesis, TESK) | `http://<issuer IP on the kind network>:8080/a` (below) | `OIDC.token_for(identity, base="http://<same IP>:8080")` |
+
+   The issuer publishes its port on host loopback only, which kind pods can't reach. Attach the container to the kind network and use its IP there (not yet verified from a pod; the first kind adapter confirms it):
+
+   ```sh
+   docker network connect kind tes-authz-oidc
+   docker inspect -f '{{(index .NetworkSettings.Networks "kind").IPAddress}}' tes-authz-oidc
+   ```
+
+   Pods reach container IPs on the kind network through their node. The issuer derives its URL from the `Host` header, so `http://<ip>:8080/a` is a consistent issuer as long as tokens are minted with the same `base`. `make down` removes the container and with it the attachment.
 
    - Audience: `AUDIENCE` (`tes-authz`). Discovery is at `<issuer>/.well-known/openid-configuration`; JWKS, userinfo and the issuer field in discovery follow the host name the TES used, so they stay consistent wherever it runs. Tokens must be minted with the same `base`, because `iss` must match exactly.
-   - TESes that validate JWTs (Poiesis, Funnel, TESP) use the default `fmt="jwt"`; TESK, which validates opaque tokens at userinfo only, uses `fmt="opaque"` (userinfo then returns the identity's token claims over its userinfo claims, so the resolved view is the same as for a JWT TES).
+   - TESes that validate JWTs (Poiesis, Funnel, TESP) use the default `fmt="jwt"`; TESK, which validates opaque tokens at userinfo only, uses `fmt="opaque"` and declares the `opaque-tokens` feature (userinfo then returns the identity's token claims over its userinfo claims, so the resolved view is the same as for a JWT TES).
    - Multi-issuer setups pin `issuer_url("a", …)` and `issuer_url("b", …)` and mint with `issuer="b"` for the second one; owners are then `<iss>|<sub>`.
-   - Negative AuthN cases: `OIDC.mint(sub, base=…, **options)` with `alg="none"`, `key="unpublished"`, `aud=…`, `expires_in=-1`, `claims={…}`, `header={…}`; key rotation with `OIDC.rotate()`/`OIDC.retire()`. Tests that script the issuer take the `oidc` fixture (resets it first).
+   - Negative AuthN cases: `OIDC.mint(sub, base=…, **options)` with `alg="none"`, `key="unpublished"`, `aud=…`, `expires_in=-3600` (real stacks allow 30–60 s of clock skew, so a token that expired a second ago may still pass), `claims={…}`, `header={…}`; key rotation with `OIDC.rotate()`/`OIDC.retire()`. Tests that script the issuer take the `oidc` fixture. It resets tokens, userinfo behaviours and recorded calls, but signing keys survive (a rotation in one test leaves a new active key for the next); call `oidc.reset(keys=True)` when a test needs fresh keys.
 3. Containerised TESes use `Engine.network_url` and join the compose network `tes-authz_default`.
 4. Run `TES_AUTHZ_TES=mock,<name> make test`.
 
