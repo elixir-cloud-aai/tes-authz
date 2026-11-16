@@ -20,6 +20,9 @@ from .conftest import http
 
 pytestmark = pytest.mark.services
 
+# A member entitlement: owners need one (Q11), so the owner condition is evaluated.
+MEMBER = "urn:geant:lifescience-ri.eu:group:example-vo#login.aai.lifescience-ri.eu"
+
 
 @pytest.fixture(scope="module")
 def fga_eval(services) -> str:
@@ -41,23 +44,23 @@ def _owner_req(subject_props, resource_props, subject_id="u1"):
 
 def test_openfga_missing_condition_parameter_is_an_error(fga_eval):
     """Spec section 7 / review 2 finding 3: missing parameter -> error, not deny."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {}))
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {}))
     assert status == 400
     assert "missing context parameters" in body["message"] and "resource_owner" in body["message"]
 
 
 def test_openfga_subject_id_is_not_in_condition_context(fga_eval):
     """Spec section 7: only subject properties reach the context, not subject.id."""
-    status, body = http("POST", fga_eval, _owner_req({"entitlements": []}, {"owner": "u1"}))
+    status, body = http("POST", fga_eval, _owner_req({"entitlements": [MEMBER]}, {"owner": "u1"}))
     assert status == 400
     assert "subject_id" in body["message"]
 
 
 def test_openfga_with_all_parameters_decides(fga_eval):
     """With all parameters present, OpenFGA decides instead of failing."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {"owner": "u1"}))
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": "u1"}))
     assert (status, body) == (200, {"decision": True})
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {"owner": ""}))
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": ""}))
     assert (status, body) == (200, {"decision": False})
 
 
@@ -89,7 +92,7 @@ def test_openfga_identifier_limit_boundaries(fga_eval):
 
 def test_openfga_unknown_relation_is_an_error(fga_eval):
     """An action that is not a relation errors (so the shim validates actions first)."""
-    req = _owner_req({"id": "u1", "entitlements": []}, {"owner": ""})
+    req = _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": ""})
     req["action"]["name"] = "DeleteTask"
     status, body = http("POST", fga_eval, req)
     assert status == 400 and "not found" in body["message"]
@@ -97,7 +100,7 @@ def test_openfga_unknown_relation_is_an_error(fga_eval):
 
 def test_openfga_answers_decision_only(fga_eval):
     """Spec section 3.5: native AuthZEN PDPs return only ``decision``."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {"owner": "u1"}))
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": "u1"}))
     assert status == 200 and set(body) == {"decision"}
 
 
@@ -176,7 +179,7 @@ def test_shims_require_content_length(services):
 def test_openfga_shim_rejects_lists_over_limit(services):
     """Above SHIM_MAX_LIST_ITEMS the OpenFGA shim fails the request (502) instead of guessing."""
     req = _get_request("u1", "u1")
-    req["subject"]["properties"] = {"claims": {"eduperson_entitlement": [f"urn:x:{i}" for i in range(1025)]}}
+    req["subject"]["properties"] = {"claims": {"eduperson_entitlement": [*(f"urn:x:{i}" for i in range(1024)), MEMBER]}}
     assert http("POST", ENGINES["openfga"].host_url, req)[0] == 502
     assert http("POST", ENGINES["opa"].host_url, req) == (200, {"decision": True})
 

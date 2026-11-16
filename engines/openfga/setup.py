@@ -77,7 +77,7 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     return [
         req("ListTasks", "tes_task_set", "own", entitlements, {}),
         req("ListTasks", "tes_task_set", "all", entitlements, {}),
-        req("GetTask", "tes_task", "t", entitlements, {"owner": "other"}),
+        req("GetTask", "tes_task", "t", entitlements, {"owner": "self-check"}),
         req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
     ]
 
@@ -135,6 +135,7 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
         add(own, "lister", "entitled", members)
         add(all_, "lister", "entitled", admins)
         add(svc, "owner", "is_owner", None)
+        add(svc, "member", "entitled", members)
         add(svc, "admin", "entitled", admins)
     return tuples
 

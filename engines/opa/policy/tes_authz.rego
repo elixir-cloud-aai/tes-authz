@@ -9,8 +9,9 @@
 #
 # Rules:
 #   CreateTask on tes_task_set:own   member, and every executor image allowed
-#   GetTask, CancelTask on tes_task  resource owner == subject.id, or admin;
-#                                    missing or empty owner: admins only
+#   GetTask, CancelTask on tes_task  member and resource owner == subject.id,
+#                                    or admin; missing or empty owner: admins
+#                                    only (owners need a current entitlement)
 #   ListTasks on tes_task_set:own    member
 #   ListTasks on tes_task_set:all    admin
 # Anything else, and any request outside the profile, is denied.
@@ -106,6 +107,7 @@ owner_or_admin if {
 	is_string(owner)
 	owner != ""
 	owner == input.subject.id
+	member
 }
 
 owner_or_admin if admin
