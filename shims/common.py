@@ -194,19 +194,33 @@ def hash_id(value: str) -> str:
     return "h-" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+_URL_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
+
+
+def _first_of(text: str, chars: str) -> int:
+    """Return the index of the first of ``chars`` in ``text``, or -1."""
+    hits = [i for i in (text.find(c) for c in chars) if i >= 0]
+    return min(hits) if hits else -1
+
+
 def strip_url(value: str) -> str | None:
     """Strip credentials from a URL with the plain string rule of the spec.
 
-    This is the TES-side projection rule (spec section 3.3), kept here as
-    the executable definition of the golden URL cases:
+    This is the TES-side projection rule (spec section 3.3, six steps), kept
+    here as the executable definition of the golden URL cases:
 
-    1. Cut the value at the first ``?`` or ``#``.
-    2. If it contains ``://``: in the authority (from after ``://`` to the
-       next ``/``, or the end), drop everything up to and including the last
-       ``@``.
-    3. If it has no ``://``: keep it unchanged if it contains no ``@``;
-       otherwise omit the field (``None``).
-    4. No other normalisation.
+    1. Scheme: only an RFC 3986 scheme (``ALPHA *(ALPHA/DIGIT/+/-/.)``)
+       directly followed by ``://`` at the start counts. Split into
+       ``scheme://``, the region W up to the first ``/`` (or the end) and
+       the rest. Otherwise go to step 5.
+    2. Ambiguity: if W's last ``@`` comes after its first ``?`` or ``#``,
+       omit the field.
+    3. Authority: W up to its first ``?`` or ``#`` (the remainder joins the
+       rest); drop everything up to and including its last ``@``.
+    4. Cut the rest at its first ``?`` or ``#``; an ``@`` in the path stays.
+    5. No scheme: keep the value only if it has neither ``@`` nor ``?``;
+       otherwise omit it.
+    6. No other normalisation.
 
     Args:
         value: The URL as submitted.
@@ -214,21 +228,26 @@ def strip_url(value: str) -> str | None:
     Returns:
         The stripped URL, or ``None`` if the field must be omitted.
     """
-    for index, char in enumerate(value):
-        if char in "?#":
-            value = value[:index]
-            break
-    marker = value.find("://")
-    if marker < 0:
-        return value if "@" not in value else None
-    start = marker + 3
-    end = value.find("/", start)
-    authority = value[start:] if end < 0 else value[start:end]
-    rest = "" if end < 0 else value[end:]
+    match = _URL_SCHEME.match(value)
+    if match is None:
+        return value if "@" not in value and "?" not in value else None
+    scheme, body = value[: match.end()], value[match.end() :]
+    slash = body.find("/")
+    region, rest = (body, "") if slash < 0 else (body[:slash], body[slash:])
+    query = _first_of(region, "?#")
+    at = region.rfind("@")
+    if at >= 0 and 0 <= query < at:
+        return None
+    authority = region
+    if query >= 0:
+        authority, rest = region[:query], region[query:] + rest
     at = authority.rfind("@")
     if at >= 0:
         authority = authority[at + 1 :]
-    return value[:start] + authority + rest
+    cut = _first_of(rest, "?#")
+    if cut >= 0:
+        rest = rest[:cut]
+    return scheme + authority + rest
 
 
 class UpstreamError(RuntimeError):

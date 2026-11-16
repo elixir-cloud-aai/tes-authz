@@ -9,7 +9,8 @@
   "name": "create-list-mixed-types",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

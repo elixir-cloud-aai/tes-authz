@@ -9,7 +9,8 @@
   "name": "create-image-prefix-trick",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

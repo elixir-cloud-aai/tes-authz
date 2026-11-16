@@ -9,7 +9,8 @@
   "name": "create-multi-issuer",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

@@ -9,7 +9,8 @@
   "name": "create-no-claim",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

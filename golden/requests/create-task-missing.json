@@ -9,7 +9,8 @@
   "name": "create-task-missing",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

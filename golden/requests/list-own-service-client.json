@@ -27,6 +27,7 @@
     "subject": {
       "id": "service-account-proxy",
       "properties": {
+        "claims": {},
         "client_id": "protes",
         "iss": "https://login.aai.lifescience-ri.eu/oidc/",
         "scope": [

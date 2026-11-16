@@ -9,7 +9,8 @@
   "name": "create-member-exact",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

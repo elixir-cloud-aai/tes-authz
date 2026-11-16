@@ -9,7 +9,8 @@
   "name": "create-unknown-service",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

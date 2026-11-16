@@ -9,7 +9,8 @@
   "name": "create-image-mixed",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

@@ -22,6 +22,7 @@
     },
     "resource": {
       "id": "no-such-task",
+      "properties": {},
       "type": "tes_task"
     },
     "subject": {

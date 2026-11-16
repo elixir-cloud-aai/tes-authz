@@ -9,7 +9,8 @@
   "name": "create-subject-type",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

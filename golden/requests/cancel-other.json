@@ -9,7 +9,8 @@
   "name": "cancel-other",
   "request": {
     "action": {
-      "name": "CancelTask"
+      "name": "CancelTask",
+      "properties": {}
     },
     "context": {
       "tes": {

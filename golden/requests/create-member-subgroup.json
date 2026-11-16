@@ -9,7 +9,8 @@
   "name": "create-member-subgroup",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

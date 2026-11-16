@@ -9,7 +9,8 @@
   "name": "create-no-executors",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

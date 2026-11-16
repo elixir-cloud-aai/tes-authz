@@ -9,7 +9,8 @@
   "name": "create-1024-executors-allowed",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

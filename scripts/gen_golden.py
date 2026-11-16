@@ -60,8 +60,7 @@ def subject(
         "client_id": client_id,
         "scope": ["openid", "eduperson_entitlement"],
     }
-    if claims:
-        props["claims"] = {} if entitlements is None else {"eduperson_entitlement": entitlements}
+    props["claims"] = {} if entitlements is None or not claims else {"eduperson_entitlement": entitlements}
     return {"type": "user", "id": owner_id or sub, "properties": props}
 
 
@@ -100,8 +99,9 @@ def request(
         action: The action name.
         rtype: The resource type.
         rid: The resource ID.
-        rprops: Resource properties.
-        aprops: Action properties.
+        rprops: Resource properties (``None``: no ``properties`` key, as on
+            ``ListTasks`` sets; ``{}`` for a missing task, spec section 3.7).
+        aprops: Action properties (always sent; ``{}`` when ``None``).
         context: Replacement for the default context.
 
     Returns:
@@ -110,9 +110,7 @@ def request(
     resource: dict[str, Any] = {"type": rtype, "id": rid}
     if rprops is not None:
         resource["properties"] = rprops
-    act: dict[str, Any] = {"name": action}
-    if aprops is not None:
-        act["properties"] = aprops
+    act: dict[str, Any] = {"name": action, "properties": {} if aprops is None else aprops}
     ctx = context if context is not None else {"tes": {"profile": "tes-authzen/1", "service_id": SERVICE}}
     return {"subject": subj, "action": act, "resource": resource, "context": ctx}
 
@@ -132,7 +130,7 @@ def create(
         The AuthZEN request.
     """
     return request(
-        subj, "CreateTask", "tes_task_set", set_id, {"task": TASK if task is None else task}, context=context
+        subj, "CreateTask", "tes_task_set", set_id, {"task": TASK if task is None else task}, {}, context=context
     )
 
 
@@ -295,14 +293,14 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "get-missing",
             "11",
             "missing task: no properties at all",
-            request(ALICE, "GetTask", "tes_task", "no-such-task", None, view),
+            request(ALICE, "GetTask", "tes_task", "no-such-task", {}, view),
             F,
         ),
         (
             "get-missing-admin",
             "11",
             "missing task, admin: the PDP may allow; the TES still answers 404",
-            request(DAVE, "GetTask", "tes_task", "no-such-task", None, view),
+            request(DAVE, "GetTask", "tes_task", "no-such-task", {}, view),
             T,
         ),
         (
@@ -397,12 +395,12 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             request(DAVE, "CancelTask", "tes_task", "task-b1", task_meta("bob-sub")),
             T,
         ),
-        ("cancel-missing", "11", "missing task", request(ALICE, "CancelTask", "tes_task", "no-such-task"), F),
+        ("cancel-missing", "11", "missing task", request(ALICE, "CancelTask", "tes_task", "no-such-task", {}), F),
         (
             "cancel-missing-admin",
             "11",
             "missing task, admin",
-            request(DAVE, "CancelTask", "tes_task", "no-such-task"),
+            request(DAVE, "CancelTask", "tes_task", "no-such-task", {}),
             T,
         ),
         # ListTasks (cases 12, 13, 14)
@@ -510,19 +508,21 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
 
 
 URL_CASES: list[tuple[str, str | None, str]] = [
-    ("https://u:p@h/p?sig=x", "https://h/p", "spec: userinfo and query"),
-    ("s3://b/k?X-Amz-Signature=x", "s3://b/k", "spec: presigned query"),
-    ("ftp://a@b@h/p", "ftp://h/p", "spec: last '@' in the authority"),
-    ("file:///d/f", "file:///d/f", "spec: empty authority unchanged"),
-    ("/local/path", "/local/path", "spec: no '://', no '@'"),
-    ("user@host:path", None, "spec: no '://' with '@' is omitted"),
-    ("https://u@h", "https://h", "authority to the end"),
-    ("drs://u:p@h/obj#frag", "drs://h/obj", "fragment cut"),
-    ("http://[::1]:8080/p?x=1", "http://[::1]:8080/p", "IPv6 host and port kept"),
-    ("s3://bucket/key@v1", "s3://bucket/key@v1", "'@' in the path is kept"),
-    ("gs://b/k#x?y", "gs://b/k", "first of '?' or '#'"),
-    ("relative?x=@", "relative", "cut before the '@' test"),
-    ("HTTPS://H/%41", "HTTPS://H/%41", "no normalisation"),
+    ("https://u:p@h/p?sig=x", "https://h/p", "userinfo and query"),
+    ("s3://b/k?X-Amz-Signature=x", "s3://b/k", "presigned query"),
+    ("drs://u:p@h/obj", "drs://h/obj", "userinfo"),
+    ("ftp://a@b@h/p", "ftp://h/p", "last '@' in the authority"),
+    ("https://h?sig=x", "https://h", "query right after the host"),
+    ("https://h/p#frag", "https://h/p", "fragment"),
+    ("s3://b/user@x/f", "s3://b/user@x/f", "'@' in the path is kept"),
+    ("file:///d/f", "file:///d/f", "empty authority"),
+    ("https://u:p?ss@h/p", None, "step 2: '@' after '?' in the authority region"),
+    ("https://evil?x=@trusted/p", None, "step 2: query with '@' before any '/'"),
+    ("u:p@host/x://y", None, "no scheme before '://'; contains '@'"),
+    ("1s://u@h/p", None, "invalid scheme; contains '@'"),
+    ("/local/path", "/local/path", "no scheme, no '@' or '?'"),
+    ("/local/path?x", None, "no scheme, contains '?'"),
+    ("user@host:path", None, "no scheme, contains '@'"),
 ]
 
 

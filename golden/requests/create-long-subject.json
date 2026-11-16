@@ -9,7 +9,8 @@
   "name": "create-long-subject",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

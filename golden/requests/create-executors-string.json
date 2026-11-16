@@ -9,7 +9,8 @@
   "name": "create-executors-string",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

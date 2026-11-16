@@ -9,7 +9,8 @@
   "name": "create-executor-no-image",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

@@ -9,7 +9,8 @@
   "name": "create-1023-entitlements-non-member",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {

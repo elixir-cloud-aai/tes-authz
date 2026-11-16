@@ -9,7 +9,8 @@
   "name": "create-parent-without-authority",
   "request": {
     "action": {
-      "name": "CreateTask"
+      "name": "CreateTask",
+      "properties": {}
     },
     "context": {
       "tes": {
