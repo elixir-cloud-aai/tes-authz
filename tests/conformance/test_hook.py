@@ -293,7 +293,11 @@ def test_case_18_subject_from_token_only(start, stub):
     stub.script(default=ALLOW)
     tes = start(decision_service="stub", claims=ALLOWLIST)
     headers = {"X-Request-ID": "client-request-id", "X-User": "bob-sub", "X-Forwarded-User": "bob-sub"}
-    task = {"name": "t", "tags": {"owner": "bob-sub"}, "executors": [{"image": "docker.io/library/alpine"}]}
+    task = {
+        "name": "t",
+        "tags": {"owner": "bob-sub"},
+        "executors": [{"image": "docker.io/library/alpine", "command": ["true"]}],
+    }
     assert tes.call("POST", "/tasks", ALICE, task, headers)[0] == 200
     (recorded,) = stub.requests()
     assert recorded["body"]["subject"]["id"] == ALICE.sub
@@ -317,7 +321,7 @@ def test_case_19_allowlist_and_no_token(start, stub, adapter):
 
 def test_case_22_builtin_owner_rule(start, adapter):
     """Case 22: without a PDP the built-in owner rule applies (per TES)."""
-    if adapter.name not in ("mock",):
+    if adapter.name not in ("mock", "tesp"):
         pytest.skip("per-TES expectation; add it with the adapter")
     tes = start()
     task_id = tes.create(BOB)[1]["id"]
