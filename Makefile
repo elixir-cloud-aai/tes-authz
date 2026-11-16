@@ -6,9 +6,9 @@ export UV_PROJECT_ENVIRONMENT := $(CURDIR)/.venv
 
 ## Run everything (lint, types, policy check, services, all suites, cleanup).
 test:
-	scripts/test.sh
+	bash scripts/test.sh
 
-## Start the engines, shims and stub (loopback ports 18080, 18181, 18190-18192).
+## Start the engines, shims, stub and mock OIDC issuer (loopback ports 18080, 18181, 18190-18193).
 up:
 	$(COMPOSE) up -d --wait
 
@@ -28,4 +28,4 @@ golden:
 	uv run python scripts/gen_golden.py
 
 lint:
-	uv run ruff check . && uv run ruff format --check . && uv run mypy shims stub harness tes engines/openfga scripts
+	uv run ruff check . && uv run ruff format --check . && uv run mypy shims stub oidc harness tes engines/openfga scripts

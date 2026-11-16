@@ -36,10 +36,12 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 | `engines/openfga/setup.py` | Creates the store, writes the model, generates the tuples from the data file, and records the IDs for the shim. |
 | `shims/openfga_shim.py` | The thin shim from spec §7 (mapping below). |
 | `stub/recording_pdp.py` | Recording stub PDP with a control API, for hook conformance (layer 1). |
+| `oidc/issuer.py`, `oidc/minijose.py` | Mock OIDC issuer (two issuers, `a` and `b`) with a control API: discovery, JWKS with scriptable rotation, RS256 JWT and opaque access tokens, userinfo in JSON and JWT mode, scripted userinfo failures. Standard library only (test-only RSA; see [Mock OIDC issuer](#mock-oidc-issuer)). |
+| `harness/oidc.py` | Client for the issuer: `OIDC.token_for(identity)` for adapters, plus key rotation and userinfo scripting for tests. |
 | `golden/` | Golden AuthZEN requests with expected decisions, the hook-side golden `create` request and the URL stripping cases. |
 | `harness/` | Engine registry, golden loading and diffing, stub client, TES-under-test interface. |
-| `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec §6 pseudo-code). |
-| `compose.yaml` | The engines, shims, stub and setup job, with pinned images, `tes-authz-*` container names and loopback ports. |
+| `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec §6 pseudo-code), with OIDC AuthN against the mock issuer and the optional userinfo lookup of spec §3.6. |
+| `compose.yaml` | The engines, shims, stub, mock OIDC issuer and setup job, with pinned images, `tes-authz-*` container names and loopback ports. |
 
 ### Reference policy
 
@@ -75,7 +77,7 @@ This compose file is a local test and reference setup. All containers are read-o
 
 ```sh
 make test     # lint, types, `opa check`, start services, all suites, stop and remove
-make up       # start only (ports 18080 OpenFGA, 18181 OPA, 18190 OPA front, 18191 OpenFGA shim, 18192 stub)
+make up       # start only (ports 18080 OpenFGA, 18181 OPA, 18190 OPA front, 18191 OpenFGA shim, 18192 stub, 18193 OIDC)
 make unit     # tests that need no containers
 make down     # stop and remove containers and the state volume
 ```
@@ -94,10 +96,12 @@ curl -s localhost:18190/access/v1/evaluation -d @<(jq .request golden/requests/c
 | golden | `tests/test_golden.py` | golden files match the generator, every case has an expectation, allowed cases follow the profile | 3 pass |
 | 2: engine conformance | `tests/test_engines.py` | 71 golden requests (65 generated + 6 recorded by Poiesis in `../golden/poiesis/`) × {OPA via front, OPA Data API, OpenFGA via shim} | 213 pass |
 | findings | `tests/test_findings.py`, `test_openfga_model.py` | engine behaviours the spec marked unverified (below), shim hardening | 21 pass |
-| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 11c (cancel parity), 12, 13, 14, 15 (×5 failure kinds on create, plus get, cancel and list), 16, 17, 18, 19, 22, and the exact request shape of §3.7, against the stub | 34 pass (mock TES) |
+| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 11c (cancel parity), 12, 13, 14, 15 (×5 failure kinds on create, plus get, cancel and list), 16, 17, 18, 19, 22, and the exact request shape of §3.7, against the stub; userinfo cases 6b, 20 (×5: `sub` mismatch, 500, dropped connection, timeout, `application/jwt`) and 21 for adapters with the `userinfo` feature | 41 pass (mock TES) |
 | 3: smoke | `tests/conformance/test_smoke.py` | TES × {OPA, OpenFGA}: allow, deny, foreign get 404, missing get and cancel 404, list scopes | 2 pass (mock TES) |
+| OIDC: issuer | `tests/test_oidc_issuer.py`, `tests/test_oidc_jose.py` | the mock issuer itself (in-process, plus one check of the compose service): discovery per host name, JWKS, rotation and retirement, opaque tokens, userinfo modes and failures, control API validation; RS256 cross-checked with PyJWT + `cryptography` in both directions | 73 pass |
+| OIDC: mock TES AuthN | `tests/conformance/test_mock_oidc.py` | the mock TES refuses `alg: none`, unpublished keys, wrong audience, expired tokens, another issuer, forged `iss`, unknown `kid`, opaque tokens; accepts tokens after a rotation (JWKS refetch); stamps `<iss>\|<sub>` owners when pinned to both issuers; no or unreachable issuer, wrong userinfo content type, userinfo cache TTL, LRU size and token expiry | 14 pass |
 
-Total: 319 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
+Total: 413 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
 
 The golden requests cover spec cases 3, 4, 4b, 5, 5d, 6, 7, 9–14 and 17, plus contract checks: missing or wrong profile, unknown service, wrong subject type, unknown set or action. They also cover legacy tasks without an owner, issuer-qualified (`<iss>|<sub>`) and 600-character subject IDs, and task IDs containing `:#@`. Realistic sizes: 1024 entitlements with the match last, 1023 non-matching ones, 1024 executors (all allowed, or the last denied). Malformed projections (executors as object, string or null; entries without image; no task) are denied when an image allowlist is set.
 
@@ -121,16 +125,45 @@ The replay (all golden cases), the smoke tests and every TES adapter then pick i
 ## Add a TES (phase 2)
 
 1. Create `tes/<name>/adapter.py` that exposes `ADAPTER`, implementing `harness.tes.TesUnderTest`:
-   - `start(HookConfig) -> base URL` maps the config onto the TES's keys (e.g. `POIESIS_AUTHZ_DECISION_SERVICE_URL`) and (re)starts it with an empty store.
-   - `token(Identity)` mints a token the TES accepts.
-   - `owner_id(Identity)` returns the owner the TES stamps.
-   - `subject_fixtures(Identity)` returns `iss` and `client_id` (`None` where the TES can't fill them, e.g. TESK for user tokens).
+   - `start(HookConfig) -> base URL` maps the config onto the TES's keys (e.g. `POIESIS_AUTHZ_DECISION_SERVICE_URL`), wires OIDC (step 2) and (re)starts it with an empty store. `HookConfig.userinfo` maps onto the TES's userinfo switch (`auth.oidc.userinfo.enabled`).
+   - `token(Identity)` returns `OIDC.token_for(identity, base=…)` (step 2).
+   - `owner_id(Identity)` returns the owner the TES stamps (`identity.sub` for a single-issuer TES).
+   - `subject_fixtures(Identity)` returns `iss` (`issuer_url("a", base)`) and `client_id` (`harness.oidc.default_claims(identity)["azp"]` for users, `["client_id"]` for client-credentials identities; `None` where the TES can't fill them, e.g. TESK for user tokens).
    - `stop()` stops it.
-   - `features` names optional features (`userinfo`, `grpc`, `scope-bound-cursor`, …).
-2. Containerised TESes use `Engine.network_url` and join the compose network `tes-authz_default`.
-3. Run `TES_AUTHZ_TES=mock,<name> make test`.
+   - `features` names optional features (`userinfo`, `userinfo-timeout`, `opaque-tokens`, `grpc`, `scope-bound-cursor`, …). With `userinfo`, cases 6b, 20 and 21 run. Case 20's timeout variant runs only with `userinfo-timeout`: the adapter bounds discovery, JWKS and userinfo calls by `HookConfig.timeout` (the test sets 1 s and delays userinfo by 3 s). With `opaque-tokens` (TESK), case 20's `sub`-mismatch variant is skipped, because there is no token `sub` to compare.
+2. OIDC wiring (mock issuer, compose service `oidc`, container `tes-authz-oidc`):
 
-The engine side, the stub and the suites stay unchanged.
+   | TES runs | Issuer URL to configure | Mint with |
+   |---|---|---|
+   | on the host | `issuer_url("a")` = `http://127.0.0.1:18193/a` | `OIDC.token_for(identity)` |
+   | on the compose network | `issuer_url("a", NETWORK_BASE)` = `http://tes-authz-oidc:8080/a` | `OIDC.token_for(identity, base=NETWORK_BASE)` |
+   | in kind pods (Poiesis, TESK) | `http://<issuer IP on the kind network>:8080/a` (below) | `OIDC.token_for(identity, base="http://<same IP>:8080")` |
+
+   The issuer publishes its port on host loopback only, which kind pods can't reach. Attach the container to the kind network and use its IP there (not yet verified from a pod; the first kind adapter confirms it):
+
+   ```sh
+   docker network connect kind tes-authz-oidc
+   docker inspect -f '{{(index .NetworkSettings.Networks "kind").IPAddress}}' tes-authz-oidc
+   ```
+
+   Pods reach container IPs on the kind network through their node. The issuer derives its URL from the `Host` header, so `http://<ip>:8080/a` is a consistent issuer as long as tokens are minted with the same `base`. `make down` removes the container and with it the attachment.
+
+   - Audience: `AUDIENCE` (`tes-authz`). Discovery is at `<issuer>/.well-known/openid-configuration`; JWKS, userinfo and the issuer field in discovery follow the host name the TES used, so they stay consistent wherever it runs. Tokens must be minted with the same `base`, because `iss` must match exactly.
+   - TESes that validate JWTs (Poiesis, Funnel, TESP) use the default `fmt="jwt"`; TESK, which validates opaque tokens at userinfo only, uses `fmt="opaque"` and declares the `opaque-tokens` feature (userinfo then returns the identity's token claims over its userinfo claims, so the resolved view is the same as for a JWT TES).
+   - Multi-issuer setups pin `issuer_url("a", …)` and `issuer_url("b", …)` and mint with `issuer="b"` for the second one; owners are then `<iss>|<sub>`.
+   - Negative AuthN cases: `OIDC.mint(sub, base=…, **options)` with `alg="none"`, `key="unpublished"`, `aud=…`, `expires_in=-3600` (real stacks allow 30–60 s of clock skew, so a token that expired a second ago may still pass), `claims={…}`, `header={…}`; key rotation with `OIDC.rotate()`/`OIDC.retire()`. Tests that script the issuer take the `oidc` fixture. It resets tokens, userinfo behaviours and recorded calls, but signing keys survive (a rotation in one test leaves a new active key for the next); call `oidc.reset(keys=True)` when a test needs fresh keys.
+3. Containerised TESes use `Engine.network_url` and join the compose network `tes-authz_default`.
+4. Run `TES_AUTHZ_TES=mock,<name> make test`.
+
+The engine side, the stub, the issuer and the suites stay unchanged.
+
+### Mock OIDC issuer
+
+`oidc/issuer.py` serves the issuers `a` and `b` on port 18193 (loopback). Endpoints per issuer: discovery, `jwks`, `userinfo` (GET or POST), and a `token` endpoint that refuses every grant: tokens come from the control API (`POST /_control/tokens`, see the module docstring), so tests choose subject, claims, audience, expiry, scope, key and format directly. Every token, JWT or opaque, also works at userinfo until it expires; userinfo returns `sub` plus the claims given at minting.
+
+Control API: mint tokens; rotate keys (with or without overlap) and retire keys from the JWKS; script userinfo per subject or by default (`mode: jwt` for a signed `application/jwt` answer, `status`, `delay`, `close`, a different `sub`, a different `content_type`); read recorded userinfo calls (token hashes, never tokens); reset. A TES never calls it.
+
+The RSA code (`oidc/minijose.py`) is textbook PKCS #1 v1.5 in the standard library, so the container needs only the pinned Python image, like the shims. It is for tests only. `tests/test_oidc_jose.py` checks it against PyJWT with `cryptography` (a dev dependency) in both directions. Keys are generated at startup (about 1 s for two 2048-bit keys) and live in memory, so a restarted issuer has new keys.
 
 ## Findings: spec claims checked against running software
 
@@ -157,9 +190,9 @@ Observation for the policy (no spec change needed): under the reference policy, 
 
 ## What phase 2 needs
 
-- **Mock OIDC issuer** in compose (discovery, JWKS, userinfo with `application/json` and `application/jwt` modes, and opaque tokens for TESK), and a `token()` in every adapter.
+- **Mock OIDC issuer:** done (`oidc/`, compose service `oidc`; see [Add a TES](#add-a-tes-phase-2)). Every adapter still needs its `token()` and OIDC wiring.
 - **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec §4.2).
-- **Cases the mock TES can't exercise:** 1 and 22 per TES; 6b, 20 and 21 (userinfo); 13b (scope-bound cursor, TESK 400); 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only).
+- **Cases the mock TES can't exercise:** 1 and 22 per TES; 13b (scope-bound cursor, TESK 400); 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
 - **More golden requests from each TES** in `tes-authz/golden/<tes>/`, like Poiesis's: each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
 - **A home and CI:** a repository (uniqueg decides) and a CI job running `make test`. The CI job needs Docker and pulls about 5 images.
 - **Further engines when needed:** Cedar and Casbin (they use `expand_prefixes`), Cerbos and Topaz (whose behaviour is still unverified).

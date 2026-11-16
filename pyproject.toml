@@ -10,13 +10,14 @@ dev = [
   "pytest>=8.3",
   "ruff>=0.8",
   "mypy>=1.13",
+  "pyjwt[crypto]>=2.10",
 ]
 
 [tool.uv]
 package = false
 
 [tool.pytest.ini_options]
-pythonpath = [".", "shims"]
+pythonpath = [".", "shims", "oidc"]
 testpaths = ["tests"]
 markers = [
   "services: needs the compose services (make up)",
@@ -36,7 +37,7 @@ ignore = ["D203", "D213", "S101", "D105", "D107", "S310"]
 "tests/**" = ["S"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["common", "opa_front", "openfga_shim", "harness", "tes", "stub"]
+known-first-party = ["common", "opa_front", "openfga_shim", "harness", "tes", "stub", "minijose", "issuer"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -44,7 +45,7 @@ convention = "google"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-mypy_path = ["shims", "."]
+mypy_path = ["shims", "oidc", "."]
 explicit_package_bases = true
 exclude = ["^\\.venv/", "^\\.cache/"]
 
