@@ -79,7 +79,7 @@ class Tesp:
     """Runs TESP from its clone with the hook configuration of each test."""
 
     name = "tesp"
-    features = frozenset({"keyset-cursor", "userinfo", "userinfo-timeout"})
+    features = frozenset({"keyset-cursor", "userinfo", "userinfo-cache", "userinfo-timeout"})
 
     def __init__(self) -> None:
         """Start nothing yet."""

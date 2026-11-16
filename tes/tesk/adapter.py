@@ -70,10 +70,15 @@ def _wait(url: str, seconds: float = 90) -> None:
             check=False,
         ).stdout.strip()
         if state != "true":
-            logs = subprocess.run(["docker", "logs", "--tail", "40", CONTAINER], capture_output=True, text=True, check=False)  # noqa: S603, S607
+            logs = subprocess.run(  # noqa: S603
+                ["docker", "logs", "--tail", "40", CONTAINER],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=False,
+            )
             raise RuntimeError(f"TESK exited:\n{logs.stdout}{logs.stderr}")
         try:
-            with urllib.request.urlopen(url, timeout=1) as response:  # noqa: S310
+            with urllib.request.urlopen(url, timeout=1) as response:
                 if response.status == 200:
                     return
         except (urllib.error.URLError, OSError):
@@ -131,7 +136,17 @@ class Tesk:
         """
         self.stop()
         subprocess.run(  # noqa: S603
-            ["kubectl", "--kubeconfig", str(KUBECONFIG), "-n", NAMESPACE, "delete", "jobs,configmaps", "--all", "--wait=false"],  # noqa: S607
+            [  # noqa: S607
+                "kubectl",
+                "--kubeconfig",
+                str(KUBECONFIG),
+                "-n",
+                NAMESPACE,
+                "delete",
+                "jobs,configmaps",
+                "--all",
+                "--wait=false",
+            ],
             check=True,
             capture_output=True,
             timeout=60,
@@ -141,7 +156,17 @@ class Tesk:
         template = (TESK_DIR / "src/main/resources/service-info.yaml").read_text().splitlines()
         lines = [f"id: '{config.service_id}'" if line.startswith("id:") else line for line in template]
         (state / "service-info.yaml").write_text("\n".join(lines) + "\n")
-        command = ["docker", "run", "-d", "--name", CONTAINER, "--network", "host", "--user", f"{os.getuid()}:{os.getgid()}"]
+        command = [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            CONTAINER,
+            "--network",
+            "host",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+        ]
         for key, value in self._environment(config).items():
             command += ["-e", f"{key}={value}"]
         command += [
@@ -185,7 +210,7 @@ class Tesk:
         return f"{ISSUER}|{identity.sub}"
 
     def subject_fixtures(self, identity: Identity) -> dict[str, Any]:
-        """Return the issuer, and the client ID that TESK sends only for service clients.
+        """Return the issuer, and the client ID and scope TESK sends only for service clients.
 
         Args:
             identity: The identity.
@@ -194,7 +219,8 @@ class Tesk:
             Placeholder name to value.
         """
         client_id = identity.sub if identity.client_credentials and identity.sub in SERVICE_CLIENTS else None
-        return {"iss": ISSUER, "client_id": client_id}
+        scope = identity.claims.get("scope", "").split() if identity.client_credentials else None
+        return {"iss": ISSUER, "client_id": client_id, "scope": scope}
 
 
 ADAPTER = Tesk()

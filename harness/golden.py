@@ -135,8 +135,10 @@ def instantiate(golden: dict[str, Any], fixtures: dict[str, Any]) -> dict[str, A
 
     A string that is exactly ``{{name}}`` becomes ``fixtures[name]`` (e.g.
     the owner ID, which differs per TES), so one golden file fits every
-    TES. A placeholder without a fixture value stays as it is and shows up
-    in the diff.
+    TES. A placeholder whose fixture value is ``None`` removes its key
+    (spec section 3.7: subject keys without a value are left out). A
+    placeholder without a fixture value stays as it is and shows up in the
+    diff.
 
     Args:
         golden: The golden request.
@@ -148,7 +150,7 @@ def instantiate(golden: dict[str, Any], fixtures: dict[str, Any]) -> dict[str, A
 
     def walk(node: Any) -> Any:
         if isinstance(node, dict):
-            return {key: walk(value) for key, value in node.items()}
+            return {key: walk(value) for key, value in node.items() if not _absent(value, fixtures)}
         if isinstance(node, list):
             return [walk(value) for value in node]
         if isinstance(node, str) and node.startswith("{{") and node.endswith("}}"):
@@ -157,6 +159,22 @@ def instantiate(golden: dict[str, Any], fixtures: dict[str, Any]) -> dict[str, A
 
     result: dict[str, Any] = walk(copy.deepcopy(golden))
     return result
+
+
+def _absent(node: Any, fixtures: dict[str, Any]) -> bool:
+    """Whether a node is a placeholder whose fixture value is ``None``.
+
+    Args:
+        node: A golden value.
+        fixtures: Placeholder name to the TES-specific value.
+
+    Returns:
+        ``True`` if the key holding this node is to be left out.
+    """
+    if not (isinstance(node, str) and node.startswith("{{") and node.endswith("}}")):
+        return False
+    name = node[2:-2]
+    return name in fixtures and fixtures[name] is None
 
 
 def diff(expected: Any, actual: Any, path: str = "$") -> list[str]:

@@ -77,7 +77,7 @@ class TesUnderTest(Protocol):
     """Short name used in test IDs."""
 
     features: frozenset[str]
-    """Optional features, e.g. ``keyset-cursor``, ``userinfo``, ``grpc``."""
+    """Optional features, e.g. ``keyset-cursor``, ``userinfo``, ``userinfo-cache``, ``grpc``."""
 
     def start(self, config: HookConfig) -> str:
         """(Re)start the TES with this configuration.

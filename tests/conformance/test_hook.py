@@ -79,7 +79,12 @@ def test_case_07_create_request_matches_golden(start, stub, adapter):
     status, body = tes.call("POST", "/tasks", ALICE, GOLDEN_CREATE["submit"])
     assert status == 200
     (recorded,) = stub.requests()
-    fixtures = {"subject_id": adapter.owner_id(ALICE), "sub": ALICE.sub, **adapter.subject_fixtures(ALICE)}
+    fixtures = {
+        "subject_id": adapter.owner_id(ALICE),
+        "sub": ALICE.sub,
+        "scope": ALICE.claims["scope"].split(),
+        **adapter.subject_fixtures(ALICE),
+    }
     assert diff(instantiate(GOLDEN_CREATE["request"], fixtures), recorded["body"]) == []
     assert not contains(recorded, "do-not-send")
     assert recorded["headers"]["Authorization"] is None
@@ -288,7 +293,7 @@ def test_case_17_rule_passes_pdp_denies(start, stub):
     assert len(stub.requests()) == 1
 
 
-def test_case_18_subject_from_token_only(start, stub):
+def test_case_18_subject_from_token_only(start, stub, adapter):
     """Case 18: identity headers and client request IDs are ignored."""
     stub.script(default=ALLOW)
     tes = start(decision_service="stub", claims=ALLOWLIST)
@@ -300,7 +305,7 @@ def test_case_18_subject_from_token_only(start, stub):
     }
     assert tes.call("POST", "/tasks", ALICE, task, headers)[0] == 200
     (recorded,) = stub.requests()
-    assert recorded["body"]["subject"]["id"] == ALICE.sub
+    assert recorded["body"]["subject"]["id"] == adapter.owner_id(ALICE)
     assert recorded["headers"]["X-Request-ID"] not in (None, "client-request-id")
 
 
@@ -378,8 +383,14 @@ def test_case_20_userinfo_failure_is_401(start, stub, oidc, adapter, behaviour):
 
 
 def test_case_21_userinfo_cached(start, stub, oidc, adapter):
-    """Case 21: two calls with one token cause one userinfo call."""
+    """Case 21: two calls with one token cause one userinfo call.
+
+    Only for TESes that cache userinfo (spec change 16: TESK looks it up on
+    every request, so revocation takes effect at once).
+    """
     _needs_userinfo(adapter)
+    if "userinfo-cache" not in adapter.features:
+        pytest.skip("this TES looks up userinfo on every request (no cache)")
     stub.script(default=ALLOW)
     tes = start(decision_service="stub", userinfo=True)
     assert tes.create(ALICE)[0] == 200

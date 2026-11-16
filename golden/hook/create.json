@@ -68,10 +68,7 @@
         },
         "client_id": "{{client_id}}",
         "iss": "{{iss}}",
-        "scope": [
-          "openid",
-          "eduperson_entitlement"
-        ],
+        "scope": "{{scope}}",
         "sub": "{{sub}}"
       },
       "type": "user"

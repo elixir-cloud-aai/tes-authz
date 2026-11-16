@@ -540,6 +540,14 @@ URL_CASES: list[tuple[str, str | None, str]] = [
     ("https://u:p@h\\x@y/p", None, "spec step 2b: backslash in userinfo"),
     ("https://h/a\\b@c", "https://h/a\\b@c", "backslash after the first '/' kept"),
     ("/local/file#1", "/local/file#1", "spec step 5: no scheme, no '@' or '?': fragment kept"),
+    ("https:///u:p@h/p", None, "spec step 4b: empty authority, '@' in the rest"),
+    ("file:///d/user@x/f", None, "spec step 4b: accepted over-omission"),
+    ("file:///d/f?x=@y", "file:///d/f", "spec step 4b: '@' only in the query"),
+    ("https://\t/u:p@h/p", None, "spec step 0: TAB (WHATWG deletes it)"),
+    ("https://u:p@h\n/p", None, "spec step 0: LF"),
+    ("/local/a\r\nb", None, "spec step 0: CR LF without a scheme"),
+    ("https://x@/u:p@h/p", None, "spec step 4b: host empty after dropping userinfo"),
+    ("https://@/u:p@h/p", None, "spec step 4b: empty userinfo, empty host"),
 ]
 
 
@@ -593,7 +601,7 @@ def hook_create() -> dict[str, Any]:
                 "iss": "{{iss}}",
                 "sub": "{{sub}}",
                 "client_id": "{{client_id}}",
-                "scope": ["openid", "eduperson_entitlement"],
+                "scope": "{{scope}}",
                 "claims": {"eduperson_entitlement": [SUBGROUP]},
             },
         },
