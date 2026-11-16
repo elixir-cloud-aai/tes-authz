@@ -1,8 +1,9 @@
 """Hook conformance (layer 1): each TES against the recording stub.
 
-Case numbers refer to spec draft 3, section 8.2. Cases that need userinfo
-(6b, 20, 21), startup checks (23) or gRPC (24) need features the phase-1
-mock TES lacks; they are listed in the README as phase-2 work.
+Case numbers refer to spec draft 3, section 8.2. The userinfo cases (6b,
+20, 21) run for adapters with the ``userinfo`` feature, against the mock
+OIDC issuer. Startup checks (23) and gRPC (24) need features the mock TES
+lacks; they are listed in the README as phase-2 work.
 """
 
 from __future__ import annotations
@@ -14,9 +15,9 @@ import pytest
 
 from harness.golden import diff, instantiate
 from harness.stub_client import ALLOW, DENY, rule
-from harness.tes import RequiredClaim
+from harness.tes import Identity, RequiredClaim
 
-from .conftest import ALICE, BOB, CAROL, NEAR_MISS, SERVICE_CLIENT, SUBGROUP, VO, contains
+from .conftest import ALICE, BOB, CAROL, NEAR_MISS, SCOPE, SERVICE_CLIENT, SUBGROUP, VO, contains
 
 pytestmark = pytest.mark.services
 
@@ -58,8 +59,6 @@ def test_case_05b_rule_without_pdp_or_allowlist(start):
 @pytest.mark.parametrize("name", ["ctx.groups", "https://e.org/groups"])
 def test_case_05c_dotted_path_and_uri_name(start, name):
     """Case 5c: the rule finds dotted paths and URI-named claims."""
-    from harness.tes import Identity
-
     claims = {"ctx": {"groups": ["g1"]}} if name == "ctx.groups" else {"https://e.org/groups": ["g1"]}
     tes = start(required_claim=RequiredClaim(name, ("g1",)))
     assert tes.create(Identity("u", claims))[0] == 200
@@ -252,8 +251,6 @@ def test_case_18_subject_from_token_only(start, stub):
 
 def test_case_19_allowlist_and_no_token(start, stub, adapter):
     """Case 19: only allowlisted claims are sent, never the token."""
-    from harness.tes import Identity
-
     stub.script(default=ALLOW)
     tes = start(decision_service="stub", claims=ALLOWLIST)
     who = Identity(
@@ -276,3 +273,56 @@ def test_case_22_builtin_owner_rule(start, adapter):
     tes.create(ALICE)
     assert tes.call("GET", f"/tasks/{task_id}", ALICE)[0] == 404
     assert [t["id"] for t in tes.call("GET", "/tasks", BOB)[1]["tasks"]] == [task_id]
+
+
+def _needs_userinfo(adapter):
+    if "userinfo" not in adapter.features:
+        pytest.skip("adapter has no userinfo support")
+
+
+def test_case_06b_userinfo_claims(start, stub, oidc, adapter):
+    """Case 6b: claims only in userinfo count; in both, the token value wins (rule and PDP)."""
+    _needs_userinfo(adapter)
+    stub.script(default=ALLOW)
+    tes = start(
+        decision_service="stub",
+        claims=ALLOWLIST,
+        required_claim=RequiredClaim("eduperson_entitlement", (SUBGROUP,)),
+        userinfo=True,
+    )
+    only_userinfo = Identity("u1-sub", {"scope": SCOPE}, {"eduperson_entitlement": [SUBGROUP]})
+    token_wins = Identity("u2-sub", {"eduperson_entitlement": [SUBGROUP]}, {"eduperson_entitlement": [NEAR_MISS]})
+    token_loses = Identity("u3-sub", {"eduperson_entitlement": [NEAR_MISS]}, {"eduperson_entitlement": [SUBGROUP]})
+    assert tes.create(only_userinfo)[0] == 200
+    assert tes.create(token_wins)[0] == 200
+    assert tes.create(token_loses)[0] == 403
+    sent = [r["body"]["subject"]["properties"]["claims"] for r in stub.requests()]
+    assert sent == [{"eduperson_entitlement": [SUBGROUP]}, {"eduperson_entitlement": [SUBGROUP]}]
+
+
+@pytest.mark.parametrize(
+    "behaviour",
+    [{"sub": "mallory-sub"}, {"status": 500}, {"close": True}, {"delay": 4}, {"mode": "jwt"}],
+    ids=["sub-mismatch", "500", "connection-dropped", "timeout", "application-jwt"],
+)
+def test_case_20_userinfo_failure_is_401(start, stub, oidc, adapter, behaviour):
+    """Case 20: userinfo ``sub`` mismatch, failure, timeout or signed answer gives 401; PDP not called."""
+    _needs_userinfo(adapter)
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", userinfo=True)
+    oidc.userinfo_behaviour(behaviour)
+    assert tes.create(ALICE)[0] == 401
+    assert tes.call("GET", "/tasks", ALICE)[0] == 401
+    assert stub.requests() == []
+    oidc.userinfo_behaviour()
+    assert tes.create(ALICE)[0] == 200
+
+
+def test_case_21_userinfo_cached(start, stub, oidc, adapter):
+    """Case 21: two calls with one token cause one userinfo call."""
+    _needs_userinfo(adapter)
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", userinfo=True)
+    assert tes.create(ALICE)[0] == 200
+    assert tes.call("GET", "/tasks", ALICE)[0] == 200
+    assert [c["status"] for c in oidc.userinfo_calls() if c["sub"] == ALICE.sub] == [200]
