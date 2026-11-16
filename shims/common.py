@@ -147,11 +147,11 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
 
 
 def encode_id(value: str) -> str:
-    """Encode an identifier for engines with identifier limits.
+    r"""Encode an identifier for engines with identifier limits.
 
     Plain identifiers stay readable; anything else (``https://iss|sub``,
     long values, values starting with ``h-``) becomes ``h-`` plus the
-    SHA-256 hex digest, which fits OpenFGA's ``^[^:#@\\s]{1,256}$`` and
+    SHA-256 hex digest, which fits OpenFGA's ``^[^:#@\s]{1,256}$`` and
     cannot collide with a plain identifier.
 
     Args:
@@ -240,7 +240,7 @@ def post_json(url: str, body: Any, timeout: float, headers: dict[str, str] | Non
     for key, value in (headers or {}).items():
         request.add_header(key, value)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
         detail = exc.read()[:500].decode("utf-8", "replace")
@@ -293,7 +293,7 @@ def make_handler(decide: Decide, metadata: dict[str, Any]) -> type[BaseHTTPReque
             self.end_headers()
             self.wfile.write(data)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             """Serve metadata and a health endpoint."""
             if self.path == "/.well-known/authzen-configuration":
                 self._send(HTTPStatus.OK, metadata)
@@ -302,7 +302,7 @@ def make_handler(decide: Decide, metadata: dict[str, Any]) -> type[BaseHTTPReque
             else:
                 self._send(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             """Serve the AuthZEN Access Evaluation endpoint."""
             request_id = self.headers.get("X-Request-ID")
             if self.path != "/access/v1/evaluation":

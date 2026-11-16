@@ -29,10 +29,14 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "N", "D", "A", "RUF"]
-ignore = ["D203", "D213", "S101", "D105", "D107"]
+# S310: URLs come from operator configuration and are http(s) by construction.
+ignore = ["D203", "D213", "S101", "D105", "D107", "S310"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "D"]
+"tests/**" = ["S"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "opa_front", "openfga_shim", "harness", "tes", "stub"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

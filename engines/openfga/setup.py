@@ -24,8 +24,8 @@ from typing import Any
 
 sys.path.insert(0, os.environ.get("SHIMS_DIR", "/shims"))
 
-from common import encode_id  # noqa: E402
-from openfga_shim import task_set_object  # noqa: E402
+from common import encode_id
+from openfga_shim import task_set_object
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 
@@ -39,10 +39,8 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
     Returns:
         The tuple keys to write.
     """
-    members = {"allowed_values": policy["members"]["values"],
-               "allowed_prefixes": policy["members"]["prefixes"]}
-    admins = {"allowed_values": policy["admins"]["values"],
-              "allowed_prefixes": policy["admins"]["prefixes"]}
+    members = {"allowed_values": policy["members"]["values"], "allowed_prefixes": policy["members"]["prefixes"]}
+    admins = {"allowed_values": policy["admins"]["values"], "allowed_prefixes": policy["admins"]["prefixes"]}
     images = {"allowed_image_prefixes": policy["image_prefixes"]}
     tuples: list[dict[str, Any]] = []
 
@@ -79,7 +77,7 @@ def call(method: str, path: str, body: Any = None) -> Any:
     data = None if body is None else json.dumps(body).encode("utf-8")
     request = urllib.request.Request(FGA_URL + path, data=data, method=method)
     request.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
+    with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read() or b"{}")
 
 
@@ -95,7 +93,7 @@ def wait_ready(timeout: float = 60.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(FGA_URL + "/healthz", timeout=2):  # noqa: S310
+            with urllib.request.urlopen(FGA_URL + "/healthz", timeout=2):
                 return
         except (urllib.error.URLError, OSError):
             time.sleep(0.5)
@@ -111,8 +109,11 @@ def main() -> None:
     model_id = call("POST", f"/stores/{store_id}/authorization-models", model)["authorization_model_id"]
     tuples = tuples_for(policy)
     for start in range(0, len(tuples), 100):
-        call("POST", f"/stores/{store_id}/write",
-             {"writes": {"tuple_keys": tuples[start:start + 100]}, "authorization_model_id": model_id})
+        call(
+            "POST",
+            f"/stores/{store_id}/write",
+            {"writes": {"tuple_keys": tuples[start : start + 100]}, "authorization_model_id": model_id},
+        )
     state = Path(os.environ.get("FGA_STATE_FILE", "/state/openfga.json"))
     state.parent.mkdir(parents=True, exist_ok=True)
     tmp = state.with_suffix(".tmp")

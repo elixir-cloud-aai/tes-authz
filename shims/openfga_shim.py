@@ -61,7 +61,7 @@ def parse_claim_map(spec: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for pair in filter(None, (part.strip() for part in spec.split(","))):
         param, sep, claim = pair.partition("=")
-        if not sep or not param.isidentifier() or not claim:
+        if not sep or not param.isidentifier() or not claim or param == "id":
             raise ValueError(f"bad FGA_CLAIMS entry: {pair!r}")
         mapping[param] = claim
     return mapping
@@ -101,17 +101,16 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     resource = req["resource"]
     props = resource.get("properties", {})
     owner = props.get("owner")
-    task = props.get("task") if isinstance(props.get("task"), dict) else {}
-    executors = task.get("executors") if isinstance(task.get("executors"), list) else []
-    images = [
-        ex["image"] if isinstance(ex, dict) and isinstance(ex.get("image"), str) else ""
-        for ex in executors
-    ]
+    task = props.get("task")
+    executors: list[Any] = []
+    if isinstance(task, dict) and isinstance(task.get("executors"), list):
+        executors = task["executors"]
+    images = [ex["image"] if isinstance(ex, dict) and isinstance(ex.get("image"), str) else "" for ex in executors]
     resource_props = {"owner": owner if isinstance(owner, str) else "", "images": images}
 
     service_id = req["context"]["tes"]["service_id"]
     if resource["type"] == "tes_task":
-        target = {"type": "tes_service", "id": encode_id(service_id)}
+        target: dict[str, Any] = {"type": "tes_service", "id": encode_id(service_id)}
     else:
         target = {"type": "tes_task_set", "id": task_set_object(service_id, resource["id"])}
     target["properties"] = resource_props

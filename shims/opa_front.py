@@ -51,9 +51,11 @@ def main() -> None:
     serve(
         int(os.environ.get("SHIM_PORT", "8080")),
         decide,
-        {"policy_decision_point": os.environ.get("SHIM_BASE_URL", "http://localhost:8080"),
-         "access_evaluation_endpoint": os.environ.get("SHIM_BASE_URL", "http://localhost:8080")
-         + "/access/v1/evaluation"},
+        {
+            "policy_decision_point": os.environ.get("SHIM_BASE_URL", "http://localhost:8080"),
+            "access_evaluation_endpoint": os.environ.get("SHIM_BASE_URL", "http://localhost:8080")
+            + "/access/v1/evaluation",
+        },
     )
 
 
