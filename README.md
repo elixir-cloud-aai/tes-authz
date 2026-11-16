@@ -210,7 +210,7 @@ Observation for the policy (no spec change needed): under the reference policy, 
 - **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec §4.2).
 - **Cases the mock TES can't exercise:** 1 and 22 per TES; 13b (scope-bound cursor, TESK 400); 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
 - **More golden requests from each TES** in `tes-authz/golden/<tes>/`, like Poiesis's: each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
-- **A home and CI:** done: this repository; the `Integration` job of the `CI` workflow runs `make test` (Docker, about 5 images).
+- **A home and CI:** done: this repository; the `Integration` job of the `CI` workflow runs `make test` (Docker, with the images of `compose.yaml`).
 - **Further engines when needed:** Cedar and Casbin (they use `expand_prefixes`), Cerbos and Topaz (whose behaviour is still unverified).
 
 ## Contributing
@@ -227,7 +227,7 @@ guide][contributing] and mind our [code of conduct][code-of-conduct].
   actionlint; `uv run pre-commit run --all-files` runs them all). The hook
   environments live in `~/.cache/pre-commit`, outside the checkout.
 - `make lint`, `make unit` and `make test` run the checks of CI; the gate
-  `CI passed` must pass. `make test` needs Docker and pulls about 5 images.
+  `CI passed` must pass. `make test` needs Docker and pulls the images of `compose.yaml`.
 
 ## License
 
