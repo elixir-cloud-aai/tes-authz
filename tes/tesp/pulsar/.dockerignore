@@ -1,0 +1,4 @@
+# Build context of the Pulsar image (`tes/tesp/up.sh`): the Dockerfile copies
+# nothing, so nothing is sent but the Dockerfile itself, which Docker reads
+# anyway. Local secrets (e.g. `.env`) must never reach the build
+*

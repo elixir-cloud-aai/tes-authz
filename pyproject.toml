@@ -11,6 +11,12 @@ dev = [
   "ruff>=0.8",
   "mypy>=1.13",
   "pyjwt[crypto]>=2.10",
+  # Runs the hooks of `.pre-commit-config.yaml`; its local hooks use the
+  # tools of this group
+  "pre-commit>=4.6",
+  # The version of uv that CI installs (`astral-sh/setup-uv` reads it from
+  # `uv.lock`)
+  "uv>=0.12",
 ]
 
 [tool.uv]
@@ -44,6 +50,8 @@ convention = "google"
 
 [tool.mypy]
 python_version = "3.12"
+# Checked by `mypy` without arguments (`make lint`, `scripts/test.sh`, pre-commit)
+files = ["shims", "stub", "oidc", "harness", "tes", "engines/openfga", "scripts"]
 strict = true
 mypy_path = ["shims", "oidc", "."]
 explicit_package_bases = true
