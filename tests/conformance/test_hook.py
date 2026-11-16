@@ -324,7 +324,7 @@ def test_case_19_allowlist_and_no_token(start, stub, adapter):
 
 def test_case_22_builtin_owner_rule(start, adapter):
     """Case 22: without a PDP the built-in owner rule applies (per TES)."""
-    if adapter.name not in ("mock", "funnel"):
+    if adapter.name not in ("mock", "tesp", "funnel"):
         pytest.skip("per-TES expectation; add it with the adapter")
     tes = start()
     task_id = tes.create(BOB)[1]["id"]

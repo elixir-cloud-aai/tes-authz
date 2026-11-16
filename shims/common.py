@@ -209,6 +209,9 @@ def strip_url(value: str) -> str | None:
     This is the TES-side projection rule (spec section 3.3, six steps), kept
     here as the executable definition of the golden URL cases:
 
+    0. Tab and newline: omit any value containing TAB, LF or CR (WHATWG
+       deletes them before parsing, so ``https://<TAB>/u:p@h/p`` would
+       leak ``u:p``).
     1. Scheme: only an RFC 3986 scheme (``ALPHA *(ALPHA/DIGIT/+/-/.)``)
        directly followed by ``://`` at the start counts. Split into
        ``scheme://``, the region W up to the first ``/`` (or the end) and
@@ -218,6 +221,9 @@ def strip_url(value: str) -> str | None:
        2b. If W contains a backslash, omit the field (WHATWG and urllib3
        treat ``\`` as ``/``, so ``https://evil\@trusted/p`` would
        connect to ``evil``).
+       2c. If W is empty and the rest has an ``@`` before its first ``?``
+       or ``#``, omit the field (WHATWG skips the extra slashes, so
+       ``https:///u:p@h/p`` sends ``u:p`` to ``h``).
     3. Authority: W up to its first ``?`` or ``#`` (the remainder joins the
        rest); drop everything up to and including its last ``@``.
     4. Cut the rest at its first ``?`` or ``#``; an ``@`` in the path stays.
@@ -231,6 +237,8 @@ def strip_url(value: str) -> str | None:
     Returns:
         The stripped URL, or ``None`` if the field must be omitted.
     """
+    if any(char in value for char in "\t\n\r"):
+        return None
     match = _URL_SCHEME.match(value)
     if match is None:
         return value if "@" not in value and "?" not in value else None
@@ -239,6 +247,10 @@ def strip_url(value: str) -> str | None:
     region, rest = (body, "") if slash < 0 else (body[:slash], body[slash:])
     if "\\" in region:
         return None
+    if not region:
+        cut = _first_of(rest, "?#")
+        if "@" in (rest if cut < 0 else rest[:cut]):
+            return None
     query = _first_of(region, "?#")
     at = region.rfind("@")
     if at >= 0 and 0 <= query < at:
