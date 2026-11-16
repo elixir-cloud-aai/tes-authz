@@ -3,13 +3,15 @@
 #
 #   make up     start everything      make down   stop and remove
 #
-# Host ports (loopback only) can be changed with the variables below.
+# Project name and host ports (loopback only) come from TES_AUTHZ_PROJECT and
+# TES_AUTHZ_<NAME>_PORT, which `make` and scripts/test.sh derive from
+# TES_AUTHZ_PORT_BASE (harness/stack.py). Defaults are the main checkout's.
 #
 # This is a local test and reference setup. OPA's and OpenFGA's own APIs are
 # published on loopback for the findings tests and are NOT authenticated:
 # any local process can change policy data or tuples. A deployment publishes
 # only the shims and enables OPA token authz / OpenFGA preshared keys.
-name: tes-authz
+name: ${TES_AUTHZ_PROJECT:-tes-authz}
 
 x-hardening: &hardening
   read_only: true
@@ -30,7 +32,7 @@ services:
   opa:
     <<: *hardening
     image: openpolicyagent/opa:1.22.4
-    container_name: tes-authz-opa
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-opa
     user: "65534:65534"
     command:
       - run
@@ -47,7 +49,7 @@ services:
 
   opa-front:
     <<: *python
-    container_name: tes-authz-opa-front
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-opa-front
     working_dir: /shims
     command: ["python", "opa_front.py"]
     environment:
@@ -61,7 +63,7 @@ services:
   openfga:
     <<: *hardening
     image: openfga/openfga:v1.22.1
-    container_name: tes-authz-openfga
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-openfga
     command: ["run"]
     environment:
       OPENFGA_EXPERIMENTALS: authzen
@@ -75,7 +77,7 @@ services:
 
   openfga-setup:
     <<: *python
-    container_name: tes-authz-openfga-setup
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-openfga-setup
     command: ["python", "/engine/setup.py"]
     environment:
       <<: *python-env
@@ -92,7 +94,7 @@ services:
 
   openfga-shim:
     <<: *python
-    container_name: tes-authz-openfga-shim
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-openfga-shim
     working_dir: /shims
     command: ["python", "openfga_shim.py"]
     environment:
@@ -113,7 +115,7 @@ services:
 
   stub:
     <<: *python
-    container_name: tes-authz-stub
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-stub
     command: ["python", "/stub/recording_pdp.py"]
     volumes:
       - ./stub:/stub:ro
@@ -122,11 +124,11 @@ services:
 
   # Mock OIDC issuer with issuers "a" and "b" (oidc/issuer.py). The issuer
   # URL follows the host name a TES uses: http://127.0.0.1:18193/a from the
-  # host, http://tes-authz-oidc:8080/a from the compose network. For kind
+  # host, http://<project>-oidc:8080/a from the compose network. For kind
   # pods, attach the container to the kind network (README, "Add a TES").
   oidc:
     <<: *python
-    container_name: tes-authz-oidc
+    container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-oidc
     command: ["python", "/oidc/issuer.py"]
     environment:
       <<: *python-env
