@@ -218,6 +218,9 @@ def strip_url(value: str) -> str | None:
        2b. If W contains a backslash, omit the field (WHATWG and urllib3
        treat ``\`` as ``/``, so ``https://evil\@trusted/p`` would
        connect to ``evil``).
+       2c. If W is empty and the rest has an ``@`` before its first ``?``
+       or ``#``, omit the field (WHATWG skips the extra slashes, so
+       ``https:///u:p@h/p`` sends ``u:p`` to ``h``).
     3. Authority: W up to its first ``?`` or ``#`` (the remainder joins the
        rest); drop everything up to and including its last ``@``.
     4. Cut the rest at its first ``?`` or ``#``; an ``@`` in the path stays.
@@ -239,6 +242,10 @@ def strip_url(value: str) -> str | None:
     region, rest = (body, "") if slash < 0 else (body[:slash], body[slash:])
     if "\\" in region:
         return None
+    if not region:
+        cut = _first_of(rest, "?#")
+        if "@" in (rest if cut < 0 else rest[:cut]):
+            return None
     query = _first_of(region, "?#")
     at = region.rfind("@")
     if at >= 0 and 0 <= query < at:
