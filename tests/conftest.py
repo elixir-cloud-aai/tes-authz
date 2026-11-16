@@ -12,6 +12,8 @@ from typing import Any
 import pytest
 
 from harness.engines import ENGINES, OPA_DATA_API, OPENFGA_API, STUB
+from harness.oidc import HOST_BASE as OIDC_BASE
+from harness.oidc import OIDC, OidcClient
 
 
 def http(
@@ -55,6 +57,7 @@ HEALTH = {
     "openfga": OPENFGA_API + "/healthz",
     "openfga-shim": _base(ENGINES["openfga"].host_url) + "/health",
     "stub": _base(STUB.host_url) + "/health",
+    "oidc": OIDC_BASE + "/health",
 }
 
 
@@ -79,3 +82,10 @@ def services() -> None:
         if required:
             pytest.fail(message)
         pytest.skip(message)
+
+
+@pytest.fixture
+def oidc(services) -> OidcClient:
+    """The mock OIDC issuer, reset (tokens, userinfo behaviours, calls; keys stay)."""
+    OIDC.reset()
+    return OIDC

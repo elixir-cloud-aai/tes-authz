@@ -24,7 +24,7 @@ uv sync --project "$root" --quiet
 cd "$root"
 uv run --project "$root" ruff check .
 uv run --project "$root" ruff format --check .
-uv run --project "$root" mypy shims stub harness tes engines/openfga scripts
+uv run --project "$root" mypy shims stub oidc harness tes engines/openfga scripts
 docker run --rm -v "$root/engines/opa/policy:/policy:ro" openpolicyagent/opa:1.22.4 check --strict /policy
 "${compose[@]}" up -d --wait
 uv run --project "$root" pytest -p no:cacheprovider "$@"

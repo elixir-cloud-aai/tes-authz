@@ -1,4 +1,5 @@
-# Engine side of the TES AuthZ contract (tes-authzen/1), phase 1.
+# Engine side of the TES AuthZ contract (tes-authzen/1), plus the mock OIDC
+# issuer for the TESes.
 #
 #   make up     start everything      make down   stop and remove
 #
@@ -118,6 +119,27 @@ services:
       - ./stub:/stub:ro
     ports:
       - "127.0.0.1:${TES_AUTHZ_STUB_PORT:-18192}:8080"
+
+  # Mock OIDC issuer with issuers "a" and "b" (oidc/issuer.py). The issuer
+  # URL follows the host name a TES uses: http://127.0.0.1:18193/a from the
+  # host, http://tes-authz-oidc:8080/a from the compose network.
+  oidc:
+    <<: *python
+    container_name: tes-authz-oidc
+    command: ["python", "/oidc/issuer.py"]
+    environment:
+      <<: *python-env
+      OIDC_ISSUERS: "a,b"
+      OIDC_DEFAULT_AUDIENCE: tes-authz
+    volumes:
+      - ./oidc:/oidc:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_OIDC_PORT:-18193}:8080"
 
 volumes:
   openfga-state:
