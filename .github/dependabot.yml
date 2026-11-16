@@ -1,0 +1,57 @@
+version: 2
+# No entry sets `target-branch`: pull requests go to the default branch
+# (`dev`) anyway, and while `target-branch` is set, GitHub doesn't apply
+# the entry's options (`labels`, `ignore`, ...) to security updates
+updates:
+  # Dependencies in `pyproject.toml` and the lock (`uv.lock`), updated
+  # together
+  - package-ecosystem: uv
+    directory: /
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    versioning-strategy: increase-if-necessary
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+  # Actions in the workflows, including the pins of the shared actions of
+  # `elixir-cloud-aai/.github` (to the commits of its releases,
+  # `@<commit> # vX.Y.Z`)
+  - package-ecosystem: github-actions
+    directory: /
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+  # Images of the services in `compose.yaml` (engines and the Python image of
+  # the shims, stub and mock OIDC issuer). The OPA image in
+  # `scripts/test.sh` (`opa check`) must match `compose.yaml`: update it in
+  # the same pull request
+  - package-ecosystem: docker-compose
+    directory: /
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    groups:
+      docker-compose:
+        patterns: ["*"]
+  # The image of the Pulsar server for the TESP smoke run
+  - package-ecosystem: docker
+    directory: /tes/tesp/pulsar
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    groups:
+      docker:
+        patterns: ["*"]
+  # Hook revisions in `.pre-commit-config.yaml`
+  - package-ecosystem: pre-commit
+    directory: /
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    groups:
+      pre-commit:
+        patterns: ["*"]
