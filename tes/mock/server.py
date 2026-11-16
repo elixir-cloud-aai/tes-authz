@@ -164,13 +164,13 @@ class UnauthorizedError(HttpError):
         super().__init__(HTTPStatus.UNAUTHORIZED, "unauthorized")
 
 
-def _get_json(url: str, timeout: float, content_type: str, token: str | None = None) -> Any:
+def _get_json(url: str, timeout: float, content_types: tuple[str, ...], token: str | None = None) -> Any:
     """GET a JSON document; any failure or non-JSON answer is ``UnauthorizedError``.
 
     Args:
         url: The URL.
         timeout: Seconds.
-        content_type: The only accepted media type (parameters ignored).
+        content_types: Accepted media types (parameters ignored).
         token: Bearer token to send, if any.
 
     Returns:
@@ -186,7 +186,7 @@ def _get_json(url: str, timeout: float, content_type: str, token: str | None = N
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             received = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
-            if response.status != HTTPStatus.OK or received != content_type:
+            if response.status != HTTPStatus.OK or received not in content_types:
                 raise UnauthorizedError
             return json.loads(response.read())
     except (urllib.error.URLError, OSError, ValueError) as exc:
@@ -213,7 +213,7 @@ class OidcAuth:
             cached = self.discovery.get(issuer)
         if cached is None:
             doc = _get_json(
-                issuer + "/.well-known/openid-configuration", self.settings.userinfo_timeout, "application/json"
+                issuer + "/.well-known/openid-configuration", self.settings.userinfo_timeout, ("application/json",)
             )
             if not isinstance(doc, dict) or doc.get("issuer") != issuer:
                 raise UnauthorizedError
@@ -227,7 +227,9 @@ class OidcAuth:
             cached = None if refresh else self.jwks.get(issuer)
         if cached is None:
             jwks = _get_json(
-                str(self._discovery(issuer).get("jwks_uri")), self.settings.userinfo_timeout, "application/jwk-set+json"
+                str(self._discovery(issuer).get("jwks_uri")),
+                self.settings.userinfo_timeout,
+                ("application/jwk-set+json", "application/json"),
             )
             if not isinstance(jwks, dict):
                 raise UnauthorizedError
@@ -281,7 +283,7 @@ class OidcAuth:
         endpoint = self._discovery(issuer).get("userinfo_endpoint")
         if not isinstance(endpoint, str):
             raise UnauthorizedError
-        info = _get_json(endpoint, self.settings.userinfo_timeout, "application/json", token)
+        info = _get_json(endpoint, self.settings.userinfo_timeout, ("application/json",), token)
         if not isinstance(info, dict) or info.get("sub") != claims["sub"]:
             raise UnauthorizedError
         with self.lock:

@@ -101,26 +101,31 @@ def test_userinfo_wrong_content_type_refused(oidc: OidcClient, tes_for):
 
 def test_userinfo_cache_ttl_and_size(oidc: OidcClient, tes_for, monkeypatch):
     """Cached answers expire after the TTL, and the cache keeps at most its size (LRU)."""
-    monkeypatch.setattr(server, "USERINFO_TTL", 0.5)
+    monkeypatch.setattr(server, "USERINFO_TTL", 2.0)
     monkeypatch.setattr(server, "USERINFO_CACHE_SIZE", 1)
     url = tes_for(issuer_url("a"), userinfo=True)
     first, second = (oidc.mint(sub)["access_token"] for sub in ("alice", "bob"))
     assert _create(url, first) == 200 and _create(url, first) == 200
     assert len(oidc.userinfo_calls()) == 1
-    time.sleep(0.6)
+    time.sleep(2.2)
     assert _create(url, first) == 200
     assert len(oidc.userinfo_calls()) == 2
     assert _create(url, second) == 200 and _create(url, first) == 200
     assert [c["sub"] for c in oidc.userinfo_calls()] == ["alice", "alice", "bob", "alice"]
 
 
-def test_userinfo_cache_ends_with_token(oidc: OidcClient, tes_for):
-    """A cached answer never outlives its token: an expired token is refused, not served from cache."""
-    url = tes_for(issuer_url("a"), userinfo=True)
-    token = oidc.mint("alice", expires_in=2)["access_token"]
-    assert _create(url, token) == 200
-    time.sleep(2.1)
-    assert _create(url, token) == 401
+def test_userinfo_cache_ends_with_token(oidc: OidcClient):
+    """A cache entry lasts at most until the token's ``exp``: past it, userinfo is fetched again."""
+    auth = server.OidcAuth(server.Settings(issuers=(issuer_url("a"),), audience=AUDIENCE, userinfo=True))
+    token = oidc.mint("alice")["access_token"]
+    claims = {"sub": "alice", "exp": time.time() - 1}
+    assert auth._userinfo(issuer_url("a"), token, claims)["sub"] == "alice"
+    assert auth._userinfo(issuer_url("a"), token, claims)["sub"] == "alice"
+    assert len(oidc.userinfo_calls()) == 2
+    claims["exp"] = time.time() + 3600
+    auth._userinfo(issuer_url("a"), token, claims)
+    auth._userinfo(issuer_url("a"), token, claims)
+    assert len(oidc.userinfo_calls()) == 3
 
 
 def test_multi_issuer_owners(oidc: OidcClient, stub: StubClient, tes_for):

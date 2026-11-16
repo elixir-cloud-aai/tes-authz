@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from minijose import (
     JoseError,
+    UnknownKeyError,
     b64url_decode,
     b64url_encode,
     decode_unverified,
@@ -140,12 +141,16 @@ def test_key_selection(key):
     other = generate_rsa_key(2048, kid="k2")
     both = {"keys": [key.public_jwk(), other.public_jwk()]}
     assert verify_jwt(encode_jwt(_claims(), other), both, ISS, AUD)
-    with pytest.raises(JoseError, match="signing key"):
+    with pytest.raises(UnknownKeyError):
         verify_jwt(encode_jwt(_claims(), key), {"keys": [other.public_jwk()]}, ISS, AUD)
     no_kid = encode_jwt(_claims(), key, header={"kid": None})
     assert verify_jwt(no_kid, {"keys": [key.public_jwk()]}, ISS, AUD)
-    with pytest.raises(JoseError, match="signing key"):
+    with pytest.raises(UnknownKeyError):
         verify_jwt(no_kid, both, ISS, AUD)
+    for token in (encode_jwt(_claims(aud="other"), key), encode_jwt(_claims(), other, header={"kid": "k1"})):
+        with pytest.raises(JoseError) as failure:
+            verify_jwt(token, both, ISS, AUD)
+        assert not isinstance(failure.value, UnknownKeyError)
 
 
 @pytest.mark.parametrize("token", ["", "a.b", "a.b.c.d", "!!.e30.x", "e30.W10.x", 7])
