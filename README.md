@@ -151,7 +151,7 @@ The replay (all golden cases), the smoke tests and every TES adapter then pick i
    | on the compose network | `issuer_url("a", NETWORK_BASE)` = `http://<project>-oidc:8080/a` | `OIDC.token_for(identity, base=NETWORK_BASE)` |
    | in kind pods (Poiesis, TESK) | `http://<issuer IP on the kind network>:8080/a` (below) | `OIDC.token_for(identity, base="http://<same IP>:8080")` |
 
-   The issuer publishes its port on host loopback only, which kind pods can't reach. Attach the container to the kind network and use its IP there (not yet verified from a pod; the first kind adapter confirms it):
+   The issuer publishes its port on host loopback only, which kind pods can't reach. Attach the container to the kind network and use its IP there (verified from a pod in kind v0.33.0: `curl http://<ip>:8080/a/.well-known/openid-configuration` from a `curlimages/curl` pod returns the discovery document with `issuer` `http://<ip>:8080/a`):
 
    ```sh
    docker network connect kind "$TES_AUTHZ_PROJECT-oidc"
