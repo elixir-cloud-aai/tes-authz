@@ -122,12 +122,12 @@
   {
     "input": "https://evil.example\\@trusted.example/p?x=1",
     "expected": null,
-    "description": "proposed step 2b: backslash before the first '/' (WHATWG: '/')"
+    "description": "spec step 2b: backslash before the first '/' (WHATWG: '/')"
   },
   {
     "input": "https://u:p@h\\x@y/p",
     "expected": null,
-    "description": "proposed step 2b: backslash in userinfo"
+    "description": "spec step 2b: backslash in userinfo"
   },
   {
     "input": "https://h/a\\b@c",

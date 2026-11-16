@@ -535,9 +535,9 @@ URL_CASES: list[tuple[str, str | None, str]] = [
     (
         "https://evil.example\\@trusted.example/p?x=1",
         None,
-        "proposed step 2b: backslash before the first '/' (WHATWG: '/')",
+        "spec step 2b: backslash before the first '/' (WHATWG: '/')",
     ),
-    ("https://u:p@h\\x@y/p", None, "proposed step 2b: backslash in userinfo"),
+    ("https://u:p@h\\x@y/p", None, "spec step 2b: backslash in userinfo"),
     ("https://h/a\\b@c", "https://h/a\\b@c", "backslash after the first '/' kept"),
     ("/local/file#1", "/local/file#1", "spec step 5: no scheme, no '@' or '?': fragment kept"),
 ]
