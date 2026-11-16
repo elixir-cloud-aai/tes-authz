@@ -29,8 +29,8 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 
 | Path | What |
 |---|---|
-| `config/reference-policy.json` | **The one place to configure the policy**: entitlement claim, member and admin entitlements (exact values + `:`-terminated prefixes), executor image prefixes, service IDs. Both engines load it. |
-| `engines/opa/policy/tes_authz.rego` | The reference policy in Rego. It enforces the contract itself too, so OPA is safe to call without the front. |
+| `config/reference-policy.json` | **The one place to configure the policy**: entitlement claim, member and admin entitlements (exact values + `:`-terminated prefixes), executor image prefixes, service IDs. OPA loads it as data; the OpenFGA setup job generates the tuples and the shim's claim map from it (a disagreeing `FGA_CLAIMS` refuses to start). |
+| `engines/opa/policy/tes_authz.rego` | The reference policy in Rego. It enforces the contract itself too (except the UTF-8 check, which only the front makes), so OPA gives the same golden decisions without the front. |
 | `shims/opa_front.py` | Thin AuthZEN front: request → `POST /v1/data/tes/authz/allow` → `{"decision": bool}` |
 | `engines/openfga/model.fga`, `model.json` | The OpenFGA model (DSL to read, JSON to load; a test checks that they agree). |
 | `engines/openfga/setup.py` | Creates the store, writes the model, generates the tuples from the data file, and records the IDs for the shim. |
@@ -58,8 +58,8 @@ Anything else is denied, and so is any request with another profile or an unknow
 
 | AuthZEN in | OpenFGA out |
 |---|---|
-| `subject` | `user:h-<sha256(subject.id)>`, properties `id` = the real ID, and `entitlements` (list) per `FGA_CLAIMS` |
-| `tes_task:<id>` | `tes_service:<service>`, properties `owner` (`""` when absent) and `images` (`[]`) |
+| `subject` | `user:h-<sha256(subject.id)>`, properties `id` = the real ID, and `entitlements` (list) from the policy's `entitlement_claim` |
+| `tes_task:<id>` | `tes_service:<service>`, properties `owner` (`""` when absent) and `images` (`[""]` when the task projection or its executor list is missing or malformed, so an allowlist denies) |
 | `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties |
 | `action.name` | the relation of the same name |
 
@@ -70,6 +70,8 @@ The shim scopes task sets per service (`<service>/own`). That way an unknown `se
 ## Run it
 
 Needs Docker with Compose, `uv` and `make`. Everything stays inside this folder: the virtual environment in `.venv/` and the uv cache in `.cache/`.
+
+This compose file is a local test and reference setup. All containers are read-only, drop all capabilities and run without new privileges, and ports bind to loopback only. But OPA's and OpenFGA's own APIs (18181, 18080) are published for the findings tests and are **not authenticated**: any local process can change policy data or tuples. A deployment publishes only the shims and enables OPA token authorization and OpenFGA preshared keys.
 
 ```sh
 make test     # lint, types, `opa check`, start services, all suites, stop and remove
@@ -90,21 +92,21 @@ curl -s localhost:18190/access/v1/evaluation -d @<(jq .request golden/requests/c
 |---|---|---|---|
 | unit | `tests/test_common.py` | URL stripping (13 golden cases), prefix expansion vs `startswith`, validation, OpenFGA mapping | 31 pass |
 | golden | `tests/test_golden.py` | golden files match the generator, every case has an expectation, allowed cases follow the profile | 3 pass |
-| 2: engine conformance | `tests/test_engines.py` | 53 golden requests × {OPA via front, OPA Data API, OpenFGA via shim} | 159 pass |
-| findings | `tests/test_findings.py`, `test_openfga_model.py` | engine behaviours the spec marked unverified (below) | 17 pass |
-| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 12, 13, 14, 15 (×5 failure kinds), 16, 17, 18, 19, 22 against the stub | 28 pass (mock TES) |
+| 2: engine conformance | `tests/test_engines.py` | 65 golden requests × {OPA via front, OPA Data API, OpenFGA via shim} | 195 pass |
+| findings | `tests/test_findings.py`, `test_openfga_model.py` | engine behaviours the spec marked unverified (below), shim hardening | 21 pass |
+| 1: hook conformance | `tests/conformance/test_hook.py` | spec cases 2, 4b, 5, 5b, 5c, 5d, 7, 7b, 8, 9, 10, 10b, 11, 11b, 12, 13, 14, 15 (×5 failure kinds on create, plus get, cancel and list), 16, 17, 18, 19, 22 against the stub | 31 pass (mock TES) |
 | 3: smoke | `tests/conformance/test_smoke.py` | TES × {OPA, OpenFGA}: allow, deny, foreign get 404, missing get and cancel 404, list scopes | 2 pass (mock TES) |
 
-Total: 240 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
+Total: 283 passed (`make test`, 2026-11-16, OPA 1.22.4, OpenFGA v1.22.1).
 
-The golden requests cover spec cases 3, 4, 4b, 5, 5d, 6, 7, 9–14 and 17, plus contract checks: missing or wrong profile, unknown service, wrong subject type, unknown set or action. They also cover legacy tasks without an owner, issuer-qualified (`<iss>|<sub>`) and 600-character subject IDs, and task IDs containing `:#@`.
+The golden requests cover spec cases 3, 4, 4b, 5, 5d, 6, 7, 9–14 and 17, plus contract checks: missing or wrong profile, unknown service, wrong subject type, unknown set or action. They also cover legacy tasks without an owner, issuer-qualified (`<iss>|<sub>`) and 600-character subject IDs, and task IDs containing `:#@`. Realistic sizes: 1024 entitlements with the match last, 1023 non-matching ones, 1024 executors (all allowed, or the last denied). Malformed projections (executors as object, string or null; entries without image; no task) are denied when an image allowlist is set.
 
 ### Where golden requests come from
 
 `tes-authz/golden/` didn't exist when this was built, so `scripts/gen_golden.py` writes the spec's conformance cases as golden requests into `golden/requests/`. The harness also reads every JSON file under `../golden/` (or the directories in `TES_AUTHZ_GOLDEN_DIRS`) once the Poiesis tests write them there. It accepts two formats:
 
 - the wrapper `{"name", "case", "description", "request", "expect": {"reference_policy": {"decision": bool}}}`;
-- a bare AuthZEN request, whose expectation goes into `golden/expectations.json` under `{"<dir>/<file stem>": {"reference_policy": {"decision": bool}}}`.
+- a bare AuthZEN request, whose expectation goes into `golden/expectations.json` under `{"<label>/<file stem>": {"reference_policy": {"decision": bool}}}`, where the label is the directory relative to `tes-authz/` (e.g. `golden`). A non-boolean `decision` or two files with the same name fail loading.
 
 `test_every_golden_case_has_an_expectation` fails for files without one, so a new golden request can't go unchecked. Hook-side golden files (`golden/hook/`) use placeholders such as `{{subject_id}}`, `{{iss}}` and `{{client_id}}`, which each TES adapter fills in.
 
@@ -139,13 +141,15 @@ Results come from OPA 1.22.4 and OpenFGA v1.22.1 (`OPENFGA_EXPERIMENTALS=authzen
 | F1 | OpenFGA returns an error, not a deny, when a condition parameter is missing (§7, review 2 finding 3) | **Verified.** HTTP 400 `validation_error`, "tuple '…' is missing context parameters '[resource_owner]'". Without the always-pass rule, missing and legacy tasks would give 503. With the shim, both give `decision: false` (golden `get-missing`, `get-legacy-no-owner`; smoke: 404 end to end). | `test_openfga_missing_condition_parameter_is_an_error` |
 | F2 | `subject.id` is not in OpenFGA's condition context, only `subject_*` properties (§7) | **Verified.** A request with `subject.id` but without `properties.id` fails with "missing … '[subject_id]'". | `test_openfga_subject_id_is_not_in_condition_context` |
 | F3 | OpenFGA ID pattern/length limits **[unverified]**; "the shim hashes long IDs" (§7) | **Verified, and stricter than the spec assumes.** Subject IDs must match `^[^:#@\s]{1,500}$` and resource IDs `^[^:#@\s]{1,256}$`. Length isn't the main problem: every `<iss>\|<sub>` owner (has `:`) and every LS Login `sub` (`…@lifescience-ri.eu`, has `@`) is rejected. The shim must hash or encode every subject ID, not only long ones. Ours hashes all of them and passes the real ID as `subject_id`. **Spec text to change:** "the shim hashes long IDs" → "the shim encodes every subject ID (OpenFGA rejects `:`, `#`, `@`, whitespace)". | `test_openfga_identifier_limits` (6 cases), boundaries at 500/256 |
-| F4 | Prefix tests need expansion in engines without quantifiers; reference prefixes must end in a delimiter, or expansion and `startswith` disagree (§7) | **Verified.** Expansion equals `startswith` for `:`-terminated prefixes on every golden entitlement set; `urn:g:vo` vs `urn:g:vo2#x` disagrees. **Addition:** OpenFGA's CEL conditions support `exists`/`all` and `startsWith`, so OpenFGA needs no expansion and tests prefixes natively. Expansion stays in `common` for Cedar and Casbin. | `test_prefix_expansion_*`; the OpenFGA model's `entitled` condition |
+| F4 | Prefix tests need expansion in engines without quantifiers; reference prefixes must end in a delimiter, or expansion and `startswith` disagree (§7) | **Verified.** Expansion equals `startswith` for `:`-terminated prefixes on every golden entitlement set; `urn:g:vo` vs `urn:g:vo2#x` disagrees. **Addition:** OpenFGA's CEL conditions support `exists`/`all` and `startsWith`, so OpenFGA needs no expansion and tests prefixes natively, but only within its CEL cost budget: with the default `OPENFGA_MAX_CONDITION_EVALUATION_COST`, a condition over more than about 5 entitlements or executors fails with HTTP 400 ("cost limit exceeded"), so ordinary LS Login users with dozens of entitlements would get 503 (measured in the service review; the result also depends on list order, because `exists` short-circuits). Compose raises the budget to 100000, the shim caps lists at `SHIM_MAX_LIST_ITEMS` (1024; above that it answers 502), and golden cases at 1024 items pin it. The cost grows with list length × allowed values and prefixes; raise the budget with more configured entries. Expansion stays in `common` for Cedar and Casbin. | `test_prefix_expansion_*`; the OpenFGA model's `entitled` condition |
 | F5 | In OpenFGA's AuthZEN, `action.name` must be a relation (§7) | **Verified.** An unknown action gives 400 (it would be a 503 at the TES). The shim validates action names first and denies. | `test_openfga_unknown_relation_is_an_error` |
 | F6 | Native AuthZEN PDPs return only `decision` (§3.5) | **Verified** for OpenFGA: the body is exactly `{"decision": …}`. | `test_openfga_answers_decision_only` |
 | F7 | `tes_task_set:own/all` work natively in OpenFGA with `user:*` tuples; `tes_task` needs the `tes_service` rewrite with a conditioned `user:*` tuple (§7) | **Verified** by the full golden replay. Design note: OpenFGA allows only one tuple per (object, relation, user), so owner and admin need separate relations (`owner`, `admin`, with `GetTask: owner or admin`). | `test_golden_decision[openfga-*]` |
-| F8 | OPA needs a ~50-line shim (§7) | **Verified.** The front is ~60 lines with docstrings. The Rego policy also enforces the contract, so OPA called directly (Data API) gives the same 53 decisions. | `test_golden_decision[opa-data-api-*]` |
+| F8 | OPA needs a ~50-line shim (§7) | **Verified.** The front is ~60 lines with docstrings. The Rego policy also enforces the contract, so OPA called directly (Data API) gives the same 65 decisions. | `test_golden_decision[opa-data-api-*]` |
 | F9 | OpenFGA's AuthZEN endpoint is store-scoped, so v1 config takes the full URL (§2, §7) | **Verified**: `/stores/{id}/access/v1/evaluation`. The shim hides this, so the TES config holds the shim URL. | `fga_eval` fixture |
 | F10 | `X-Request-ID` (AuthZEN §10.1.3) | OpenFGA **doesn't echo** a client-supplied ID; both shims do, for log correlation. | `test_openfga_does_not_echo_request_id`, `test_shims_echo_request_id` |
+
+| F11 | (not in the spec) shim robustness | Lone UTF-16 surrogates are denied by the contract check (Go would map them to U+FFFD, so distinct IDs could compare equal in OPA); identifiers with a trailing newline are hashed; requests without `Content-Length` get 411; clients that stall get dropped after 5 s. | `test_shims_deny_lone_surrogates`, `test_shims_deny_service_id_with_newline`, `test_shims_require_content_length`, `test_openfga_shim_rejects_lists_over_limit` |
 
 Not checked here: Cedar entity tags, Cerbos role mapping and Topaz directory behaviour (not in phase 1); OpenFGA Search paging (Search isn't used); Passport validation.
 
