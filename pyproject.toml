@@ -1,0 +1,49 @@
+[project]
+name = "tes-authz-service"
+version = "0.1.0"
+description = "Engine side of the TES AuthZ contract (tes-authzen/1): reference decision services, shims and test harness"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = [".", "shims"]
+testpaths = ["tests"]
+markers = [
+  "services: needs the compose services (make up)",
+]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "D", "A", "RUF"]
+ignore = ["D203", "D213", "S101", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["shims", "."]
+explicit_package_bases = true
+exclude = ["^\\.venv/", "^\\.cache/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false

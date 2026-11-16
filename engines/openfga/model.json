@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {"type": "user"},
+    {
+      "type": "tes_task_set",
+      "relations": {
+        "creator": {"this": {}},
+        "image_ok": {"this": {}},
+        "lister": {"this": {}},
+        "CreateTask": {"intersection": {"child": [
+          {"computedUserset": {"relation": "creator"}},
+          {"computedUserset": {"relation": "image_ok"}}
+        ]}},
+        "ListTasks": {"computedUserset": {"relation": "lister"}},
+        "GetTask": {"this": {}},
+        "CancelTask": {"this": {}}
+      },
+      "metadata": {"relations": {
+        "creator": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
+        "image_ok": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "images_allowed"}]},
+        "lister": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
+        "GetTask": {"directly_related_user_types": [{"type": "user"}]},
+        "CancelTask": {"directly_related_user_types": [{"type": "user"}]}
+      }}
+    },
+    {
+      "type": "tes_service",
+      "relations": {
+        "owner": {"this": {}},
+        "admin": {"this": {}},
+        "GetTask": {"union": {"child": [
+          {"computedUserset": {"relation": "owner"}},
+          {"computedUserset": {"relation": "admin"}}
+        ]}},
+        "CancelTask": {"union": {"child": [
+          {"computedUserset": {"relation": "owner"}},
+          {"computedUserset": {"relation": "admin"}}
+        ]}},
+        "CreateTask": {"this": {}},
+        "ListTasks": {"this": {}}
+      },
+      "metadata": {"relations": {
+        "owner": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "is_owner"}]},
+        "admin": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
+        "CreateTask": {"directly_related_user_types": [{"type": "user"}]},
+        "ListTasks": {"directly_related_user_types": [{"type": "user"}]}
+      }}
+    }
+  ],
+  "conditions": {
+    "entitled": {
+      "name": "entitled",
+      "expression": "subject_entitlements.exists(e, e in allowed_values || allowed_prefixes.exists(p, e.startsWith(p)))",
+      "parameters": {
+        "subject_entitlements": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "allowed_values": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "allowed_prefixes": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]}
+      }
+    },
+    "images_allowed": {
+      "name": "images_allowed",
+      "expression": "size(allowed_image_prefixes) == 0 || resource_images.all(i, allowed_image_prefixes.exists(p, i.startsWith(p)))",
+      "parameters": {
+        "resource_images": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "allowed_image_prefixes": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]}
+      }
+    },
+    "is_owner": {
+      "name": "is_owner",
+      "expression": "resource_owner != \"\" && resource_owner == subject_id",
+      "parameters": {
+        "subject_id": {"type_name": "TYPE_NAME_STRING"},
+        "resource_owner": {"type_name": "TYPE_NAME_STRING"}
+      }
+    }
+  }
+}

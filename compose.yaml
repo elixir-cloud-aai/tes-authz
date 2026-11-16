@@ -1,0 +1,104 @@
+# Engine side of the TES AuthZ contract (tes-authzen/1), phase 1.
+#
+#   make up     start everything      make down   stop and remove
+#
+# Host ports (loopback only) can be changed with the variables below.
+name: tes-authz
+
+x-python: &python
+  image: python:3.13.18-slim
+  read_only: true
+  user: "65534:65534"
+  environment: &python-env
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONUNBUFFERED: "1"
+  volumes:
+    - ./shims:/shims:ro
+
+services:
+  opa:
+    image: openpolicyagent/opa:1.22.4
+    container_name: tes-authz-opa
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - /policy
+      - /data
+    volumes:
+      - ./engines/opa/policy:/policy:ro
+      - ./config/reference-policy.json:/data/tes_authz/data.json:ro
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_OPA_PORT:-18181}:8181"
+
+  opa-front:
+    <<: *python
+    container_name: tes-authz-opa-front
+    working_dir: /shims
+    command: ["python", "opa_front.py"]
+    environment:
+      <<: *python-env
+      OPA_URL: http://opa:8181
+      SHIM_BASE_URL: http://127.0.0.1:${TES_AUTHZ_OPA_FRONT_PORT:-18190}
+    depends_on: [opa]
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_OPA_FRONT_PORT:-18190}:8080"
+
+  openfga:
+    image: openfga/openfga:v1.22.1
+    container_name: tes-authz-openfga
+    command: ["run"]
+    environment:
+      OPENFGA_EXPERIMENTALS: authzen
+      OPENFGA_DATASTORE_ENGINE: memory
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_OPENFGA_PORT:-18080}:8080"
+
+  openfga-setup:
+    <<: *python
+    container_name: tes-authz-openfga-setup
+    command: ["python", "/engine/setup.py"]
+    environment:
+      <<: *python-env
+      FGA_URL: http://openfga:8080
+    volumes:
+      - ./shims:/shims:ro
+      - ./engines/openfga:/engine:ro
+      - ./config/reference-policy.json:/config/reference-policy.json:ro
+      - openfga-state:/state
+    user: "0:0"
+    depends_on: [openfga]
+    restart: "no"
+
+  openfga-shim:
+    <<: *python
+    container_name: tes-authz-openfga-shim
+    working_dir: /shims
+    command: ["python", "openfga_shim.py"]
+    environment:
+      <<: *python-env
+      FGA_URL: http://openfga:8080
+      FGA_CLAIMS: entitlements=eduperson_entitlement
+      SHIM_BASE_URL: http://127.0.0.1:${TES_AUTHZ_OPENFGA_SHIM_PORT:-18191}
+    volumes:
+      - ./shims:/shims:ro
+      - openfga-state:/state:ro
+    depends_on:
+      openfga-setup:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_OPENFGA_SHIM_PORT:-18191}:8080"
+
+  stub:
+    <<: *python
+    container_name: tes-authz-stub
+    command: ["python", "/stub/recording_pdp.py"]
+    volumes:
+      - ./stub:/stub:ro
+    ports:
+      - "127.0.0.1:${TES_AUTHZ_STUB_PORT:-18192}:8080"
+
+volumes:
+  openfga-state:
