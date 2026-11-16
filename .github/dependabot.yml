@@ -26,23 +26,32 @@ updates:
       github-actions:
         patterns: ["*"]
   # Images of the services in `compose.yaml` (engines and the Python image of
-  # the shims, stub and mock OIDC issuer). The OPA image in
-  # `scripts/test.sh` (`opa check`) must match `compose.yaml`: update it in
-  # the same pull request
+  # the shims, stub and mock OIDC issuer; `scripts/test.sh` runs `opa check`
+  # with the OPA image of `compose.yaml`). Python is bumped within its minor
+  # version only: CI tests with the same minor version (`python-version` in
+  # `ci.yml`), so a new one is a change by hand in both places
   - package-ecosystem: docker-compose
     directory: /
     labels: ["type: dependencies"]
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       docker-compose:
         patterns: ["*"]
-  # The image of the Pulsar server for the TESP smoke run
+  # The image of the Pulsar server for the TESP smoke run, which CI doesn't
+  # build: Python is bumped within its minor version only, as the pinned
+  # Pulsar release may not install on a newer one
   - package-ecosystem: docker
     directory: /tes/tesp/pulsar
     labels: ["type: dependencies"]
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       docker:
         patterns: ["*"]

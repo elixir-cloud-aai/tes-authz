@@ -82,6 +82,7 @@ This compose file is a local test and reference setup. All containers are read-o
 make test     # lint, types, `opa check`, start services, all suites, stop and remove
 make up       # start only (ports 18080 OpenFGA, 18181 OPA, 18190 OPA front, 18191 OpenFGA shim, 18192 stub, 18193 OIDC)
 make unit     # tests that need no containers
+make lint     # ruff (lint and format check) and mypy
 make down     # stop and remove containers and the state volume
 ```
 
@@ -215,9 +216,18 @@ Observation for the policy (no spec change needed): under the reference policy, 
 ## Contributing
 
 Contributions are welcome! See the organisation's [contributing
-guide][contributing] and mind our [code of conduct][code-of-conduct]. Install
-the dependencies with `uv sync` and the commit hooks with `uv run pre-commit
-install`; `make lint`, `make unit` and `make test` run the checks of CI.
+guide][contributing] and mind our [code of conduct][code-of-conduct].
+
+- Branch from `dev` and open pull requests against it. Pull request titles
+  follow [Conventional Commits](https://www.conventionalcommits.org/) and have
+  at most 50 characters (checked in CI), as they become the commit messages of
+  squash merges.
+- Install the dependencies with `uv sync`, then the commit hooks with `uv run
+  pre-commit install` (they run ruff and mypy from `.venv`, plus gitleaks and
+  actionlint; `uv run pre-commit run --all-files` runs them all). The hook
+  environments live in `~/.cache/pre-commit`, outside the checkout.
+- `make lint`, `make unit` and `make test` run the checks of CI; the gate
+  `CI passed` must pass. `make test` needs Docker and pulls about 5 images.
 
 ## License
 

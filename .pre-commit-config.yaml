@@ -34,8 +34,8 @@ repos:
   - repo: local
     hooks:
       # The commands of `make lint`, with the dev dependencies of
-      # `pyproject.toml` (`uv sync`); the mypy paths are those of `make lint`
-      # and `scripts/test.sh` (keep them in sync)
+      # `pyproject.toml` (run `uv sync` first); mypy checks the paths of
+      # `files` in `pyproject.toml`
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check --force-exclude
@@ -48,7 +48,7 @@ repos:
         types_or: [python, pyi]
       - id: mypy
         name: mypy
-        entry: uv run mypy shims stub oidc harness tes engines/openfga scripts
+        entry: uv run mypy
         language: system
         types: [python]
         pass_filenames: false

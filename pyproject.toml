@@ -50,6 +50,8 @@ convention = "google"
 
 [tool.mypy]
 python_version = "3.12"
+# Checked by `mypy` without arguments (`make lint`, `scripts/test.sh`, pre-commit)
+files = ["shims", "stub", "oidc", "harness", "tes", "engines/openfga", "scripts"]
 strict = true
 mypy_path = ["shims", "oidc", "."]
 explicit_package_bases = true

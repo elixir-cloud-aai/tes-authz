@@ -8,6 +8,6 @@ useDefault = true
 [allowlist]
 description = "Local caches and the virtual environment (git-ignored)"
 paths = [
-  '''(^|/)\.cache/''',
-  '''(^|/)\.venv/''',
+  '''^\.cache/''',
+  '''^\.venv/''',
 ]
