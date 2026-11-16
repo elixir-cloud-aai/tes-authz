@@ -4,23 +4,27 @@ Test-only. It exists to exercise the harness (stub, golden comparison,
 engines) end to end before a real TES has the hook, and as executable
 pseudo-code of the hook. It is not a TES implementation:
 
-* Tokens are NOT validated: ``Bearer mock.<base64url(JSON claims)>`` is
-  taken at face value. Real TESes validate OIDC tokens (phase 2 adds a mock
-  OIDC issuer to the harness for them).
-* No userinfo, no executors, no backend; tasks stay ``QUEUED``.
+* AuthN is OIDC against the harness's mock issuer (``oidc/issuer.py``):
+  RS256 access tokens validated with the pinned issuers' JWKS (issuer,
+  audience, expiry; JWKS refetched once on an unknown key ID), and the
+  optional userinfo lookup of spec section 3.6 (``sub`` must match, JSON
+  only, cached by token hash until min(``exp``, 5 minutes)). With more than
+  one issuer, owners are ``<iss>|<sub>``.
+* No executors, no backend; tasks stay ``QUEUED``.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
+import hashlib
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -29,11 +33,17 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shims"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "oidc"))
 
 from common import strip_url
+from minijose import JoseError, decode_unverified, verify_jwt
 
 PREFIX = "/ga4gh/tes/v1"
 PROFILE = "tes-authzen/1"
+USERINFO_TTL = 300.0
+"""Longest time a userinfo answer is cached (spec section 3.6)."""
+USERINFO_CACHE_SIZE = 1024
+"""Most userinfo answers cached (LRU)."""
 
 
 class HttpError(Exception):
@@ -62,6 +72,11 @@ class Settings:
         rule_values: ``authz.requiredClaim.values``.
         rule_prefixes: ``authz.requiredClaim.prefixes``.
         service_id: Service-info ID.
+        issuers: Pinned issuer URLs; more than one gives ``<iss>|<sub>``
+            owners. Without any, every request with a token is 401.
+        audience: The ``aud`` access tokens must carry.
+        userinfo: ``auth.oidc.userinfo.enabled``.
+        userinfo_timeout: Seconds for one discovery, JWKS or userinfo call.
     """
 
     pdp_url: str | None = None
@@ -71,6 +86,10 @@ class Settings:
     rule_values: tuple[str, ...] = ()
     rule_prefixes: tuple[str, ...] = ()
     service_id: str = "tes-authz-test"
+    issuers: tuple[str, ...] = ()
+    audience: str = "tes-authz"
+    userinfo: bool = False
+    userinfo_timeout: float = 2.0
 
 
 @dataclass
@@ -78,15 +97,14 @@ class Principal:
     """The authenticated caller.
 
     Attributes:
-        claims: The (unvalidated, test-only) token claims.
+        claims: The validated access-token claims.
+        userinfo: Userinfo claims (empty when userinfo is off).
+        owner_id: ``sub``, or ``<iss>|<sub>`` with several issuers.
     """
 
     claims: dict[str, Any]
-
-    @property
-    def owner_id(self) -> str:
-        """The owner ID (single issuer: ``sub``)."""
-        return str(self.claims["sub"])
+    userinfo: dict[str, Any] = field(default_factory=dict)
+    owner_id: str = ""
 
 
 @dataclass
@@ -106,24 +124,166 @@ class Store:
 _MISSING = object()
 
 
-def lookup(claims: dict[str, Any], name: str) -> Any:
-    """Look a claim up: exact top-level name, then dotted path.
-
-    Args:
-        claims: The token claims.
-        name: The claim name.
-
-    Returns:
-        The value, or ``_MISSING``.
-    """
-    if name in claims:
-        return claims[name]
+def _path(claims: dict[str, Any], name: str) -> Any:
     node: Any = claims
     for part in name.split("."):
         if not isinstance(node, dict) or part not in node:
             return _MISSING
         node = node[part]
     return node
+
+
+def lookup(p: Principal, name: str) -> Any:
+    """Look a claim up in the resolved claim view (spec section 6).
+
+    First found of: token[name], userinfo[name], path(token, name),
+    path(userinfo, name).
+
+    Args:
+        p: The caller.
+        name: The claim name.
+
+    Returns:
+        The value, or ``_MISSING``.
+    """
+    for source in (p.claims, p.userinfo):
+        if name in source:
+            return source[name]
+    for source in (p.claims, p.userinfo):
+        value = _path(source, name)
+        if value is not _MISSING:
+            return value
+    return _MISSING
+
+
+class UnauthorizedError(HttpError):
+    """A 401 answer."""
+
+    def __init__(self) -> None:
+        """Create the error."""
+        super().__init__(HTTPStatus.UNAUTHORIZED, "unauthorized")
+
+
+def _get_json(url: str, timeout: float, token: str | None = None) -> Any:
+    """GET a JSON document; any failure or non-JSON answer is ``UnauthorizedError``.
+
+    Args:
+        url: The URL.
+        timeout: Seconds.
+        token: Bearer token to send, if any.
+
+    Returns:
+        The decoded body.
+
+    Raises:
+        UnauthorizedError: On error, timeout, non-200, or a content type other
+            than JSON (signed userinfo, ``application/jwt``, is refused).
+    """
+    request = urllib.request.Request(url)
+    if token is not None:
+        request.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if response.status != HTTPStatus.OK or content_type not in ("application/json", "application/jwk-set+json"):
+                raise UnauthorizedError
+            return json.loads(response.read())
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise UnauthorizedError from exc
+
+
+class OidcAuth:
+    """OIDC AuthN: token validation against pinned issuers, optional userinfo."""
+
+    def __init__(self, settings: Settings) -> None:
+        """Bind to the settings; discovery and JWKS are fetched on first use.
+
+        Args:
+            settings: The TES settings.
+        """
+        self.settings = settings
+        self.lock = threading.Lock()
+        self.discovery: dict[str, dict[str, Any]] = {}
+        self.jwks: dict[str, dict[str, Any]] = {}
+        self.userinfo_cache: OrderedDict[str, tuple[float, dict[str, Any]]] = OrderedDict()
+
+    def _discovery(self, issuer: str) -> dict[str, Any]:
+        with self.lock:
+            cached = self.discovery.get(issuer)
+        if cached is None:
+            doc = _get_json(issuer + "/.well-known/openid-configuration", self.settings.userinfo_timeout)
+            if not isinstance(doc, dict) or doc.get("issuer") != issuer:
+                raise UnauthorizedError
+            cached = doc
+            with self.lock:
+                self.discovery[issuer] = doc
+        return cached
+
+    def _jwks(self, issuer: str, refresh: bool) -> dict[str, Any]:
+        with self.lock:
+            cached = None if refresh else self.jwks.get(issuer)
+        if cached is None:
+            jwks = _get_json(str(self._discovery(issuer).get("jwks_uri")), self.settings.userinfo_timeout)
+            if not isinstance(jwks, dict):
+                raise UnauthorizedError
+            cached = jwks
+            with self.lock:
+                self.jwks[issuer] = jwks
+        return cached
+
+    def authenticate(self, header: str | None) -> Principal:
+        """Validate the bearer token and resolve userinfo.
+
+        Args:
+            header: The ``Authorization`` header.
+
+        Returns:
+            The caller.
+
+        Raises:
+            UnauthorizedError: On any AuthN failure.
+        """
+        if not header or not header.startswith("Bearer "):
+            raise UnauthorizedError
+        token = header.removeprefix("Bearer ").strip()
+        try:
+            _, unverified = decode_unverified(token)
+        except JoseError as exc:
+            raise UnauthorizedError from exc
+        issuer = unverified.get("iss")
+        if not isinstance(issuer, str) or issuer not in self.settings.issuers:
+            raise UnauthorizedError
+        claims: dict[str, Any] = {}
+        for refresh in (False, True):
+            try:
+                claims = verify_jwt(token, self._jwks(issuer, refresh), issuer, self.settings.audience)
+                break
+            except JoseError as exc:
+                if refresh or "signing key" not in str(exc):
+                    raise UnauthorizedError from exc
+        owner = claims["sub"] if len(self.settings.issuers) == 1 else f"{issuer}|{claims['sub']}"
+        userinfo = self._userinfo(issuer, token, claims) if self.settings.userinfo else {}
+        return Principal(claims, userinfo, owner)
+
+    def _userinfo(self, issuer: str, token: str, claims: dict[str, Any]) -> dict[str, Any]:
+        key = hashlib.sha256(token.encode()).hexdigest()
+        now = time.time()
+        with self.lock:
+            hit = self.userinfo_cache.get(key)
+            if hit is not None and hit[0] > now:
+                self.userinfo_cache.move_to_end(key)
+                return hit[1]
+        endpoint = self._discovery(issuer).get("userinfo_endpoint")
+        if not isinstance(endpoint, str):
+            raise UnauthorizedError
+        info = _get_json(endpoint, self.settings.userinfo_timeout, token)
+        if not isinstance(info, dict) or info.get("sub") != claims["sub"]:
+            raise UnauthorizedError
+        with self.lock:
+            self.userinfo_cache[key] = (min(float(claims["exp"]), now + USERINFO_TTL), info)
+            while len(self.userinfo_cache) > USERINFO_CACHE_SIZE:
+                self.userinfo_cache.popitem(last=False)
+        return info
 
 
 def project(task: dict[str, Any]) -> dict[str, Any]:
@@ -196,7 +356,7 @@ class Hook:
             props["scope"] = c["scope"]
         claims = {}
         for name in self.settings.claims:
-            value = lookup(c, name)
+            value = lookup(p, name)
             if value is not _MISSING:
                 claims[name] = value
         props["claims"] = claims
@@ -213,7 +373,7 @@ class Hook:
         """
         if not self.settings.rule_name:
             return
-        value = lookup(p.claims, self.settings.rule_name)
+        value = lookup(p, self.settings.rule_name)
         if isinstance(value, str):
             value = [value]
         if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
@@ -402,35 +562,12 @@ class Hook:
         return {k: v for k, v in task.items() if not k.startswith("_")}
 
 
-def principal_from(header: str | None) -> Principal:
-    """Decode the test-only bearer token.
-
-    Args:
-        header: The ``Authorization`` header.
-
-    Returns:
-        The caller.
-
-    Raises:
-        HttpError: 401 if the token is missing or malformed.
-    """
-    if not header or not header.startswith("Bearer mock."):
-        raise HttpError(HTTPStatus.UNAUTHORIZED, "unauthorized")
-    raw = header.removeprefix("Bearer mock.")
-    try:
-        claims = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
-    except (ValueError, binascii.Error) as exc:
-        raise HttpError(HTTPStatus.UNAUTHORIZED, "unauthorized") from exc
-    if not isinstance(claims, dict) or not isinstance(claims.get("sub"), str):
-        raise HttpError(HTTPStatus.UNAUTHORIZED, "unauthorized")
-    return Principal(claims)
-
-
-def make_handler(hook: Hook) -> type[BaseHTTPRequestHandler]:
+def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
     """Build the HTTP handler.
 
     Args:
         hook: The hook.
+        auth: The OIDC AuthN.
 
     Returns:
         The handler class.
@@ -471,7 +608,7 @@ def make_handler(hook: Hook) -> type[BaseHTTPRequestHandler]:
                 return
 
             def run() -> Any:
-                p = principal_from(self.headers.get("Authorization"))
+                p = auth.authenticate(self.headers.get("Authorization"))
                 if url.path == f"{PREFIX}/tasks":
                     return hook.list(p, int(query.get("page_size", "256")), query.get("page_token"), view)
                 if url.path.startswith(f"{PREFIX}/tasks/"):
@@ -487,7 +624,7 @@ def make_handler(hook: Hook) -> type[BaseHTTPRequestHandler]:
             raw = self.rfile.read(length) if length else b"{}"
 
             def run() -> Any:
-                p = principal_from(self.headers.get("Authorization"))
+                p = auth.authenticate(self.headers.get("Authorization"))
                 if path == f"{PREFIX}/tasks":
                     body = json.loads(raw)
                     if not isinstance(body, dict):
@@ -511,7 +648,7 @@ def start(settings: Settings) -> tuple[ThreadingHTTPServer, str]:
     Returns:
         The server and its base URL (with ``/ga4gh/tes/v1``).
     """
-    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(Hook(settings, Store())))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(Hook(settings, Store()), OidcAuth(settings)))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}{PREFIX}"
