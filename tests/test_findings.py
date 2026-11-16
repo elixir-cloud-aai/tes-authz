@@ -190,3 +190,9 @@ def test_shims_publish_authzen_metadata(services):
         base = engine.host_url.removesuffix("/access/v1/evaluation")
         status, body = http("GET", base + "/.well-known/authzen-configuration")
         assert status == 200 and body["access_evaluation_endpoint"] == engine.host_url
+
+
+def test_openfga_missing_parameter_without_membership_never_allows(fga_eval):
+    """Q11: under ``owner and member`` a non-member may get a deny instead of 400, never an allow."""
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {}))
+    assert status == 400 or (status, body) == (200, {"decision": False})

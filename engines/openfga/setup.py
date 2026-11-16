@@ -77,6 +77,7 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     return [
         req("ListTasks", "tes_task_set", "own", entitlements, {}),
         req("ListTasks", "tes_task_set", "all", entitlements, {}),
+        # member is false here, so OpenFGA may skip is_owner (cheap); member and admin walk the list.
         req("GetTask", "tes_task", "t", entitlements, {"owner": "self-check"}),
         req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
     ]

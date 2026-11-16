@@ -198,7 +198,7 @@ Results come from OPA 1.22.4 and OpenFGA v1.22.1 (`OPENFGA_EXPERIMENTALS=authzen
 
 Not checked here: Cedar entity tags, Cerbos role mapping and Topaz directory behaviour (not in phase 1); OpenFGA Search paging (Search isn't used); Passport validation.
 
-Owner rule (Q11, decided option b): owners read and cancel their own tasks only while they hold a member entitlement, so in a PDP-only deployment revoking the entitlement ends access at once, as the claim rule does when it is set. An operator who wants owners to keep access after leaving the group drops `member` from the owner branch in their copy of the policy (OPA: `owner_or_admin`; OpenFGA: `owner and member`). Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `get-other-no-entitlement` and `get-own-admin`.
+Owner rule (Q11, decided option b): owners read and cancel their own tasks only while they hold a member entitlement, so in a PDP-only deployment revoking the entitlement ends access at once, as the claim rule does when it is set. An operator who wants owners to keep access after leaving the group drops `member` from the owner branch in their copy of the policy (OPA: `owner_or_admin`; OpenFGA: `owner and member`). Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `get-other-no-entitlement` and `get-own-admin`. Because `is_owner` now sits inside `owner and member`, a request from a non-member that lacks `resource_owner` or `subject_id` may get a plain deny from OpenFGA instead of the 400 of finding F1; it is never an allow, and the shim always sends both parameters, so the shim, not OpenFGA, guarantees them.
 
 ## What phase 2 needs
 
