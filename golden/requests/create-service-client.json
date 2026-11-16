@@ -1,0 +1,74 @@
+{
+  "case": "5d",
+  "description": "client-credentials subject without claims",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "create-service-client",
+  "request": {
+    "action": {
+      "name": "CreateTask"
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "properties": {
+        "task": {
+          "executors": [
+            {
+              "image": "docker.io/library/alpine:3.20"
+            }
+          ],
+          "inputs": [
+            {
+              "path": "/data/in.txt",
+              "type": "FILE",
+              "url": "s3://bucket/in.txt"
+            }
+          ],
+          "name": "hello",
+          "outputs": [
+            {
+              "path": "/data/out",
+              "type": "DIRECTORY",
+              "url": "https://storage.example.org/out/"
+            }
+          ],
+          "resources": {
+            "cpu_cores": 1,
+            "disk_gb": 5.0,
+            "preemptible": false,
+            "ram_gb": 1.0,
+            "zones": []
+          },
+          "tags": {
+            "project": "demo"
+          },
+          "volumes": [
+            "/vol/a"
+          ]
+        }
+      },
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "service-account-proxy",
+      "properties": {
+        "client_id": "protes",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid"
+        ],
+        "sub": "service-account-proxy"
+      },
+      "type": "user"
+    }
+  }
+}

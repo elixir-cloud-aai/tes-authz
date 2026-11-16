@@ -1,0 +1,47 @@
+{
+  "case": "14",
+  "description": "near-miss entitlement",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "list-own-near-miss",
+  "request": {
+    "action": {
+      "name": "ListTasks",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "carol-sub",
+      "properties": {
+        "claims": {
+          "eduperson_entitlement": [
+            "urn:geant:lifescience-ri.eu:group:example-vox#login.aai.lifescience-ri.eu",
+            "urn:geant:lifescience-ri.eu:group:other-vo:sub#login.aai.lifescience-ri.eu"
+          ]
+        },
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "carol-sub"
+      },
+      "type": "user"
+    }
+  }
+}

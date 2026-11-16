@@ -1,0 +1,40 @@
+{
+  "case": "5d",
+  "description": "service client without claims",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "list-own-service-client",
+  "request": {
+    "action": {
+      "name": "ListTasks",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "service-account-proxy",
+      "properties": {
+        "client_id": "protes",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid"
+        ],
+        "sub": "service-account-proxy"
+      },
+      "type": "user"
+    }
+  }
+}
