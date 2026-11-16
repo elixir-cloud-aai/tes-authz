@@ -1,0 +1,49 @@
+{
+  "case": "10",
+  "description": "no entitlement, someone else's task",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "get-other-no-entitlement",
+  "request": {
+    "action": {
+      "name": "GetTask",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "task-b1",
+      "properties": {
+        "owner": "bob-sub",
+        "state": "RUNNING",
+        "tags": {
+          "project": "demo"
+        }
+      },
+      "type": "tes_task"
+    },
+    "subject": {
+      "id": "frank-sub",
+      "properties": {
+        "claims": {},
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "frank-sub"
+      },
+      "type": "user"
+    }
+  }
+}
