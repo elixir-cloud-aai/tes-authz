@@ -28,7 +28,8 @@ uv sync --project "$root" --quiet
 cd "$root"
 uv run --project "$root" ruff check .
 uv run --project "$root" ruff format --check .
-uv run --project "$root" mypy shims stub oidc harness tes engines/openfga scripts
-docker run --rm -v "$root/engines/opa/policy:/policy:ro" openpolicyagent/opa:1.22.4 check --strict /policy
+uv run --project "$root" mypy
+# With the OPA image and policy mount of compose.yaml
+"${compose[@]}" run --rm --no-deps --no-TTY opa check --strict /policy
 "${compose[@]}" up -d --wait
 uv run --project "$root" pytest -p no:cacheprovider "$@"

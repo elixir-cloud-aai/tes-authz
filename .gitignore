@@ -1,7 +1,21 @@
+# Virtual environment and caches (the Makefile keeps them in the checkout)
 .venv/
 .cache/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local secrets and settings; only examples are committed
+.env
+.env.*
+!.env.example
+.envrc
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store

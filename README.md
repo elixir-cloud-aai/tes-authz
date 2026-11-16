@@ -1,5 +1,8 @@
 # TES AuthZ: engine side (phase 1)
 
+[![License][badge-license]][badge-url-license]
+[![Build_status][badge-build-status]][badge-url-build-status]
+
 Reference decision services, shims and a test harness for the TES AuthZ contract `tes-authzen/1`, as specified in `../spec.md` (draft 3). Phase 1 covers OPA and OpenFGA, with the harness the TES side plugs into (Poiesis first, then TESK, Funnel and TESP).
 
 Decisions applied (from the spec's open questions):
@@ -79,6 +82,7 @@ This compose file is a local test and reference setup. All containers are read-o
 make test     # lint, types, `opa check`, start services, all suites, stop and remove
 make up       # start only (ports 18080 OpenFGA, 18181 OPA, 18190 OPA front, 18191 OpenFGA shim, 18192 stub, 18193 OIDC)
 make unit     # tests that need no containers
+make lint     # ruff (lint and format check) and mypy
 make down     # stop and remove containers and the state volume
 ```
 
@@ -206,5 +210,41 @@ Owner rule (Q11, decided option b): owners read and cancel their own tasks only 
 - **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec §4.2).
 - **Cases the mock TES can't exercise:** 1 and 22 per TES; 13b (scope-bound cursor, TESK 400); 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
 - **More golden requests from each TES** in `tes-authz/golden/<tes>/`, like Poiesis's: each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
-- **A home and CI:** a repository (uniqueg decides) and a CI job running `make test`. The CI job needs Docker and pulls about 5 images.
+- **A home and CI:** done: this repository; the `Integration` job of the `CI` workflow runs `make test` (Docker, with the images of `compose.yaml`).
 - **Further engines when needed:** Cedar and Casbin (they use `expand_prefixes`), Cerbos and Topaz (whose behaviour is still unverified).
+
+## Contributing
+
+Contributions are welcome! See the organisation's [contributing
+guide][contributing] and mind our [code of conduct][code-of-conduct].
+
+- Branch from `dev` and open pull requests against it. Pull request titles
+  follow [Conventional Commits](https://www.conventionalcommits.org/) and have
+  at most 50 characters (checked in CI), as they become the commit messages of
+  squash merges.
+- Install the dependencies with `uv sync`, then the commit hooks with `uv run
+  pre-commit install` (they run ruff and mypy from `.venv`, plus gitleaks on
+  the staged changes and actionlint). The hook environments live in
+  `~/.cache/pre-commit`, outside the checkout.
+- CI (the gate `CI passed` must pass) runs these checks; to run them all
+  locally:
+
+  ```sh
+  uv lock --check                       # lock matches pyproject.toml
+  make lint                             # ruff and mypy
+  uv run pre-commit run --all-files     # all hooks on all files
+  uv run pre-commit run --all-files --hook-stage manual gitleaks-all  # secrets in the whole checkout
+  make unit                             # tests without containers
+  make test                             # everything, with the services (needs Docker; pulls the images of compose.yaml)
+  ```
+
+## License
+
+[Apache License 2.0](LICENSE), copyright ELIXIR On-Cloud.
+
+[badge-build-status]: <https://github.com/elixir-cloud-aai/tes-authz/actions/workflows/ci.yml/badge.svg?branch=dev>
+[badge-license]: <https://img.shields.io/badge/license-Apache%202.0-blue.svg>
+[badge-url-build-status]: <https://github.com/elixir-cloud-aai/tes-authz/actions/workflows/ci.yml?query=branch%3Adev>
+[badge-url-license]: <https://www.apache.org/licenses/LICENSE-2.0>
+[code-of-conduct]: <https://github.com/elixir-cloud-aai/.github/blob/main/CODE_OF_CONDUCT.md>
+[contributing]: <https://github.com/elixir-cloud-aai/.github/blob/main/CONTRIBUTING.md>

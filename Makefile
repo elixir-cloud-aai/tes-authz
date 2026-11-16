@@ -18,6 +18,7 @@ up:
 down:
 	$(COMPOSE) down -v --remove-orphans
 
+## Show the last 100 log lines of each service.
 logs:
 	$(COMPOSE) logs --tail=100
 
@@ -29,5 +30,8 @@ unit:
 golden:
 	uv run python scripts/gen_golden.py
 
+## Lint and format check (ruff), then type check (mypy, paths in pyproject.toml).
 lint:
-	uv run ruff check . && uv run ruff format --check . && uv run mypy shims stub oidc harness tes engines/openfga scripts
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy

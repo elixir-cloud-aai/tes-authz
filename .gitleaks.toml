@@ -1,0 +1,13 @@
+# gitleaks configuration: the default rules, plus paths that are never in
+# Git but that `gitleaks dir` (pre-commit hook `gitleaks-all`) would scan:
+# the uv and tool caches and the virtual environment, which the Makefile
+# keeps in the checkout
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local caches and the virtual environment (git-ignored)"
+paths = [
+  '''^\.cache/''',
+  '''^\.venv/''',
+]
