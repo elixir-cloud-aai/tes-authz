@@ -207,15 +207,17 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("SHIM_LOG_LEVEL", "INFO"))
     store_id = os.environ.get("FGA_STORE_ID")
     model_id = os.environ.get("FGA_MODEL_ID")
+    state_path = os.environ.get("FGA_STATE_FILE", "/state/openfga.json")
     state_claims: dict[str, str] | None = None
-    if not store_id:
-        state = load_state(os.environ.get("FGA_STATE_FILE", "/state/openfga.json"))
-        store_id, model_id = state["store_id"], state.get("model_id")
+    if not store_id or os.path.exists(state_path):
+        state = load_state(state_path)
+        store_id = store_id or state["store_id"]
+        model_id = model_id or state.get("model_id")
         state_claims = state.get("claims")
     env_claims = os.environ.get("FGA_CLAIMS")
     claim_map = parse_claim_map(env_claims) if env_claims else state_claims
     if not claim_map:
-        raise SystemExit("no claim map: set FGA_CLAIMS or run the setup job")
+        raise SystemExit("no claim map: set FGA_CLAIMS (FGA_STORE_ID without a state file) or run the setup job")
     if state_claims is not None and claim_map != state_claims:
         raise SystemExit(f"FGA_CLAIMS {claim_map} disagrees with the policy data file {state_claims}")
     shim = OpenFgaShim(store_id, model_id, claim_map)

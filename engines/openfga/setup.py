@@ -24,10 +24,86 @@ from typing import Any
 
 sys.path.insert(0, os.environ.get("SHIMS_DIR", "/shims"))
 
-from common import encode_id
-from openfga_shim import task_set_object
+from common import PROFILE, UpstreamError, encode_id, post_json
+from openfga_shim import task_set_object, to_openfga
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
+MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
+ITEM_LENGTH = int(os.environ.get("SELF_CHECK_ITEM_LENGTH", "200"))
+
+
+def check_policy(policy: dict[str, Any]) -> None:
+    """Reject configuration the OpenFGA conditions would evaluate differently from OPA.
+
+    Args:
+        policy: The decoded policy data file.
+
+    Raises:
+        SystemExit: If a prefix is empty (CEL ``"".startsWith("")`` would
+            match the shim's empty-image sentinel).
+    """
+    prefixes = [*policy["members"]["prefixes"], *policy["admins"]["prefixes"], *policy["image_prefixes"]]
+    if any(not isinstance(p, str) or not p for p in prefixes):
+        raise SystemExit("empty or non-string prefix in the policy data file")
+
+
+def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
+    """Build requests that make every condition walk the longest lists.
+
+    Args:
+        policy: The decoded policy data file.
+        service: A configured service ID.
+
+    Returns:
+        Profile requests (non-matching entitlements, images matching only the
+        last prefix), each at ``MAX_LIST_ITEMS`` items of ``ITEM_LENGTH``.
+    """
+    filler = "x" * ITEM_LENGTH
+    entitlements = [f"urn:self-check:{i}:{filler}" for i in range(MAX_LIST_ITEMS)]
+    last = policy["image_prefixes"][-1] if policy["image_prefixes"] else "img/"
+    member = (policy["members"]["values"] + policy["members"]["prefixes"] or ["none"])[-1]
+    claim = policy["entitlement_claim"]
+    context = {"tes": {"profile": PROFILE, "service_id": service}}
+
+    def req(action: str, rtype: str, rid: str, ents: list[str], props: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "subject": {"type": "user", "id": "self-check", "properties": {"claims": {claim: ents}}},
+            "action": {"name": action},
+            "resource": {"type": rtype, "id": rid, "properties": props},
+            "context": context,
+        }
+
+    task = {"executors": [{"image": last + filler} for _ in range(MAX_LIST_ITEMS)]}
+    return [
+        req("ListTasks", "tes_task_set", "own", entitlements, {}),
+        req("ListTasks", "tes_task_set", "all", entitlements, {}),
+        req("GetTask", "tes_task", "t", entitlements, {"owner": "other"}),
+        req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
+    ]
+
+
+def self_check(policy: dict[str, Any], store_id: str, model_id: str) -> None:
+    """Evaluate the worst cases, so a too-small CEL cost budget fails at setup.
+
+    Args:
+        policy: The decoded policy data file.
+        store_id: The store.
+        model_id: The model.
+
+    Raises:
+        SystemExit: If OpenFGA errors on a worst case.
+    """
+    url = f"{FGA_URL}/stores/{store_id}/access/v1/evaluation"
+    claims = {"entitlements": policy["entitlement_claim"]}
+    for service in policy["services"]:
+        for case in worst_cases(policy, service):
+            try:
+                post_json(url, to_openfga(case, claims), 10, {"Openfga-Authorization-Model-Id": model_id})
+            except UpstreamError as exc:
+                raise SystemExit(
+                    f"self-check failed for {case['action']['name']} with {MAX_LIST_ITEMS} items: {exc}; "
+                    "raise OPENFGA_MAX_CONDITION_EVALUATION_COST or lower SHIM_MAX_LIST_ITEMS"
+                ) from exc
 
 
 def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
@@ -104,6 +180,7 @@ def main() -> None:
     """Create the store, write model and tuples, and record the IDs."""
     policy = json.loads(Path(os.environ.get("POLICY_FILE", "/config/reference-policy.json")).read_text())
     model = json.loads(Path(os.environ.get("MODEL_FILE", "/engine/model.json")).read_text())
+    check_policy(policy)
     wait_ready()
     store_id = call("POST", "/stores", {"name": "tes-authz-reference"})["id"]
     model_id = call("POST", f"/stores/{store_id}/authorization-models", model)["authorization_model_id"]
@@ -114,6 +191,7 @@ def main() -> None:
             f"/stores/{store_id}/write",
             {"writes": {"tuple_keys": tuples[start : start + 100]}, "authorization_model_id": model_id},
         )
+    self_check(policy, store_id, model_id)
     state = Path(os.environ.get("FGA_STATE_FILE", "/state/openfga.json"))
     state.parent.mkdir(parents=True, exist_ok=True)
     tmp = state.with_suffix(".tmp")

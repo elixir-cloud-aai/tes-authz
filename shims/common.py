@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import urllib.error
 import urllib.request
@@ -41,11 +42,18 @@ RESOURCE_TYPES = frozenset({"tes_task", "tes_task_set"})
 TASK_SET_IDS = frozenset({"own", "all"})
 """Fixed task set IDs of the profile."""
 
-MAX_BODY_BYTES = 1024 * 1024
-"""Largest request body a shim accepts."""
+MAX_BODY_BYTES = int(os.environ.get("SHIM_MAX_BODY_BYTES", str(1024 * 1024)))
+"""Largest request body a shim accepts (``SHIM_MAX_BODY_BYTES``).
+
+The OpenFGA shim needs less than OpenFGA's gRPC receive limit (about 602 KiB).
+"""
 
 SOCKET_TIMEOUT = 5.0
-"""Seconds a client may stall while sending a request."""
+"""Seconds a socket read may stay idle (per read, not per request).
+
+Total request time and the number of connections are not bounded here;
+a deployment limits them in the mesh or gateway in front of the shim.
+"""
 
 log = logging.getLogger("tes-authz-shim")
 

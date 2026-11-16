@@ -9,5 +9,5 @@
     "prefixes": []
   },
   "image_prefixes": ["docker.io/library/", "ghcr.io/elixir-cloud-aai/"],
-  "services": ["tes-authz-test"]
+  "services": ["tes-authz-test", "org.ga4gh.poiesis"]
 }
