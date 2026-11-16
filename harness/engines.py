@@ -7,12 +7,9 @@ pick every entry up without further changes.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
-
-def _port(name: str, default: int) -> int:
-    return int(os.environ.get(name, str(default)))
+from harness.stack import port
 
 
 @dataclass(frozen=True)
@@ -36,11 +33,11 @@ class Engine:
     authzen: bool = True
 
 
-OPA_PORT = _port("TES_AUTHZ_OPA_PORT", 18181)
-OPA_FRONT_PORT = _port("TES_AUTHZ_OPA_FRONT_PORT", 18190)
-OPENFGA_PORT = _port("TES_AUTHZ_OPENFGA_PORT", 18080)
-OPENFGA_SHIM_PORT = _port("TES_AUTHZ_OPENFGA_SHIM_PORT", 18191)
-STUB_PORT = _port("TES_AUTHZ_STUB_PORT", 18192)
+OPA_PORT = port("OPA")
+OPA_FRONT_PORT = port("OPA_FRONT")
+OPENFGA_PORT = port("OPENFGA")
+OPENFGA_SHIM_PORT = port("OPENFGA_SHIM")
+STUB_PORT = port("STUB")
 
 ENGINES: dict[str, Engine] = {
     "opa": Engine(

@@ -1,12 +1,13 @@
 """Client for the mock OIDC issuer (``oidc/issuer.py``): tokens for TES adapters.
 
-The issuer runs as compose service ``oidc`` (container ``tes-authz-oidc``)
-and serves two issuers, ``a`` and ``b``. Their URLs depend on where the TES
+The issuer runs as compose service ``oidc`` (container ``<project>-oidc``,
+by default ``tes-authz-oidc``; see ``harness.stack``) and serves two
+issuers, ``a`` and ``b``. Their URLs depend on where the TES
 runs, because the issuer derives its URL from the host name the TES uses:
 
 * TES on the host: ``issuer_url("a")`` = ``http://127.0.0.1:18193/a``;
 * TES on the compose network: ``issuer_url("a", NETWORK_BASE)`` =
-  ``http://tes-authz-oidc:8080/a``.
+  ``http://tes-authz-oidc:8080/a`` (``<project>-oidc`` in other worktrees).
 
 Configure the TES with that issuer URL and the audience ``AUDIENCE``, and
 mint tokens with the same ``base``::
@@ -24,22 +25,22 @@ across calls (spec case 21).
 from __future__ import annotations
 
 import json
-import os
 import time
 import urllib.error
 import urllib.request
 from typing import Any
 
+from harness.stack import port, project
 from harness.tes import Identity
 
-OIDC_PORT = int(os.environ.get("TES_AUTHZ_OIDC_PORT", "18193"))
+OIDC_PORT = port("OIDC")
 """Host port of the issuer (loopback)."""
 
 HOST_BASE = f"http://127.0.0.1:{OIDC_PORT}"
 """Issuer base as seen from the host."""
 
-NETWORK_BASE = "http://tes-authz-oidc:8080"
-"""Issuer base as seen from containers on the compose network ``tes-authz_default``."""
+NETWORK_BASE = f"http://{project()}-oidc:8080"
+"""Issuer base as seen from containers on the compose network ``<project>_default``."""
 
 AUDIENCE = "tes-authz"
 """Default ``aud`` of minted tokens; configure TESes to require it."""

@@ -5,13 +5,17 @@
 # Usage: scripts/test.sh [pytest args...]
 #   TES_AUTHZ_KEEP=1     leave the services running afterwards
 #   TES_AUTHZ_TES=a,b    TES adapters to run (default: mock)
+#   TES_AUTHZ_PROJECT    compose project and container prefix (default: tes-authz)
+#   TES_AUTHZ_PORT_BASE  first host port of this stack (default: 18080)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export UV_CACHE_DIR="$root/.cache/uv"
 export UV_PROJECT_ENVIRONMENT="$root/.venv"
 export TES_AUTHZ_REQUIRE_SERVICES=1
-compose=(docker compose -f "$root/compose.yaml")
+# Project and ports of this stack, set before the cleanup trap can run.
+eval "$(python3 "$root/harness/stack.py")"
+compose=(docker compose -p "$TES_AUTHZ_PROJECT" -f "$root/compose.yaml")
 
 cleanup() {
   if [[ "${TES_AUTHZ_KEEP:-0}" != "1" ]]; then

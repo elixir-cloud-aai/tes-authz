@@ -1,4 +1,6 @@
-COMPOSE := docker compose -f compose.yaml
+# TES_AUTHZ_PROJECT and TES_AUTHZ_PORT_BASE select this worktree's stack
+# (harness/stack.py); the defaults are the main checkout's.
+COMPOSE := eval "$$(python3 harness/stack.py)" && docker compose -p "$$TES_AUTHZ_PROJECT" -f compose.yaml
 export UV_CACHE_DIR := $(CURDIR)/.cache/uv
 export UV_PROJECT_ENVIRONMENT := $(CURDIR)/.venv
 
@@ -8,7 +10,7 @@ export UV_PROJECT_ENVIRONMENT := $(CURDIR)/.venv
 test:
 	bash scripts/test.sh
 
-## Start the engines, shims, stub and mock OIDC issuer (loopback ports 18080, 18181, 18190-18193).
+## Start the engines, shims, stub and mock OIDC issuer (default loopback ports 18080, 18181, 18190-18193).
 up:
 	$(COMPOSE) up -d --wait
 
