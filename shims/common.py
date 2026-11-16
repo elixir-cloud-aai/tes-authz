@@ -204,7 +204,7 @@ def _first_of(text: str, chars: str) -> int:
 
 
 def strip_url(value: str) -> str | None:
-    """Strip credentials from a URL with the plain string rule of the spec.
+    r"""Strip credentials from a URL with the plain string rule of the spec.
 
     This is the TES-side projection rule (spec section 3.3, six steps), kept
     here as the executable definition of the golden URL cases:
@@ -215,6 +215,9 @@ def strip_url(value: str) -> str | None:
        the rest. Otherwise go to step 5.
     2. Ambiguity: if W's last ``@`` comes after its first ``?`` or ``#``,
        omit the field.
+       2b. If W contains a backslash, omit the field (WHATWG and urllib3
+       treat ``\`` as ``/``, so ``https://evil\@trusted/p`` would
+       connect to ``evil``).
     3. Authority: W up to its first ``?`` or ``#`` (the remainder joins the
        rest); drop everything up to and including its last ``@``.
     4. Cut the rest at its first ``?`` or ``#``; an ``@`` in the path stays.
@@ -234,6 +237,8 @@ def strip_url(value: str) -> str | None:
     scheme, body = value[: match.end()], value[match.end() :]
     slash = body.find("/")
     region, rest = (body, "") if slash < 0 else (body[:slash], body[slash:])
+    if "\\" in region:
+        return None
     query = _first_of(region, "?#")
     at = region.rfind("@")
     if at >= 0 and 0 <= query < at:
