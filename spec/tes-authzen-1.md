@@ -1,8 +1,6 @@
 # `tes-authzen/1`: bring-your-own authorization for GA4GH TES
 
-> **Draft.** This is **draft 3** of the `tes-authzen/1` profile, accepted for implementation on 2026-11-16, with the changes after acceptance listed below. It may still change before a first release; the profile version on the wire (`context.tes.profile`, §3.4) changes with every incompatible revision.
-
-Status: draft 3, accepted for implementation (2026-11-16; decisions in §10), after two review rounds; draft 3 applies the findings of the review of draft 2.
+> **Draft.** This is **draft 3** of the `tes-authzen/1` profile, accepted for implementation on 2026-11-16, after two review rounds (decisions in §10; draft 3 applies the findings of the review of draft 2), with the changes after acceptance listed below. It may still change before a first release; the profile version on the wire (`context.tes.profile`, §3.4) changes with every incompatible revision.
 
 Basis for the AuthZ work in Poiesis ([JaeAeich/poiesis#113](https://github.com/JaeAeich/poiesis/issues/113)), then TESK (elixir-cloud-aai/tesk-api), Funnel (calypr/funnel) and TESP (CESNET/tesp-api).
 
@@ -388,7 +386,7 @@ Cases 1 and 22 have per-TES expectations (built-in defaults differ, §5); all ot
 - Mock OIDC issuer (discovery, JWKS, userinfo; mints JWTs and accepts opaque tokens at userinfo for TESK).
 - Recording stub PDP with a control endpoint for scripted decisions.
 - One TES-agnostic pytest suite over HTTP, plus a Go test (or grpcurl) for Funnel's gRPC case; per-TES fixtures (kind for Poiesis and TESK, docker compose for Funnel and TESP).
-- Golden requests and the URL-stripping cases live with the suite; layer 2 replays them. Home: a shared harness repo from phase 1 on, since phase 2 follows right after and reuses it unchanged; each TES's CI pulls it for its layer 1.
+- Golden requests and the URL-stripping cases live with the suite; layer 2 replays them. Home: this repository (`harness/`, `golden/`), shared by phase 1 and phase 2; each TES's CI pulls it for its layer 1.
 
 ## 9. Delivery to Poiesis
 
