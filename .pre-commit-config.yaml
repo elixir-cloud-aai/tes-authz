@@ -11,6 +11,8 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-yaml
+        # `mkdocs.yml` uses MkDocs' `!ENV` tag (the docs build checks it)
+        exclude: ^mkdocs\.yml$
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/gitleaks/gitleaks

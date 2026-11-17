@@ -18,6 +18,15 @@ dev = [
   # `uv.lock`)
   "uv>=0.12",
 ]
+# Documentation (`mkdocs.yml`), built by Read the Docs (`.readthedocs.yaml`)
+# and in CI. The packages that add warnings, which fail the strict build,
+# are listed too, to bound their major versions (new warnings of minor
+# releases still fail it)
+docs = [
+  "mkdocs>=1.6.1,<2",
+  "mkdocs-material>=9.7.7,<10",
+  "pymdown-extensions>=12.3,<13",
+]
 
 [tool.uv]
 package = false

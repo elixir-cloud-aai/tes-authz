@@ -12,6 +12,11 @@ updates:
       interval: monthly
     versioning-strategy: increase-if-necessary
     groups:
+      # Dependencies of the documentation (the `docs` group), in pull
+      # requests of their own
+      docs-dependencies:
+        patterns: ["mkdocs", "mkdocs-*", "pymdown-extensions"]
+      # Dependencies match the first group listed
       python-dependencies:
         patterns: ["*"]
   # Actions in the workflows, including the pins of the shared actions of
