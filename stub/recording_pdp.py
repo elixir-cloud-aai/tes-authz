@@ -25,6 +25,7 @@ The first rule whose ``match`` keys all equal the request wins; otherwise
 response is ``{"status": 200, "body": {...}}``, ``{"status": 200,
 "raw": "text"}``, optionally with ``"delay": <seconds>`` (to provoke
 timeouts) or ``"close": true`` (drop the connection without an answer).
+Bodies over ``MAX_BODY_BYTES`` are answered with 413, unread.
 
 Settings (environment): STUB_PORT (default 8080).
 """
@@ -46,7 +47,14 @@ RECORDED_HEADERS = ("X-Request-ID", "Authorization", "Content-Type", "traceparen
 
 DEFAULT_RESPONSE: dict[str, Any] = {"status": 200, "body": {"decision": False}}
 
+MAX_BODY_BYTES = 1024 * 1024
+"""Largest request body the stub reads (as the shims' default)."""
+
 log = logging.getLogger("tes-authz-stub")
+
+
+class BodyTooLargeError(ValueError):
+    """Raised when a request declares a body over ``MAX_BODY_BYTES``."""
 
 
 class State:
@@ -144,8 +152,15 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(data)
 
+        def _too_large(self) -> None:
+            # The body stays unread, so the connection can't be reused
+            self.close_connection = True
+            self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "body too large"})
+
         def _body(self) -> tuple[Any, bool]:
             length = int(self.headers.get("Content-Length", "0") or "0")
+            if length > MAX_BODY_BYTES:
+                raise BodyTooLargeError
             raw = self.rfile.read(length) if length > 0 else b""
             try:
                 return json.loads(raw), True
@@ -176,7 +191,11 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             if self.path != "/_control/script":
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
-            script, ok = self._body()
+            try:
+                script, ok = self._body()
+            except BodyTooLargeError:
+                self._too_large()
+                return
             if not ok or not isinstance(script, dict):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "script must be a JSON object"})
                 return
@@ -193,7 +212,11 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             if self.path != "/access/v1/evaluation":
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
-            body, _ = self._body()
+            try:
+                body, _ = self._body()
+            except BodyTooLargeError:
+                self._too_large()
+                return
             headers: dict[str, str | None] = {name: self.headers.get(name) for name in RECORDED_HEADERS}
             if headers["Authorization"] is not None:
                 headers["Authorization"] = "<present>"

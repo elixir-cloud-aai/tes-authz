@@ -44,6 +44,8 @@ USERINFO_TTL = 300.0
 """Longest time a userinfo answer is cached (spec section 3.6)."""
 USERINFO_CACHE_SIZE = 1024
 """Most userinfo answers cached (LRU)."""
+MAX_BODY_BYTES = 1024 * 1024
+"""Largest request body read; longer ones are answered with 413, unread."""
 
 
 class HttpError(Exception):
@@ -254,6 +256,9 @@ class OidcAuth:
             raise UnauthorizedError
         token = header.removeprefix("Bearer ").strip()
         try:
+            # Only `iss` is read, to pick a pinned issuer's JWKS; the claims
+            # come from `verify_jwt()` below
+            # ast-grep-ignore: unverified-token-claims
             _, unverified = decode_unverified(token)
         except JoseError as exc:
             raise UnauthorizedError from exc
@@ -629,6 +634,11 @@ def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
             """Serve CreateTask and CancelTask."""
             path = urllib.parse.urlsplit(self.path).path
             length = int(self.headers.get("Content-Length", "0") or "0")
+            if length > MAX_BODY_BYTES:
+                # The body stays unread, so the connection can't be reused
+                self.close_connection = True
+                self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"message": "body too large"})
+                return
             raw = self.rfile.read(length) if length else b"{}"
 
             def run() -> Any:
