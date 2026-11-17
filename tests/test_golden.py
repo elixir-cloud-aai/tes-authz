@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 import common
 from harness.golden import golden_dirs, load_cases
@@ -60,6 +63,45 @@ def test_golden_dirs_setting_adds_directories(monkeypatch, tmp_path):
     names = {c.name for c in load_cases()}
     assert "golden/poiesis/create" in names
     assert f"{str(tmp_path.resolve()).lstrip('/')}/extra" in names
+
+
+def test_golden_dirs_setting_accepts_relative_paths(monkeypatch):
+    """Relative paths in `TES_AUTHZ_GOLDEN_DIRS` resolve against the current directory."""
+    monkeypatch.chdir(ROOT)
+    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", "golden/poiesis:./golden/requests")
+    dirs = golden_dirs()
+    assert len(dirs) == len({d.resolve() for d in dirs})
+    assert ROOT / "golden" / "poiesis" in dirs
+
+
+def test_golden_dirs_setting_warns_about_missing_directories(monkeypatch, tmp_path):
+    """A missing directory in `TES_AUTHZ_GOLDEN_DIRS` is skipped with a warning."""
+    missing = tmp_path / "missing"
+    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(missing))
+    with pytest.warns(UserWarning, match="missing"):
+        dirs = golden_dirs()
+    assert missing not in dirs
+
+
+def test_golden_dirs_setting_rejects_parents_of_read_directories(monkeypatch):
+    """`golden/` itself in `TES_AUTHZ_GOLDEN_DIRS` would read every case twice."""
+    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(ROOT / "golden"))
+    with pytest.raises(ValueError, match="read already"):
+        golden_dirs()
+
+
+def test_hidden_and_linked_non_recordings_are_skipped(monkeypatch, tmp_path):
+    """Hidden directories and links to `hook/` under `golden/` are no recordings."""
+    import harness.golden as golden
+
+    root = tmp_path / "golden"
+    for name in ("requests", "hook", "poiesis", ".ipynb_checkpoints"):
+        (root / name).mkdir(parents=True)
+    os.symlink(root / "hook", root / "linked")
+    monkeypatch.setattr(golden, "GOLDEN_ROOT", root)
+    monkeypatch.setattr(golden, "LOCAL_DIR", root / "requests")
+    monkeypatch.delenv("TES_AUTHZ_GOLDEN_DIRS", raising=False)
+    assert golden.golden_dirs() == [root / "requests", root / "poiesis"]
 
 
 def test_poiesis_url_stripping_matches_the_shared_cases():
