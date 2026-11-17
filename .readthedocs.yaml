@@ -12,16 +12,17 @@ build:
   # so the docs dependency group is installed with uv from the lock
   # (`uv.lock`): the same versions that CI's docs job builds with
   jobs:
-    # The version of uv locked in `uv.lock` (a dev dependency, as for CI),
-    # run as a module: asdf, which provides Python here, has no shim for
-    # the `uv` executable;
+    # The version of uv locked in `uv.lock` (a dev dependency, as for CI);
+    # asdf, which provides Python here, needs a reshim to find the `uv`
+    # executable that pip installs (the virtual environment has no uv);
     # `tests/test_readthedocs.py` fails when a lock update moves it
     pre_create_environment:
       - python -m pip install "uv==0.13.8"
+      - asdf reshim python
     create_environment:
-      - python -m uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
+      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
-      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" python -m uv sync --frozen --only-group docs
+      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --only-group docs
 
 mkdocs:
   configuration: mkdocs.yml

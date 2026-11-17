@@ -16,35 +16,18 @@ def test_readthedocs_pins_the_locked_uv() -> None:
     assert pins == [locked], "set the uv pin in .readthedocs.yaml to the version in uv.lock"
 
 
-def _calls_bare_uv(command: str) -> bool:
-    """Tell whether a shell command runs `uv` as an executable.
+def test_readthedocs_reshims_after_installing_uv() -> None:
+    """Read the Docs makes the `uv` executable findable after installing it.
 
-    Args:
-        command: One command of `.readthedocs.yaml`.
-
-    Returns:
-        True if a word `uv` isn't preceded by `-m`.
-    """
-    words = command.split()
-    return any(word == "uv" and (i == 0 or words[i - 1] != "-m") for i, word in enumerate(words))
-
-
-def test_readthedocs_runs_uv_as_a_module() -> None:
-    """Read the Docs runs uv as `python -m uv`.
-
-    Read the Docs provides Python through asdf, which creates no shim for
-    the `uv` executable that `pip install` adds, so a bare `uv` command fails
-    with "uv: not found".
+    Read the Docs provides Python through asdf, which only finds executables
+    that have a shim; `pip install` adds none for `uv`, so the next command
+    fails with "uv: not found". Running uv as `python -m uv` doesn't help
+    either: once the virtual environment exists, `python` is the one of the
+    environment, which has no uv.
     """
     config = (ROOT / ".readthedocs.yaml").read_text()
     commands = [line.strip()[2:] for line in config.splitlines() if line.strip().startswith("- ")]
-    bare = [command for command in commands if _calls_bare_uv(command)]
-    assert not bare, f"run uv as `python -m uv` in .readthedocs.yaml: {bare}"
-
-
-def test_calls_bare_uv() -> None:
-    """The check tells bare `uv` calls from module calls."""
-    assert _calls_bare_uv('uv venv "x"')
-    assert _calls_bare_uv("A=1 uv sync")
-    assert not _calls_bare_uv('python -m uv venv "x"')
-    assert not _calls_bare_uv('python -m pip install "uv==1.0"')
+    install = next(i for i, c in enumerate(commands) if '"uv==' in c)
+    assert commands[install + 1] == "asdf reshim python", (
+        "run `asdf reshim python` right after installing uv in .readthedocs.yaml"
+    )
