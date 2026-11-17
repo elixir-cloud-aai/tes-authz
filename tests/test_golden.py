@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -80,15 +81,21 @@ def test_golden_dirs_setting_accepts_relative_paths(monkeypatch, tmp_path):
 def test_golden_dirs_setting_warns_about_missing_directories(monkeypatch, tmp_path):
     """A missing directory in `TES_AUTHZ_GOLDEN_DIRS` is skipped with a warning."""
     missing = tmp_path / "missing"
+    monkeypatch.delenv("TES_AUTHZ_GOLDEN_DIRS", raising=False)
+    defaults = golden_dirs()
     monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(missing))
-    with pytest.warns(UserWarning, match="missing"):
-        dirs = golden_dirs()
-    assert missing not in dirs
+    with pytest.warns(UserWarning, match=f"no directory {re.escape(str(missing))}"):
+        assert golden_dirs() == defaults
 
 
-def test_golden_dirs_setting_rejects_parents_of_read_directories(monkeypatch):
-    """`golden/` itself in `TES_AUTHZ_GOLDEN_DIRS` would read every case twice."""
-    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(ROOT / "golden"))
+@pytest.mark.parametrize("inside", [False, True])
+def test_golden_dirs_setting_rejects_overlapping_directories(monkeypatch, tmp_path, inside):
+    """A directory containing, or inside, one already read would read cases twice."""
+    root = tmp_path / "golden"
+    (root / "requests" / "sub").mkdir(parents=True)
+    monkeypatch.setattr(golden, "GOLDEN_ROOT", root)
+    monkeypatch.setattr(golden, "LOCAL_DIR", root / "requests")
+    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(root / "requests" / "sub" if inside else root))
     with pytest.raises(ValueError, match="read already"):
         golden_dirs()
 

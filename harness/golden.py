@@ -10,7 +10,8 @@ Golden files come from three places:
 * every directory in ``TES_AUTHZ_GOLDEN_DIRS`` (``:``-separated), for
   recordings kept outside this repository; they add to the others. A
   directory that does not exist is skipped with a warning; one that
-  contains a directory already read (e.g. ``golden/`` itself) is an error.
+  contains, or lies inside, a directory already read (e.g. ``golden/``
+  itself) is an error.
 
 A golden file is either a wrapper ``{"name", "case", "description",
 "request", "expect": {"<policy>": {"decision": bool}}}`` or a bare AuthZEN
@@ -74,30 +75,31 @@ def golden_dirs() -> list[Path]:
         in ``TES_AUTHZ_GOLDEN_DIRS``.
 
     Raises:
-        ValueError: A directory in ``TES_AUTHZ_GOLDEN_DIRS`` contains a
-            directory that is read already, so its cases would be read twice.
+        ValueError: A directory contains, or lies inside, a directory that
+            is read already, so its cases would be read twice.
     """
     excluded = {(GOLDEN_ROOT / name).resolve() for name in NOT_RECORDINGS}
     recordings = sorted(
         d for d in GOLDEN_ROOT.iterdir() if d.is_dir() and not d.name.startswith(".") and d.resolve() not in excluded
     )
+    extra = os.environ.get("TES_AUTHZ_GOLDEN_DIRS", "")
+    candidates = [LOCAL_DIR, *recordings]
+    for directory in (Path(part) for part in extra.split(":") if part):
+        if directory.is_dir():
+            candidates.append(directory)
+        else:
+            warnings.warn(f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}, skipped", stacklevel=1)
     dirs: list[Path] = []
     seen: set[Path] = set()
-    for directory in [LOCAL_DIR, *recordings]:
-        if directory.is_dir() and directory.resolve() not in seen:
-            seen.add(directory.resolve())
-            dirs.append(directory)
-    extra = os.environ.get("TES_AUTHZ_GOLDEN_DIRS", "")
-    for directory in (Path(part) for part in extra.split(":") if part):
+    for directory in candidates:
         if not directory.is_dir():
-            warnings.warn(f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}, skipped", stacklevel=1)
             continue
         resolved = directory.resolve()
         if resolved in seen:
             continue
-        inner = sorted(str(d) for d in seen if d.is_relative_to(resolved))
-        if inner:
-            msg = f"TES_AUTHZ_GOLDEN_DIRS: {directory} contains {', '.join(inner)}, which is read already"
+        overlap = sorted(str(d) for d in seen if d.is_relative_to(resolved) or resolved.is_relative_to(d))
+        if overlap:
+            msg = f"golden directory {directory} overlaps {', '.join(overlap)}, which is read already"
             raise ValueError(msg)
         seen.add(resolved)
         dirs.append(directory)
