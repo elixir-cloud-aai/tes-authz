@@ -1,0 +1,24 @@
+id: shim-policy-decision
+valid:
+  - 'if not isinstance(decision, bool): raise UpstreamError("no decision")'
+  - 'target = {"type": "tes_service", "id": encode_id(service_id)}'
+  - 'answer = post_json(url, {"input": req}, TIMEOUT, headers)'
+  - 'if len(items) > MAX_LIST_ITEMS: raise UpstreamError("too long")'
+  - 'if param == "id": raise ValueError(pair)'
+  - 'url = base.rstrip("/")'
+  - 'if path.startswith("/access"): serve()'
+invalid:
+  - 'if req["action"]["name"] in ACTIONS: return True'
+  - 'if resource["type"] not in RESOURCE_TYPES: return False'
+  - 'if action.startswith("Cancel"): return False'
+  - 'if resource["type"].endswith("_set"): target = task_set'
+  - 'if req["action"]["name"] == "CreateTask": return True'
+  - 'allowed = action != "CancelTask"'
+  - 'if action in ("GetTask", "ListTasks"): return owner == subject'
+  - 'if resource["type"] == "tes_task": target = service'
+  - 'if resource["id"] == "all": return False'
+  - "if set_id in {'own', 'all'}: pass"
+  - |
+    match action:
+        case "CreateTask":
+            return True

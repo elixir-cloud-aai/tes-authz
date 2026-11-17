@@ -1,0 +1,158 @@
+# Semgrep rules for hazards of this code base that ruff's bandit rules (`S`)
+# do not cover: shims, the stub, the mock TES and the mock OIDC issuer are
+# small `http.server` services that call decision engines and handle access
+# tokens and AuthZEN requests with the subject's claims. ruff flags
+# `pickle`, `yaml.load()` with unsafe loaders and `eval()`/`exec()`;
+# secrets are detected by gitleaks (cf. `.pre-commit-config.yaml`). Test
+# cases are in `tes-authz.py` (`cd .semgrep && semgrep --test .`).
+# `yaml-unsafe-load` is shared with FOCA and trs-filer (`.semgrep/`): keep
+# its pattern, message and severity identical there
+rules:
+  - id: urlopen-without-timeout
+    languages: [python]
+    severity: ERROR
+    message: >-
+      HTTP calls need a timeout: a decision engine, issuer or TES that
+      doesn't answer would otherwise block the caller for good (and a TES
+      waiting for a shim must fail closed with 503 in time); pass `timeout=`
+    pattern-either:
+      - pattern: urllib.request.urlopen(..., timeout=None, ...)
+      - pattern: urllib.request.urlopen($URL, $DATA, None, ...)
+      - pattern: http.client.$CONNECTION(..., timeout=None, ...)
+      - pattern: http.client.$CONNECTION($HOST, $PORT, None, ...)
+      - patterns:
+          - pattern: urllib.request.urlopen(...)
+          - pattern-not: urllib.request.urlopen(..., timeout=$TIMEOUT, ...)
+          # `urlopen(url, data, timeout)`
+          - pattern-not: urllib.request.urlopen($URL, $DATA, $TIMEOUT, ...)
+      # Openers of `urllib.request.build_opener()`
+      - patterns:
+          - pattern-inside: |
+              $OPENER = urllib.request.build_opener(...)
+              ...
+          - pattern-either:
+              - pattern: $OPENER.open($URL, $DATA, None, ...)
+              - patterns:
+                  - pattern: $OPENER.open(...)
+                  - pattern-not: $OPENER.open(..., timeout=$TIMEOUT, ...)
+                  - pattern-not: $OPENER.open($URL, $DATA, $TIMEOUT, ...)
+      - patterns:
+          - pattern-either:
+              - pattern: http.client.HTTPConnection(...)
+              - pattern: http.client.HTTPSConnection(...)
+          - pattern-not: http.client.$CONNECTION(..., timeout=$TIMEOUT, ...)
+          # `HTTPConnection(host, port, timeout)`
+          - pattern-not: http.client.$CONNECTION($HOST, $PORT, $TIMEOUT, ...)
+  - id: request-body-unbounded
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request bodies must be bounded: compare the `Content-Length` with a
+      maximum (e.g. `MAX_BODY_BYTES`) and answer an error before reading
+      the body, or read at most the maximum
+    # Detects reads without a preceding comparison of the length with an
+    # upper bound in the same block, and reads guarded only by a comparison
+    # with a number (`if length > 0:`); whether the branch actually stops
+    # the read, and that negative lengths are rejected (`read(-1)` reads to
+    # the end), is left to review. Semgrep can't tell such a guard from an
+    # earlier upper-bound check, so after one, skip empty bodies with a
+    # conditional expression (`read(length) if length > 0 else b""`), as
+    # the stub and the issuer do, or read `min(length, MAX_BODY_BYTES)`
+    pattern-either:
+      - pattern: $SELF.rfile.read()
+      - pattern: $SELF.rfile.read(-1)
+      - patterns:
+          - pattern: $SELF.rfile.read($LENGTH)
+          - pattern-either:
+              - pattern-inside: |
+                  if <... $LENGTH > $LIMIT ...>:
+                      ...
+              - pattern-inside: |
+                  if <... $LENGTH >= $LIMIT ...>:
+                      ...
+          - metavariable-regex:
+              metavariable: $LIMIT
+              regex: ^-?\d+$
+          - pattern-not: $SELF.rfile.read(min(..., $MAX, ...))
+      - patterns:
+          - pattern: $SELF.rfile.read($LENGTH)
+          - pattern-not: $SELF.rfile.read(-1)
+          - pattern-not: $SELF.rfile.read(min(..., $MAX, ...))
+          - pattern-not-inside: |
+              if <... $LENGTH > $MAX ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $LENGTH >= $MAX ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $MAX < $LENGTH ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $MAX <= $LENGTH ...>:
+                  ...
+              ...
+  - id: credentials-or-subject-logged
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Access tokens, the `Authorization` header and the subject of AuthZEN
+      requests (its ID and claims are personal data) must not be logged or
+      printed; log the request ID, the action and the resource instead, or
+      a hash of the subject ID (`hash_id()`, not `encode_id()`, which keeps
+      plain IDs)
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: $HEADERS.get($NAME, ...)
+              - pattern: $HEADERS[$NAME]
+          - metavariable-regex:
+              metavariable: $NAME
+              regex: (?i)^['"]authorization['"]$
+      - pattern-either:
+          - pattern: $REQUEST["subject"]
+          - pattern: $REQUEST.get("subject", ...)
+      # Variables and parameters that hold tokens, by name (`token`,
+      # `auth_token`, `jwt`, `raw_jwt`, `bearer`, ...)
+      - patterns:
+          - pattern: $TOKEN
+          - metavariable-regex:
+              metavariable: $TOKEN
+              regex: (?i)^(\w+_)?(token|jwt|bearer)$
+    # `hash_id()` hashes unconditionally; `encode_id()` keeps plain IDs
+    pattern-sanitizers:
+      - pattern: hash_id(...)
+      - pattern: hashlib.sha256(...)
+    pattern-sinks:
+      - pattern-either:
+          - patterns:
+              - pattern: $LOGGER.$METHOD(...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: ^(debug|info|warning|warn|error|exception|critical|fatal|log)$
+          - pattern: print(...)
+          # `http.server` handlers log to stderr
+          - pattern: $HANDLER.log_message(...)
+          - pattern: $HANDLER.log_error(...)
+          - pattern: sys.stderr.write(...)
+  - id: yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Loading YAML with PyYAML's full or unsafe loader can instantiate
+      arbitrary objects; use `yaml.safe_load()`
+    pattern-either:
+      - pattern: yaml.unsafe_load(...)
+      - pattern: yaml.unsafe_load_all(...)
+      - pattern: yaml.full_load(...)
+      - pattern: yaml.full_load_all(...)
+      - patterns:
+          - pattern-either:
+              - pattern: yaml.load_all(..., Loader=$LOADER, ...)
+              - pattern: yaml.load_all($STREAM, $LOADER, ...)
+          - metavariable-regex:
+              metavariable: $LOADER
+              regex: ^(yaml\.)?C?(Loader|UnsafeLoader|FullLoader)$

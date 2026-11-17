@@ -1,0 +1,71 @@
+id: unverified-token-claims
+language: python
+severity: error
+message: Token decoded without verifying its signature
+note: |
+  Claims of unverified tokens must not reach a decision: use `verify_jwt()`
+  (`oidc/minijose.py`) or PyJWT's `jwt.decode()` with a key and fixed
+  algorithms. A use that only selects how to verify (e.g. reads `iss` to
+  pick a pinned issuer's JWKS) may suppress the finding, on the line
+  before, with `# ast-grep-ignore: unverified-token-claims` and the reason.
+  Import PyJWT as a module (`import jwt`), not its decoders by name. Not
+  detected: options passed in a variable, and tokens decoded by hand
+  (base64 and JSON).
+# The definition in `oidc/minijose.py` (used by `verify_jwt()`) and tests
+# that inspect tokens they minted are exempt
+ignores:
+  - oidc/minijose.py
+  - tests/**
+rule:
+  any:
+    - pattern: decode_unverified($$$ARGS)
+    - pattern: $MODULE.decode_unverified($$$ARGS)
+    # Imported under another name, which the patterns above would miss
+    - kind: aliased_import
+      has:
+        field: name
+        regex: (^|\.)decode_unverified$
+    # PyJWT's decoders imported by name (`from jwt import decode as d`):
+    # calls of them would escape the patterns below; import the module
+    - kind: import_from_statement
+      all:
+        - has:
+            field: module_name
+            regex: ^jwt(\.|$)
+        # Any of the imported names (`field: name` would test the first)
+        - has:
+            any:
+              - kind: dotted_name
+              - kind: aliased_import
+            regex: ^(decode|decode_complete|get_unverified_header)(\s+as\s+\w+)?$
+    - pattern: $JWT.get_unverified_header($$$ARGS)
+    # Only the call's own arguments: `requests.get(url, verify=False)
+    # .content.decode()` is no token
+    - all:
+        - pattern: $JWT.$DECODE($$$ARGS)
+        - has:
+            field: arguments
+            any:
+              - has:
+                  stopBy: end
+                  kind: pair
+                  all:
+                    - has:
+                        field: key
+                        regex: ^["']verify_signature["']$
+                    - has:
+                        field: value
+                        kind: "false"
+              - has:
+                  stopBy: end
+                  kind: keyword_argument
+                  all:
+                    - has:
+                        field: name
+                        regex: ^(verify|verify_signature)$
+                    - has:
+                        field: value
+                        kind: "false"
+constraints:
+  DECODE:
+    regex: ^decode(_complete)?$

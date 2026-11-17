@@ -1,0 +1,60 @@
+id: decision-truthiness
+language: python
+severity: error
+message: Decision of an engine or decision service read by truthiness
+note: |
+  Only a boolean `true` allows (spec: anything else is a deny or an
+  error): check `isinstance(decision, bool)` and fail otherwise, or
+  compare with `is True`. `bool()`, `if`, `while`, conditional
+  expressions, `== True`, `!= False`, `and` and `or` also accept `1`,
+  `"false"` or non-empty objects, and denying only for `== False` or
+  `is False` lets them through. Detected for `decision`, `result` and
+  `allowed` variables and for `["decision"]`, `["result"]` and
+  `.get(...)` lookups.
+# The decision path: shims and the mock TES
+files:
+  - shims/**
+  - tes/mock/**
+utils:
+  # A condition that tests the value itself, or its negation. `not` comes
+  # first: the constraint on `$VALUE` is checked only after `any` has
+  # picked a branch
+  truthy-condition:
+    any:
+      - kind: not_operator
+        has:
+          field: argument
+          pattern: $VALUE
+      - pattern: $VALUE
+rule:
+  any:
+    - pattern: bool($VALUE)
+    - pattern: $VALUE == True
+    - pattern: $VALUE != False
+    - pattern: $VALUE is not False
+    # A deny only for `False` lets anything else through the other branch
+    - pattern: $VALUE == False
+    - pattern: $VALUE is False
+    - pattern: $VALUE or $OTHER
+    - pattern: $VALUE and $OTHER
+    - any:
+        - kind: if_statement
+        - kind: elif_clause
+        - kind: while_statement
+      has:
+        field: condition
+        matches: truthy-condition
+    # `x if <condition> else y`: the condition is the second named child
+    - kind: conditional_expression
+      has:
+        nthChild: 2
+        matches: truthy-condition
+# A name, lookup or call, not a comparison or another operator that merely
+# ends in a lookup (`expected == answer["decision"]`)
+constraints:
+  VALUE:
+    regex: ^((decision|result|allowed)|.+(\.get\(\s*["'](decision|result)["']\s*(,[^)]*)?\)|\[\s*["'](decision|result)["']\s*\]))$
+    any:
+      - kind: identifier
+      - kind: subscript
+      - kind: call

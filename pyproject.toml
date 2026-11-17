@@ -17,6 +17,9 @@ dev = [
   # The version of uv that CI installs (`astral-sh/setup-uv` reads it from
   # `uv.lock`)
   "uv>=0.12",
+  # Project rules of `.ast-grep/` (`sgconfig.yml`), run by the `ast-grep`
+  # and `ast-grep-test` hooks
+  "ast-grep-cli>=0.51",
 ]
 # Documentation (`mkdocs.yml`), built by Read the Docs (`.readthedocs.yaml`)
 # and in CI. The packages that add warnings, which fail the strict build,

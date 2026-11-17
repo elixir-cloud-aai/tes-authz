@@ -1,0 +1,23 @@
+id: unverified-token-claims
+valid:
+  - 'claims = verify_jwt(token, jwks, issuer, audience)'
+  - 'claims = minijose.verify_jwt(token, jwks, issuer, audience)'
+  - 'claims = jwt.decode(token, key, algorithms=["RS256"], audience=audience)'
+  - 'claims = jwt.decode(token, key, algorithms=["RS256"], options={"verify_signature": True})'
+  - 'from minijose import verify_jwt as verify'
+  - 'text = data.decode("utf-8")'
+  - 'text = requests.get(url, verify=False, timeout=5).content.decode()'
+  - 'from jwt import PyJWKClient'
+  - 'from jwt.exceptions import InvalidTokenError'
+invalid:
+  - 'from jwt import decode as decode_token'
+  - 'from jwt import get_unverified_header'
+  - 'from jwt import PyJWKClient, decode_complete'
+  - '_, claims = decode_unverified(token)'
+  - 'header, _ = minijose.decode_unverified(token)'
+  - 'from minijose import decode_unverified as peek'
+  - 'claims = jwt.decode(token, options={"verify_signature": False})'
+  - 'claims = jwt.decode_complete(token, options={"verify_signature": False})'
+  - 'claims = jwt.decode(token, options=dict(verify_signature=False))'
+  - 'claims = jwt.decode(token, verify=False)'
+  - 'header = jwt.get_unverified_header(token)'

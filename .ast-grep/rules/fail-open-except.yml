@@ -1,0 +1,61 @@
+id: fail-open-except
+language: python
+severity: error
+message: Exception handler that allows (fails open)
+note: |
+  Errors on the decision path must deny: return `False`, answer
+  `{"decision": false}` for invalid requests, or an error status (502 from
+  a shim, so that the TES fails closed with 503). Never allow because
+  validation, the engine or token verification failed, and never in a
+  `finally` block, which also overrides a deny. Detected in `except` and
+  `finally` blocks: `return True` (also as the first item of a tuple), and
+  `True` assigned to, or passed as, `decision`, `allow`, `allowed` or
+  `result`. An allow after a handler that only logs is not detected.
+# The decision path: shims, the stub, the mock TES and the token handling
+# of the mock OIDC issuer
+files:
+  - shims/**
+  - stub/**
+  - tes/mock/**
+  - oidc/**
+utils:
+  allow-name:
+    regex: ^["']?(decision|allow|allowed|result)["']?$
+rule:
+  any:
+    - kind: except_clause
+    - kind: finally_clause
+  has:
+    stopBy: end
+    any:
+      - pattern: return True
+      - kind: return_statement
+        has:
+          kind: expression_list
+          has:
+            nthChild: 1
+            kind: "true"
+      - kind: assignment
+        all:
+          - has:
+              field: left
+              regex: (^|\.)(decision|allow|allowed|result)$
+          - has:
+              field: right
+              kind: "true"
+      - kind: pair
+        all:
+          - has:
+              field: key
+              matches: allow-name
+          - has:
+              field: value
+              kind: "true"
+      - kind: keyword_argument
+        all:
+          - has:
+              field: name
+              matches: allow-name
+          - has:
+              field: value
+              kind: "true"
