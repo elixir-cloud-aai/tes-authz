@@ -122,6 +122,8 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     resource_props = {"owner": owner if isinstance(owner, str) else "", "images": images}
 
     service_id = req["context"]["tes"]["service_id"]
+    # Maps the resource type to an OpenFGA object type; decides nothing
+    # ast-grep-ignore: shim-policy-decision
     if resource["type"] == "tes_task":
         target: dict[str, Any] = {"type": "tes_service", "id": encode_id(service_id)}
     else:

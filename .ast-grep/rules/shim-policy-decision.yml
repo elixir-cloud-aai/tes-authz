@@ -1,0 +1,32 @@
+id: shim-policy-decision
+language: python
+severity: error
+message: Shim branches on an action, resource type or task set
+note: |
+  Shims only translate requests; who may do what is decided by the engine's
+  policy (`engines/`: Rego, the OpenFGA model and tuples). The profile's
+  structural checks live in `shims/common.py`. A mapping that must branch
+  on these names without deciding anything may suppress the finding, on
+  the line before, with `# ast-grep-ignore: shim-policy-decision` and the
+  reason.
+# The engine shims; `common.py` holds the profile's names and validation
+files:
+  - shims/**
+ignores:
+  - shims/common.py
+utils:
+  profile-name:
+    kind: string
+    regex: ^["'](CreateTask|GetTask|ListTasks|CancelTask|tes_task|tes_task_set|own|all)["']$
+rule:
+  any:
+    - kind: comparison_operator
+      has:
+        stopBy: end
+        matches: profile-name
+    - kind: case_clause
+      has:
+        kind: case_pattern
+        has:
+          stopBy: end
+          matches: profile-name

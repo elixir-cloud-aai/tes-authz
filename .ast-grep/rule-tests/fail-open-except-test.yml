@@ -1,0 +1,60 @@
+id: fail-open-except
+valid:
+  - |
+    try:
+        decision = decide(req, forward)
+    except UpstreamError:
+        self._send(502, {"error": "decision engine error"})
+  - |
+    try:
+        return post_json(url, body, timeout)["decision"] is True
+    except UpstreamError:
+        return False
+  - |
+    try:
+        validate_request(req)
+    except ContractError:
+        self._send(200, {"decision": False})
+  - |
+    try:
+        decision = decide(req)
+    except Exception:
+        decision = False
+  - |
+    try:
+        validate_request(req)
+    except ContractError:
+        log.info("deny")
+    return True
+invalid:
+  - |
+    try:
+        return decide(req)
+    except Exception:
+        return True
+  - |
+    try:
+        decision = decide(req, forward)
+    except UpstreamError:
+        decision = True
+  - |
+    try:
+        validate_request(req)
+    except ContractError:
+        self._send(200, {"decision": True})
+  - |
+    try:
+        verify_jwt(token, jwks, issuer, audience)
+    except JoseError:
+        if fallback:
+            return True
+  - |
+    try:
+        self.allowed = check(req)
+    except Exception:
+        self.allowed = True
+  - |
+    try:
+        decision = decide(req)
+    except:
+        decision = True

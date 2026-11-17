@@ -1,0 +1,117 @@
+# Semgrep rules for hazards of this code base that ruff's bandit rules (`S`)
+# do not cover: shims, the stub, the mock TES and the mock OIDC issuer are
+# small `http.server` services that call decision engines and handle access
+# tokens and AuthZEN requests with the subject's claims. ruff flags
+# `pickle`, `yaml.load()` with unsafe loaders and `eval()`/`exec()`;
+# secrets are detected by gitleaks (cf. `.pre-commit-config.yaml`). Test
+# cases are in `tes-authz.py` (`cd .semgrep && semgrep --test .`).
+# `yaml-unsafe-load` is shared with FOCA and trs-filer (`.semgrep/`): keep
+# its pattern, message and severity identical there
+rules:
+  - id: urlopen-without-timeout
+    languages: [python]
+    severity: ERROR
+    message: >-
+      HTTP calls need a timeout: a decision engine, issuer or TES that
+      doesn't answer would otherwise block the caller for good (and a TES
+      waiting for a shim must fail closed with 503 in time); pass `timeout=`
+    pattern-either:
+      - patterns:
+          - pattern: urllib.request.urlopen(...)
+          - pattern-not: urllib.request.urlopen(..., timeout=$TIMEOUT, ...)
+          # `urlopen(url, data, timeout)`
+          - pattern-not: urllib.request.urlopen($URL, $DATA, $TIMEOUT, ...)
+      - patterns:
+          - pattern-either:
+              - pattern: http.client.HTTPConnection(...)
+              - pattern: http.client.HTTPSConnection(...)
+          - pattern-not: http.client.$CONNECTION(..., timeout=$TIMEOUT, ...)
+  - id: request-body-unbounded
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Request bodies must be bounded: compare the `Content-Length` with a
+      maximum (e.g. `MAX_BODY_BYTES`) and answer an error before reading
+      the body, or read at most the maximum
+    # Detects reads without a preceding comparison of the length with an
+    # upper bound in the same block; whether the branch actually stops the
+    # read is left to review
+    pattern-either:
+      - pattern: $SELF.rfile.read()
+      - pattern: $SELF.rfile.read(-1)
+      - patterns:
+          - pattern: $SELF.rfile.read($LENGTH)
+          - pattern-not: $SELF.rfile.read(-1)
+          - pattern-not: $SELF.rfile.read(min(..., $MAX, ...))
+          - pattern-not-inside: |
+              if <... $LENGTH > $MAX ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $LENGTH >= $MAX ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $MAX < $LENGTH ...>:
+                  ...
+              ...
+          - pattern-not-inside: |
+              if <... $MAX <= $LENGTH ...>:
+                  ...
+              ...
+  - id: credentials-or-subject-logged
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Access tokens, the `Authorization` header and the subject of AuthZEN
+      requests (its ID and claims are personal data) must not be logged or
+      printed; log the request ID, the action and the resource instead, or
+      a hash of the subject ID (`hash_id()`)
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: $HEADERS.get($NAME, ...)
+              - pattern: $HEADERS[$NAME]
+          - metavariable-regex:
+              metavariable: $NAME
+              regex: (?i)^['"]authorization['"]$
+      - pattern-either:
+          - pattern: $REQUEST["subject"]
+          - pattern: $REQUEST.get("subject", ...)
+      # Variables and parameters that hold tokens
+      - patterns:
+          - pattern: $TOKEN
+          - metavariable-regex:
+              metavariable: $TOKEN
+              regex: ^(access_|bearer_|id_|refresh_)?token$
+    pattern-sanitizers:
+      - pattern: hash_id(...)
+      - pattern: encode_id(...)
+      - pattern: hashlib.sha256(...)
+    pattern-sinks:
+      - pattern-either:
+          - patterns:
+              - pattern: $LOGGER.$METHOD(...)
+              - metavariable-regex:
+                  metavariable: $METHOD
+                  regex: ^(debug|info|warning|warn|error|exception|critical|fatal|log)$
+          - pattern: print(...)
+  - id: yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Loading YAML with PyYAML's full or unsafe loader can instantiate
+      arbitrary objects; use `yaml.safe_load()`
+    pattern-either:
+      - pattern: yaml.unsafe_load(...)
+      - pattern: yaml.unsafe_load_all(...)
+      - pattern: yaml.full_load(...)
+      - pattern: yaml.full_load_all(...)
+      - patterns:
+          - pattern-either:
+              - pattern: yaml.load_all(..., Loader=$LOADER, ...)
+              - pattern: yaml.load_all($STREAM, $LOADER, ...)
+          - metavariable-regex:
+              metavariable: $LOADER
+              regex: ^(yaml\.)?C?(Loader|UnsafeLoader|FullLoader)$

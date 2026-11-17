@@ -1,0 +1,33 @@
+id: decision-truthiness
+language: python
+severity: error
+message: Decision of an engine or decision service read by truthiness
+note: |
+  Only a boolean `true` allows (spec: anything else is a deny or an
+  error): check `isinstance(decision, bool)` and fail otherwise, or
+  compare with `is True`. `bool()`, `if`, `== True` and `or` also accept
+  `1`, `"false"` or non-empty objects.
+# The decision path: shims and the mock TES
+files:
+  - shims/**
+  - tes/mock/**
+rule:
+  any:
+    - pattern: bool($VALUE)
+    - pattern: $VALUE == True
+    - pattern: $VALUE or $OTHER
+    - kind: if_statement
+      has:
+        field: condition
+        # `not` first: the constraint on `$VALUE` is checked only after
+        # `any` has picked a branch
+        any:
+          - kind: not_operator
+            has:
+              field: argument
+              pattern: $VALUE
+          - pattern: $VALUE
+# `answer.get("decision")`, `answer.get("result", None)`, `answer["decision"]`
+constraints:
+  VALUE:
+    regex: ^[\w.]+(\.get\(\s*["'](decision|result)["']\s*(,[^)]*)?\)|\[\s*["'](decision|result)["']\s*\])$

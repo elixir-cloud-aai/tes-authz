@@ -1,0 +1,15 @@
+id: decision-truthiness
+valid:
+  - 'decision = answer.get("decision") if isinstance(answer, dict) else None'
+  - 'return answer["decision"] is True'
+  - 'if not isinstance(result, bool): raise UpstreamError("not a boolean")'
+  - 'return bool(items)'
+  - 'if answer.get("decision") is True: allow()'
+invalid:
+  - 'return bool(answer.get("decision"))'
+  - 'return bool(answer["result"])'
+  - 'if answer.get("decision"): allow()'
+  - 'if answer["result"]: allow()'
+  - 'if not answer.get("decision"): deny()'
+  - 'allowed = answer.get("decision") == True'
+  - 'return answer["decision"] or False'

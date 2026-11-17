@@ -1,0 +1,10 @@
+id: unverified-token-claims
+valid:
+  - 'claims = verify_jwt(token, jwks, issuer, audience)'
+  - 'claims = minijose.verify_jwt(token, jwks, issuer, audience)'
+  - 'claims = jwt.decode(token, key, algorithms=["RS256"], audience=audience)'
+invalid:
+  - '_, claims = decode_unverified(token)'
+  - 'header, _ = minijose.decode_unverified(token)'
+  - 'claims = jwt.decode(token, options={"verify_signature": False})'
+  - 'header = jwt.get_unverified_header(token)'
