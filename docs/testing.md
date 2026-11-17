@@ -10,7 +10,7 @@
 | 3: smoke | `tests/conformance/test_smoke.py` | TES × {OPA, OpenFGA}: allow, deny, foreign get 404, missing get and cancel 404, list scopes | 2 pass (mock TES) |
 | OIDC: issuer | `tests/test_oidc_issuer.py`, `tests/test_oidc_jose.py` | the mock issuer itself (in-process, plus one check of the compose service): discovery per host name, JWKS, rotation and retirement, opaque tokens, userinfo modes and failures, control API validation; RS256 cross-checked with PyJWT + `cryptography` in both directions | 73 pass |
 | OIDC: mock TES AuthN | `tests/conformance/test_mock_oidc.py` | the mock TES refuses `alg: none`, unpublished keys, wrong audience, expired tokens, another issuer, forged `iss`, unknown `kid`, opaque tokens; accepts tokens after a rotation (JWKS refetch); stamps `<iss>\|<sub>` owners when pinned to both issuers; no or unreachable issuer, wrong userinfo content type, userinfo cache TTL, LRU size and token expiry | 14 pass |
-| docs | `tests/test_readthedocs.py` | Read the Docs installs the version of uv that `uv.lock` locks | 1 pass |
+| docs | `tests/test_readthedocs.py` | Read the Docs installs the version of uv that `uv.lock` locks and reshims asdf in `pre_create_environment` so the `uv` executable is found | 3 pass |
 | request bodies | `tests/test_request_bodies.py` | the stub and the mock TES answer 413 for bodies over 1 MiB and 400 for negative or non-numeric lengths, without reading them, and read bodies of exactly 1 MiB (the stub records them); the mock TES answers 411 for chunked bodies (in-process) | 16 pass |
 | stack | `tests/test_stack.py` | per-worktree project and port block: defaults, base and overrides, project name check, the exports script, compose uses every port variable | 9 pass |
 
