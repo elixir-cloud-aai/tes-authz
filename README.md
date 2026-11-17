@@ -4,11 +4,25 @@
 [![Build_status][badge-build-status]][badge-url-build-status]
 [![Docs][badge-docs]][badge-url-docs]
 
-**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3); it is currently kept at `../spec.md` and moves into this repository with [#7](https://github.com/elixir-cloud-aai/tes-authz/issues/7).
+**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3, accepted for implementation on 2026-11-16): read it in [`spec/tes-authzen-1.md`](spec/tes-authzen-1.md) or on the [documentation site][docs-specification].
 
-Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint, the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). Read the [specification][docs-specification] first.
+## The specification
 
-## Quick start (reference tooling)
+A TES keeps authentication (OIDC), an owner stamped on every task, and a thin hook that asks one standard AuthZEN Access Evaluation per decision; everything that is policy lives in a decision service of the operator's choice. Without configuration, every TES behaves as today. The specification covers:
+
+- [§3 The contract](spec/tes-authzen-1.md#3-the-contract-authzen-mapping): subject, actions, the two resource types, context, list filtering, userinfo and the exact request shape
+- [§4 Failure semantics, configuration, security](spec/tes-authzen-1.md#4-failure-semantics-configuration-security): status codes, configuration keys, startup checks
+- [§5 Built-in claim rule and composition](spec/tes-authzen-1.md#5-built-in-claim-rule-and-composition): the optional admission gate, ANDed with the decision
+- [§6 The hook](spec/tes-authzen-1.md#6-the-hook): pseudo-code and implementation notes for Poiesis, TESK, Funnel and TESP
+- [§7 Reference decision service and engines](spec/tes-authzen-1.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
+- [§8 Test plan](spec/tes-authzen-1.md#8-test-plan): test layers and the shared conformance cases
+- [§10 Decisions](spec/tes-authzen-1.md#10-decisions) and [§11 Open questions](spec/tes-authzen-1.md#11-open-questions)
+
+## Reference tooling
+
+Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint, the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). They show that the specification works with real engines and TES implementations; read the specification first.
+
+### Quick start
 
 Needs Docker with Compose, `uv` and `make`:
 
@@ -26,7 +40,7 @@ unauthenticated. Read [Getting started][docs-getting-started] first.
 The documentation is at <https://tes-authz.readthedocs.io> (sources in
 [`docs/`](docs/)):
 
-- [Specification][docs-specification]: what `tes-authzen/1` is and where to read it
+- [Specification][docs-specification]: the `tes-authzen/1` specification itself (draft 3)
 - [Getting started][docs-getting-started]: run the services and try an
   evaluation
 - [Operators][docs-operators]: reference policy, OpenFGA mapping,

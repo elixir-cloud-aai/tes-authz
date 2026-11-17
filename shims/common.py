@@ -206,7 +206,7 @@ def _first_of(text: str, chars: str) -> int:
 def strip_url(value: str) -> str | None:
     r"""Strip credentials from a URL with the plain string rule of the spec.
 
-    This is the TES-side projection rule (spec section 3.3, six steps), kept
+    This is the TES-side projection rule (spec §3.3, steps 0 to 6), kept
     here as the executable definition of the golden URL cases:
 
     0. Tab and newline: omit any value containing TAB, LF or CR (WHATWG

@@ -1,7 +1,7 @@
 """Generate the phase-1 golden AuthZEN requests and URL stripping cases.
 
 Until the Poiesis hook writes golden requests from its own tests
-(``tes-authz/golden/``), these files stand in for them: one file per
+(``golden/<tes>/``), these files stand in for them: one file per
 conformance case that reaches the decision service, each with the decision
 the reference policy (``config/reference-policy.json``) must give.
 

@@ -1,6 +1,16 @@
 # TES AuthZ
 
-**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3); it is currently kept at `../spec.md` and moves into this repository with [#7](https://github.com/elixir-cloud-aai/tes-authz/issues/7). See [Specification](specification.md).
+**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3, accepted for implementation on 2026-11-16): read it on the [Specification](specification.md) page (source: [`spec/tes-authzen-1.md`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/spec/tes-authzen-1.md)).
+
+A TES keeps authentication (OIDC), an owner stamped on every task, and a thin hook that asks one standard AuthZEN Access Evaluation per decision; everything that is policy lives in a decision service of the operator's choice. Without configuration, every TES behaves as today. The specification covers:
+
+- [§3 The contract](specification.md#3-the-contract-authzen-mapping): subject, actions, the two resource types, context, list filtering, userinfo and the exact request shape
+- [§4 Failure semantics, configuration, security](specification.md#4-failure-semantics-configuration-security): status codes, configuration keys, startup checks
+- [§5 Built-in claim rule and composition](specification.md#5-built-in-claim-rule-and-composition): the optional admission gate, ANDed with the decision
+- [§6 The hook](specification.md#6-the-hook): pseudo-code and implementation notes for Poiesis, TESK, Funnel and TESP
+- [§7 Reference decision service and engines](specification.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
+- [§8 Test plan](specification.md#8-test-plan): test layers and the shared conformance cases
+- [§10 Decisions](specification.md#10-decisions) and [§11 Open questions](specification.md#11-open-questions)
 
 ## Reference tooling
 
@@ -38,20 +48,20 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 | `shims/opa_front.py` | Thin AuthZEN front: request → `POST /v1/data/tes/authz/allow` → `{"decision": bool}` |
 | `engines/openfga/model.fga`, `model.json` | The OpenFGA model (DSL to read, JSON to load; a test checks that they agree). |
 | `engines/openfga/setup.py` | Creates the store, writes the model, generates the tuples from the data file, and records the IDs for the shim. |
-| `shims/openfga_shim.py` | The thin shim from spec §7 (mapping below). |
+| `shims/openfga_shim.py` | The thin shim from spec [§7](specification.md#7-reference-decision-service-and-engines) (mapping below). |
 | `stub/recording_pdp.py` | Recording stub PDP with a control API, for hook conformance (layer 1). |
 | `oidc/issuer.py`, `oidc/minijose.py` | Mock OIDC issuer (two issuers, `a` and `b`) with a control API: discovery, JWKS with scriptable rotation, RS256 JWT and opaque access tokens, userinfo in JSON and JWT mode, scripted userinfo failures. Standard library only (test-only RSA; see [Mock OIDC issuer](adding-a-tes.md#mock-oidc-issuer)). |
 | `harness/oidc.py` | Client for the issuer: `OIDC.token_for(identity)` for adapters, plus key rotation and userinfo scripting for tests. |
-| `golden/` | Golden AuthZEN requests with expected decisions, the hook-side golden `create` request and the URL stripping cases. |
+| `golden/` | Golden AuthZEN requests with expected decisions (`requests/`, generated from the spec's conformance cases; `<tes>/`, recorded by a TES's own hook tests, e.g. `poiesis/`), the hook-side golden `create` request (`hook/`) and the URL stripping cases. |
 | `harness/` | Engine registry, golden loading and diffing, stub client, TES-under-test interface. |
-| `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec §6 pseudo-code), with OIDC AuthN against the mock issuer and the optional userinfo lookup of spec §3.6. |
+| `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec [§6](specification.md#6-the-hook) pseudo-code), with OIDC AuthN against the mock issuer and the optional userinfo lookup of spec [§3.6](specification.md#36-userinfo-identity-resolution-in-the-tes). |
 | `compose.yaml` | The engines, shims, stub, mock OIDC issuer and setup job, with pinned images, `tes-authz-*` container names and loopback ports. |
 
 ### What phase 2 needs
 
 - **Mock OIDC issuer:** done (`oidc/`, compose service `oidc`; see [Add a TES](adding-a-tes.md)). Every adapter still needs its `token()` and OIDC wiring.
-- **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec §4.2).
+- **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec [§4.2](specification.md#42-configuration-keys)).
 - **Cases the mock TES can't exercise:** 1 and 22 per TES; 13b (scope-bound cursor, TESK 400); 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
-- **More golden requests from each TES** in `tes-authz/golden/<tes>/`, like Poiesis's: each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
+- **More golden requests from each TES** in `golden/<tes>/`, like Poiesis's in `golden/poiesis/` (the harness reads every such directory): each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
 - **A home and CI:** done: this repository; the `Integration` job of the `CI` workflow runs `make test` (Docker, with the images of `compose.yaml`).
 - **Further engines when needed:** Cedar and Casbin (they use `expand_prefixes`), Cerbos and Topaz (whose behaviour is still unverified).

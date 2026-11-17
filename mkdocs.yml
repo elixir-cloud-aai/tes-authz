@@ -7,6 +7,8 @@ site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://tes-authz.readthedocs.io/en/
 repo_url: https://github.com/elixir-cloud-aai/tes-authz
 repo_name: elixir-cloud-aai/tes-authz
 edit_uri: edit/dev/docs/
+# The Specification page includes spec/; rebuild on its changes too
+watch: [spec]
 copyright: Copyright &copy; ELIXIR On-Cloud
 
 theme:
@@ -42,6 +44,10 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  # Includes the specification (`spec/`) in `docs/specification.md`
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
