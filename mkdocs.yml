@@ -42,6 +42,10 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  # Includes the specification (`spec/`) in `docs/specification.md`
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
