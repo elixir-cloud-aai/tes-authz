@@ -1,7 +1,7 @@
 site_name: TES AuthZ
 site_description: >-
-  Engine side of the TES AuthZ contract (tes-authzen/1): reference decision
-  services, shims and test harness by ELIXIR On-Cloud
+  The TES AuthZ specification (tes-authzen/1) and its reference tooling
+  by ELIXIR On-Cloud
 # Read the Docs serves each version under its own path (e.g., `/en/latest/`)
 site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://tes-authz.readthedocs.io/en/latest/"]
 repo_url: https://github.com/elixir-cloud-aai/tes-authz
@@ -60,10 +60,12 @@ validation:
 
 nav:
   - Home: index.md
-  - Getting started: getting-started.md
-  - Operators: operators.md
-  - Adding a TES: adding-a-tes.md
-  - Adding an engine: adding-an-engine.md
-  - Testing: testing.md
-  - Findings: findings.md
+  - Specification: specification.md
+  - Reference tooling:
+      - Getting started: getting-started.md
+      - Operators: operators.md
+      - Adding a TES: adding-a-tes.md
+      - Adding an engine: adding-an-engine.md
+      - Testing: testing.md
+      - Findings: findings.md
   - Contributing: contributing.md

@@ -1,14 +1,18 @@
-# TES AuthZ: engine side
+# TES AuthZ
 
-Reference decision services, shims and a test harness for the TES AuthZ contract `tes-authzen/1`, as specified in `../spec.md` (draft 3). Phase 1 covers OPA and OpenFGA, with the harness the TES side plugs into (Poiesis first, then TESK, Funnel and TESP).
+**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3); it is currently kept at `../spec.md` and moves into this repository with [#7](https://github.com/elixir-cloud-aai/tes-authz/issues/7). See [Specification](specification.md).
 
-Decisions applied (from the spec's open questions):
+## Reference tooling
+
+Around the specification, this repository holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint, the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). Phase 1 covers OPA and OpenFGA.
+
+Decisions the tooling applies (from the spec's open questions):
 
 - Q1: the claim rule reads the token first, then userinfo.
 - Q3: 503 when the decision service fails.
 - Q10: the claim rule and the decision are ANDed.
 
-## Architecture
+### Architecture
 
 ```text
             TES (thin hook)                         decision service (PDP)
@@ -43,7 +47,7 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 | `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec §6 pseudo-code), with OIDC AuthN against the mock issuer and the optional userinfo lookup of spec §3.6. |
 | `compose.yaml` | The engines, shims, stub, mock OIDC issuer and setup job, with pinned images, `tes-authz-*` container names and loopback ports. |
 
-## What phase 2 needs
+### What phase 2 needs
 
 - **Mock OIDC issuer:** done (`oidc/`, compose service `oidc`; see [Add a TES](adding-a-tes.md)). Every adapter still needs its `token()` and OIDC wiring.
 - **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec §4.2).
