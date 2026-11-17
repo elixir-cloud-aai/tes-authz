@@ -90,7 +90,7 @@ def golden_dirs() -> list[Path]:
     extra = os.environ.get("TES_AUTHZ_GOLDEN_DIRS", "")
     for directory in (Path(part) for part in extra.split(":") if part):
         if not directory.is_dir():
-            warnings.warn(f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}, skipped", stacklevel=2)
+            warnings.warn(f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}, skipped", stacklevel=1)
             continue
         resolved = directory.resolve()
         if resolved in seen:
