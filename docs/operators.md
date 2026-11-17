@@ -8,7 +8,7 @@ This compose file is a local test and reference setup. All containers are read-o
 
 ## Reference policy
 
-The policy implements spec §7 with LS Login entitlements:
+The policy implements spec [§7](specification.md#7-reference-decision-service-and-engines) with LS Login entitlements:
 
 | Action | Resource | Allowed if |
 |---|---|---|
@@ -30,7 +30,7 @@ Anything else is denied, and so is any request with another profile or an unknow
 
 OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3). Ownership is the condition `is_owner` on a `user:*` tuple. Membership and admin rights are the condition `entitled` on `user:*` tuples, whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `(owner and member) or admin`, with a `member` relation carrying the members' `entitled` tuple.
 
-The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec §7 only names the `tes_service` rewrite for tasks, so this is a small addition.
+The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec [§7](specification.md#7-reference-decision-service-and-engines) only names the `tes_service` rewrite for tasks, so this is a small addition.
 
 ## Owner rule
 
