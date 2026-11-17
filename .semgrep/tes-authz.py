@@ -5,6 +5,7 @@ The cases contain findings on purpose; the file is never run.
 
 import http.client
 import logging
+import sys
 import urllib.request
 from urllib.request import urlopen
 
@@ -32,6 +33,15 @@ with urllib.request.urlopen(URL) as response:
 http.client.HTTPConnection("opa", 8181)
 # ruleid: urlopen-without-timeout
 http.client.HTTPSConnection("opa")
+# ruleid: urlopen-without-timeout
+urllib.request.urlopen(URL, timeout=None)
+# ruleid: urlopen-without-timeout
+http.client.HTTPConnection("opa", timeout=None)
+opener = urllib.request.build_opener()
+# ruleid: urlopen-without-timeout
+opener.open(URL)
+# ok: urlopen-without-timeout
+opener.open(URL, timeout=1.5)
 # ok: urlopen-without-timeout
 urllib.request.urlopen(URL, timeout=1.5)
 # ok: urlopen-without-timeout
@@ -70,6 +80,14 @@ class UnboundedHandler:
         """Read as much as the client declares, inline."""
         # ruleid: request-body-unbounded
         return self.rfile.read(int(self.headers["Content-Length"]))
+
+    def read_if_positive(self) -> bytes:
+        """Compare only with zero."""
+        length = int(self.headers["Content-Length"])
+        if length > 0:
+            # ruleid: request-body-unbounded
+            return self.rfile.read(length)
+        return b""
 
     def read_lower_bound_only(self) -> bytes:
         """Check only that the length is not negative."""
@@ -152,6 +170,8 @@ def log_requests(headers: dict[str, str], req: dict[str, dict[str, str]], token:
     log.log(logging.INFO, "subject=%s", subject)
     # ruleid: credentials-or-subject-logged
     print(req["subject"])
+    # ruleid: credentials-or-subject-logged
+    sys.stderr.write(bearer)
     # ok: credentials-or-subject-logged
     log.info("decision action=%s request_id=%s", req["action"]["name"], request_id)
     # ok: credentials-or-subject-logged
@@ -160,6 +180,19 @@ def log_requests(headers: dict[str, str], req: dict[str, dict[str, str]], token:
     log.info("subject=%s", encode_id(subject["id"]))
     # ok: credentials-or-subject-logged
     log.info("authorization present=%s", "Authorization" in headers)
+
+
+class LoggingHandler:
+    """A handler that logs with the methods of `http.server`."""
+
+    def log_requests(self) -> None:
+        """Log parts of a request to stderr."""
+        # ruleid: credentials-or-subject-logged
+        self.log_message("authorization=%s", self.headers.get("Authorization"))
+        # ruleid: credentials-or-subject-logged
+        self.log_error("authorization=%s", self.headers["Authorization"])
+        # ok: credentials-or-subject-logged
+        self.log_message("%s %s", self.command, self.path)
 
 
 # yaml-unsafe-load (as in trs-filer and FOCA)

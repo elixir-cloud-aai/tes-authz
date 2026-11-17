@@ -22,11 +22,35 @@ valid:
         decision = False
   - |
     try:
+        decision = decide(req)
+    finally:
+        self.close_connection = True
+  - |
+    try:
+        decision = decide(req)
+    except UpstreamError:
+        return False, "decision engine error"
+invalid:
+  - |
+    try:
+        return decide(req)
+    finally:
+        return True
+  - |
+    try:
+        return decide(req), ""
+    except UpstreamError:
+        return True, "fallback"
+  - |
+    try:
         validate_request(req)
     except ContractError:
-        log.info("deny")
-    return True
-invalid:
+        self._send(200, dict(decision=True))
+  - |
+    try:
+        decision = decide(req)
+    except UpstreamError:
+        self._send(200, {"allowed": True})
   - |
     try:
         return decide(req)

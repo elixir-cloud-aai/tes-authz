@@ -16,11 +16,21 @@ rules:
       doesn't answer would otherwise block the caller for good (and a TES
       waiting for a shim must fail closed with 503 in time); pass `timeout=`
     pattern-either:
+      - pattern: urllib.request.urlopen(..., timeout=None, ...)
+      - pattern: http.client.$CONNECTION(..., timeout=None, ...)
       - patterns:
           - pattern: urllib.request.urlopen(...)
           - pattern-not: urllib.request.urlopen(..., timeout=$TIMEOUT, ...)
           # `urlopen(url, data, timeout)`
           - pattern-not: urllib.request.urlopen($URL, $DATA, $TIMEOUT, ...)
+      # Openers of `urllib.request.build_opener()`
+      - patterns:
+          - pattern-inside: |
+              $OPENER = urllib.request.build_opener(...)
+              ...
+          - pattern: $OPENER.open(...)
+          - pattern-not: $OPENER.open(..., timeout=$TIMEOUT, ...)
+          - pattern-not: $OPENER.open($URL, $DATA, $TIMEOUT, ...)
       - patterns:
           - pattern-either:
               - pattern: http.client.HTTPConnection(...)
@@ -34,11 +44,26 @@ rules:
       maximum (e.g. `MAX_BODY_BYTES`) and answer an error before reading
       the body, or read at most the maximum
     # Detects reads without a preceding comparison of the length with an
-    # upper bound in the same block; whether the branch actually stops the
-    # read is left to review
+    # upper bound in the same block, and reads guarded only by a comparison
+    # with a number (`if length > 0:`); whether the branch actually stops
+    # the read, and that negative lengths are rejected (`read(-1)` reads to
+    # the end), is left to review
     pattern-either:
       - pattern: $SELF.rfile.read()
       - pattern: $SELF.rfile.read(-1)
+      - patterns:
+          - pattern: $SELF.rfile.read($LENGTH)
+          - pattern-either:
+              - pattern-inside: |
+                  if <... $LENGTH > $LIMIT ...>:
+                      ...
+              - pattern-inside: |
+                  if <... $LENGTH >= $LIMIT ...>:
+                      ...
+          - metavariable-regex:
+              metavariable: $LIMIT
+              regex: ^-?\d+$
+          - pattern-not: $SELF.rfile.read(min(..., $MAX, ...))
       - patterns:
           - pattern: $SELF.rfile.read($LENGTH)
           - pattern-not: $SELF.rfile.read(-1)
@@ -97,6 +122,10 @@ rules:
                   metavariable: $METHOD
                   regex: ^(debug|info|warning|warn|error|exception|critical|fatal|log)$
           - pattern: print(...)
+          # `http.server` handlers log to stderr
+          - pattern: $HANDLER.log_message(...)
+          - pattern: $HANDLER.log_error(...)
+          - pattern: sys.stderr.write(...)
   - id: yaml-unsafe-load
     languages: [python]
     severity: ERROR

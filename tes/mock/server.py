@@ -45,7 +45,12 @@ USERINFO_TTL = 300.0
 USERINFO_CACHE_SIZE = 1024
 """Most userinfo answers cached (LRU)."""
 MAX_BODY_BYTES = 1024 * 1024
-"""Largest request body read; longer ones are answered with 413, unread."""
+"""Largest request body read; longer ones are answered with 413, unread.
+
+As the default of the shims' ``SHIM_MAX_BODY_BYTES`` (``shims/common.py``).
+"""
+SOCKET_TIMEOUT = 5.0
+"""Seconds a socket read may stay idle, as in the shims."""
 
 
 class HttpError(Exception):
@@ -589,6 +594,8 @@ def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         """Mock TES handler."""
 
+        timeout = SOCKET_TIMEOUT
+
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             """Silence access logs.
 
@@ -604,6 +611,32 @@ def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+
+        def _length(self) -> int | None:
+            """Return the declared body length, or answer an error.
+
+            Returns:
+                The length (0 without ``Content-Length``), or ``None`` after
+                answering 411 (chunked), 400 (not a non-negative integer) or
+                413 (over ``MAX_BODY_BYTES``), with the body unread and the
+                connection closed.
+            """
+            status, message = None, ""
+            try:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+            except ValueError:
+                length = -1
+            if self.headers.get("Transfer-Encoding"):
+                status, message = HTTPStatus.LENGTH_REQUIRED, "Content-Length required"
+            elif length < 0:
+                status, message = HTTPStatus.BAD_REQUEST, "bad length"
+            elif length > MAX_BODY_BYTES:
+                status, message = HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "body too large"
+            if status is None:
+                return length
+            self.close_connection = True
+            self._send(status, {"message": message})
+            return None
 
         def _run(self, fn: Callable[[], Any]) -> None:
             try:
@@ -633,13 +666,10 @@ def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
         def do_POST(self) -> None:
             """Serve CreateTask and CancelTask."""
             path = urllib.parse.urlsplit(self.path).path
-            length = int(self.headers.get("Content-Length", "0") or "0")
-            if length > MAX_BODY_BYTES:
-                # The body stays unread, so the connection can't be reused
-                self.close_connection = True
-                self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"message": "body too large"})
+            length = self._length()
+            if length is None:
                 return
-            raw = self.rfile.read(length) if length else b"{}"
+            raw = self.rfile.read(min(length, MAX_BODY_BYTES)) if length > 0 else b"{}"
 
             def run() -> Any:
                 p = auth.authenticate(self.headers.get("Authorization"))

@@ -5,11 +5,29 @@ valid:
   - 'if not isinstance(result, bool): raise UpstreamError("not a boolean")'
   - 'return bool(items)'
   - 'if answer.get("decision") is True: allow()'
+  - 'if not isinstance(answer, dict) or not isinstance(answer.get("decision"), bool): fail()'
+  - 'self._send(200, {"decision": decision})'
+  - 'return decision'
 invalid:
   - 'return bool(answer.get("decision"))'
   - 'return bool(answer["result"])'
+  - 'return bool(result)'
   - 'if answer.get("decision"): allow()'
   - 'if answer["result"]: allow()'
   - 'if not answer.get("decision"): deny()'
+  - 'if decision: allow()'
   - 'allowed = answer.get("decision") == True'
+  - 'allowed = post_json(url, body, timeout)["result"] == True'
+  - 'allowed = resp.json()["decision"] != False'
+  - 'allowed = answer["decision"] is not False'
   - 'return answer["decision"] or False'
+  - 'return answer["decision"] and owner == subject'
+  - 'return True if answer.get("decision") else False'
+  - |
+    if denied:
+        deny()
+    elif answer["decision"]:
+        allow()
+  - |
+    while not answer.get("decision"):
+        answer = retry()

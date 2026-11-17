@@ -6,7 +6,11 @@ note: |
   Errors on the decision path must deny: return `False`, answer
   `{"decision": false}` for invalid requests, or an error status (502 from
   a shim, so that the TES fails closed with 503). Never allow because
-  validation, the engine or token verification failed.
+  validation, the engine or token verification failed, and never in a
+  `finally` block, which also overrides a deny. Detected in `except` and
+  `finally` blocks: `return True` (also as the first item of a tuple), and
+  `True` assigned to, or passed as, `decision`, `allow`, `allowed` or
+  `result`. An allow after a handler that only logs is not detected.
 # The decision path: shims, the stub, the mock TES and the token handling
 # of the mock OIDC issuer
 files:
@@ -14,12 +18,23 @@ files:
   - stub/**
   - tes/mock/**
   - oidc/**
+utils:
+  allow-name:
+    regex: ^["']?(decision|allow|allowed|result)["']?$
 rule:
-  kind: except_clause
+  any:
+    - kind: except_clause
+    - kind: finally_clause
   has:
     stopBy: end
     any:
       - pattern: return True
+      - kind: return_statement
+        has:
+          kind: expression_list
+          has:
+            nthChild: 1
+            kind: "true"
       - kind: assignment
         all:
           - has:
@@ -32,7 +47,15 @@ rule:
         all:
           - has:
               field: key
-              regex: ^["'](decision|allow|allowed|result)["']$
+              matches: allow-name
+          - has:
+              field: value
+              kind: "true"
+      - kind: keyword_argument
+        all:
+          - has:
+              field: name
+              matches: allow-name
           - has:
               field: value
               kind: "true"

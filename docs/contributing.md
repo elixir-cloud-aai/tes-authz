@@ -36,20 +36,20 @@ code base. Both run as pre-commit hooks, so on commit and in CI (`Lint`).
 
 | Tool | Rule | Flags | Where |
 |---|---|---|---|
-| semgrep | `urlopen-without-timeout` | `urllib.request.urlopen()` and `http.client` connections without a timeout (a hanging engine or issuer would block the caller instead of failing closed) | everywhere |
-| semgrep | `request-body-unbounded` | `self.rfile.read()` of a request body without a preceding comparison of its length with a maximum | everywhere |
-| semgrep | `credentials-or-subject-logged` | the `Authorization` header, tokens, or the subject of an AuthZEN request (ID and claims) reaching a log call or `print()`; `hash_id()` and `encode_id()` sanitise | everywhere |
+| semgrep | `urlopen-without-timeout` | `urllib.request.urlopen()`, openers of `build_opener()` and `http.client` connections without a timeout, or with `timeout=None` (a hanging engine or issuer would block the caller instead of failing closed) | everywhere |
+| semgrep | `request-body-unbounded` | `self.rfile.read()` of a request body without a preceding comparison of its length with a maximum, or guarded only by a comparison with a number (`if length > 0:`); negative lengths are left to review | everywhere |
+| semgrep | `credentials-or-subject-logged` | the `Authorization` header, tokens, or the subject of an AuthZEN request (ID and claims) reaching a log call, `print()`, `sys.stderr.write()` or a handler's `log_message()`/`log_error()`; `hash_id()` and `encode_id()` sanitise | everywhere |
 | semgrep | `yaml-unsafe-load` | PyYAML's full and unsafe loaders (shared with FOCA and trs-filer) | everywhere |
-| ast-grep | `shim-policy-decision` | comparisons with action names, resource types or task set IDs: shims translate, the engines decide | `shims/` except `common.py` |
-| ast-grep | `fail-open-except` | `except` blocks that allow: `return True`, `decision = True`, `{"decision": True}` | `shims/`, `stub/`, `tes/mock/`, `oidc/` |
-| ast-grep | `decision-truthiness` | an engine's `decision` or `result` read with `bool()`, `if`, `== True` or `or` (only a boolean `true` allows) | `shims/`, `tes/mock/` |
-| ast-grep | `unverified-token-claims` | `decode_unverified()`, `jwt.get_unverified_header()` and `jwt.decode()` without signature verification | everywhere except `oidc/minijose.py` and tests |
+| ast-grep | `shim-policy-decision` | comparisons, `match` cases and `startswith()`/`endswith()` tests with action names, resource types or task set IDs (as literals, or `ACTIONS`, `RESOURCE_TYPES`, `TASK_SET_IDS`): shims translate, the engines decide | `shims/` except `common.py` |
+| ast-grep | `fail-open-except` | `except` and `finally` blocks that allow: `return True` (also in a tuple), `True` assigned to or passed as `decision`, `allow`, `allowed` or `result` | `shims/`, `stub/`, `tes/mock/`, `oidc/` |
+| ast-grep | `decision-truthiness` | an engine's `decision` or `result` (lookups, or `decision`, `result`, `allowed` variables) read with `bool()`, `if`/`elif`/`while`, a conditional expression, `== True`, `!= False`, `is not False`, `and` or `or` (only a boolean `true` allows) | `shims/`, `tes/mock/` |
+| ast-grep | `unverified-token-claims` | `decode_unverified()` (also imported under another name), `jwt.get_unverified_header()` and `jwt.decode()` with `verify_signature` or `verify` false | everywhere except `oidc/minijose.py` and tests |
 | ast-grep | `root-logger-call` | messages logged with the root logger | everywhere |
 
 The rules live in `.semgrep/tes-authz.yml` and `.ast-grep/rules/`
 (`sgconfig.yml`), with their tests in `.semgrep/tes-authz.py` and
-`.ast-grep/rule-tests/` (they contain findings on purpose, so the scans and
-Sourcery skip them). Add a rule together with test cases that it must and
+`.ast-grep/rule-tests/` (they contain findings on purpose, so the semgrep scan
+and Sourcery skip them). Add a rule together with test cases that it must and
 must not flag, and run them:
 
 ```sh
@@ -60,7 +60,9 @@ uv run ast-grep scan                             # the ast-grep rules on the cod
 
 Suppress a finding only if it is a false positive or can't be avoided, with
 a comment that gives the reason: `# ast-grep-ignore: <rule>` on the line
-before the finding, `# nosemgrep: <rule>` on its first line.
+before the finding, `# nosemgrep: <rule>` on its first line. The rules
+are syntactic and catch the common forms; their notes in the rule files say
+what they don't detect.
 
 [code-of-conduct]: <https://github.com/elixir-cloud-aai/.github/blob/main/CODE_OF_CONDUCT.md>
 [contributing]: <https://github.com/elixir-cloud-aai/.github/blob/main/CONTRIBUTING.md>

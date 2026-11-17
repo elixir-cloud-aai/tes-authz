@@ -8,7 +8,10 @@ note: |
   structural checks live in `shims/common.py`. A mapping that must branch
   on these names without deciding anything may suppress the finding, on
   the line before, with `# ast-grep-ignore: shim-policy-decision` and the
-  reason.
+  reason. Detected: comparisons and `match` cases with the names as string
+  literals, comparisons with `ACTIONS`, `RESOURCE_TYPES` and `TASK_SET_IDS`
+  of `common.py`, and `startswith()`/`endswith()` tests with the names or
+  their verbs; not other constants.
 # The engine shims; `common.py` holds the profile's names and validation
 files:
   - shims/**
@@ -16,17 +19,30 @@ ignores:
   - shims/common.py
 utils:
   profile-name:
+    any:
+      - kind: string
+        regex: ^["'](CreateTask|GetTask|ListTasks|CancelTask|tes_task|tes_task_set|own|all)["']$
+      - kind: identifier
+        regex: ^(ACTIONS|RESOURCE_TYPES|TASK_SET_IDS)$
+  # Prefixes and suffixes of the names, for `startswith()`/`endswith()`
+  profile-affix:
     kind: string
-    regex: ^["'](CreateTask|GetTask|ListTasks|CancelTask|tes_task|tes_task_set|own|all)["']$
+    regex: ^["'](Create|Get|List|Cancel|Task|Tasks|tes_task|tes_task_set|_set|own|all)["']$
 rule:
   any:
     - kind: comparison_operator
       has:
         stopBy: end
         matches: profile-name
+    - pattern: $VALUE.$TEST($AFFIX)
     - kind: case_clause
       has:
         kind: case_pattern
         has:
           stopBy: end
           matches: profile-name
+constraints:
+  TEST:
+    regex: ^(startswith|endswith)$
+  AFFIX:
+    matches: profile-affix

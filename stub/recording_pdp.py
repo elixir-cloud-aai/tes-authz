@@ -25,7 +25,8 @@ The first rule whose ``match`` keys all equal the request wins; otherwise
 response is ``{"status": 200, "body": {...}}``, ``{"status": 200,
 "raw": "text"}``, optionally with ``"delay": <seconds>`` (to provoke
 timeouts) or ``"close": true`` (drop the connection without an answer).
-Bodies over ``MAX_BODY_BYTES`` are answered with 413, unread.
+Bodies over ``MAX_BODY_BYTES`` are answered with 413, and invalid lengths
+with 400, unread.
 
 Settings (environment): STUB_PORT (default 8080).
 """
@@ -48,13 +49,33 @@ RECORDED_HEADERS = ("X-Request-ID", "Authorization", "Content-Type", "traceparen
 DEFAULT_RESPONSE: dict[str, Any] = {"status": 200, "body": {"decision": False}}
 
 MAX_BODY_BYTES = 1024 * 1024
-"""Largest request body the stub reads (as the shims' default)."""
+"""Largest request body the stub reads.
+
+As the default of the shims' ``SHIM_MAX_BODY_BYTES`` (``shims/common.py``).
+"""
+
+SOCKET_TIMEOUT = 5.0
+"""Seconds a socket read may stay idle, as in the shims."""
 
 log = logging.getLogger("tes-authz-stub")
 
 
-class BodyTooLargeError(ValueError):
-    """Raised when a request declares a body over ``MAX_BODY_BYTES``."""
+class BodyError(ValueError):
+    """Raised when a request declares a body the stub doesn't read.
+
+    Attributes:
+        status: The HTTP status to answer.
+    """
+
+    def __init__(self, status: int, message: str) -> None:
+        """Create the error.
+
+        Args:
+            status: The HTTP status to answer.
+            message: The error message.
+        """
+        super().__init__(message)
+        self.status = status
 
 
 class State:
@@ -131,6 +152,7 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
 
         server_version = "tes-authz-stub"
         sys_version = ""
+        timeout = SOCKET_TIMEOUT
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             """Route access logs to the module logger.
@@ -152,15 +174,33 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(data)
 
-        def _too_large(self) -> None:
-            # The body stays unread, so the connection can't be reused
+        def _reject(self, exc: BodyError) -> None:
+            """Answer a body error; the body stays unread, so close the connection.
+
+            Args:
+                exc: The error.
+            """
             self.close_connection = True
-            self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "body too large"})
+            self._send_json(exc.status, {"error": str(exc)})
 
         def _body(self) -> tuple[Any, bool]:
-            length = int(self.headers.get("Content-Length", "0") or "0")
+            """Read and decode the request body.
+
+            Returns:
+                The decoded JSON body and ``True``, or the text and ``False``.
+
+            Raises:
+                BodyError: For a length that is not a non-negative integer
+                    (400) or over ``MAX_BODY_BYTES`` (413).
+            """
+            try:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+            except ValueError:
+                length = -1
+            if length < 0:
+                raise BodyError(HTTPStatus.BAD_REQUEST, "bad length")
             if length > MAX_BODY_BYTES:
-                raise BodyTooLargeError
+                raise BodyError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "body too large")
             raw = self.rfile.read(length) if length > 0 else b""
             try:
                 return json.loads(raw), True
@@ -193,8 +233,8 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
                 return
             try:
                 script, ok = self._body()
-            except BodyTooLargeError:
-                self._too_large()
+            except BodyError as exc:
+                self._reject(exc)
                 return
             if not ok or not isinstance(script, dict):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "script must be a JSON object"})
@@ -214,8 +254,8 @@ def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
                 return
             try:
                 body, _ = self._body()
-            except BodyTooLargeError:
-                self._too_large()
+            except BodyError as exc:
+                self._reject(exc)
                 return
             headers: dict[str, str | None] = {name: self.headers.get(name) for name in RECORDED_HEADERS}
             if headers["Authorization"] is not None:

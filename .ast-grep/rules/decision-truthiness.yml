@@ -5,29 +5,46 @@ message: Decision of an engine or decision service read by truthiness
 note: |
   Only a boolean `true` allows (spec: anything else is a deny or an
   error): check `isinstance(decision, bool)` and fail otherwise, or
-  compare with `is True`. `bool()`, `if`, `== True` and `or` also accept
-  `1`, `"false"` or non-empty objects.
+  compare with `is True`. `bool()`, `if`, `while`, conditional
+  expressions, `== True`, `!= False`, `and` and `or` also accept `1`,
+  `"false"` or non-empty objects. Detected for `decision`, `result` and
+  `allowed` variables and for `["decision"]`, `["result"]` and
+  `.get(...)` lookups.
 # The decision path: shims and the mock TES
 files:
   - shims/**
   - tes/mock/**
+utils:
+  # A condition that tests the value itself, or its negation. `not` comes
+  # first: the constraint on `$VALUE` is checked only after `any` has
+  # picked a branch
+  truthy-condition:
+    any:
+      - kind: not_operator
+        has:
+          field: argument
+          pattern: $VALUE
+      - pattern: $VALUE
 rule:
   any:
     - pattern: bool($VALUE)
     - pattern: $VALUE == True
+    - pattern: $VALUE != False
+    - pattern: $VALUE is not False
     - pattern: $VALUE or $OTHER
-    - kind: if_statement
+    - pattern: $VALUE and $OTHER
+    - any:
+        - kind: if_statement
+        - kind: elif_clause
+        - kind: while_statement
       has:
         field: condition
-        # `not` first: the constraint on `$VALUE` is checked only after
-        # `any` has picked a branch
-        any:
-          - kind: not_operator
-            has:
-              field: argument
-              pattern: $VALUE
-          - pattern: $VALUE
-# `answer.get("decision")`, `answer.get("result", None)`, `answer["decision"]`
+        matches: truthy-condition
+    # `x if <condition> else y`: the condition is the second named child
+    - kind: conditional_expression
+      has:
+        nthChild: 2
+        matches: truthy-condition
 constraints:
   VALUE:
-    regex: ^[\w.]+(\.get\(\s*["'](decision|result)["']\s*(,[^)]*)?\)|\[\s*["'](decision|result)["']\s*\])$
+    regex: ^((decision|result|allowed)|.+(\.get\(\s*["'](decision|result)["']\s*(,[^)]*)?\)|\[\s*["'](decision|result)["']\s*\]))$
