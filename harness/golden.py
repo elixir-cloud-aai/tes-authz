@@ -9,9 +9,9 @@ Golden files come from three places:
   ``requests/`` and ``hook/``;
 * every directory in ``TES_AUTHZ_GOLDEN_DIRS`` (``:``-separated), for
   recordings kept outside this repository; they add to the others. A
-  directory that does not exist is skipped with a warning; one that
+  directory that does not exist is an error, as is one that
   contains, or lies inside, a directory already read (e.g. ``golden/``
-  itself) is an error.
+  itself). Files under hidden directories are skipped.
 
 A golden file is either a wrapper ``{"name", "case", "description",
 "request", "expect": {"<policy>": {"decision": bool}}}`` or a bare AuthZEN
@@ -30,7 +30,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,20 +74,20 @@ def golden_dirs() -> list[Path]:
         in ``TES_AUTHZ_GOLDEN_DIRS``.
 
     Raises:
-        ValueError: A directory contains, or lies inside, a directory that
-            is read already, so its cases would be read twice.
+        ValueError: A directory in ``TES_AUTHZ_GOLDEN_DIRS`` does not exist,
+            or a directory contains, or lies inside, a directory that is
+            read already, so its cases would be read twice.
     """
     excluded = {(GOLDEN_ROOT / name).resolve() for name in NOT_RECORDINGS}
-    recordings = sorted(
-        d for d in GOLDEN_ROOT.iterdir() if d.is_dir() and not d.name.startswith(".") and d.resolve() not in excluded
-    )
+    entries = GOLDEN_ROOT.iterdir() if GOLDEN_ROOT.is_dir() else iter(())
+    recordings = sorted(d for d in entries if d.is_dir() and not d.name.startswith(".") and d.resolve() not in excluded)
     extra = os.environ.get("TES_AUTHZ_GOLDEN_DIRS", "")
     candidates = [LOCAL_DIR, *recordings]
     for directory in (Path(part) for part in extra.split(":") if part):
-        if directory.is_dir():
-            candidates.append(directory)
-        else:
-            warnings.warn(f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}, skipped", stacklevel=1)
+        if not directory.is_dir():
+            msg = f"TES_AUTHZ_GOLDEN_DIRS: no directory {directory}"
+            raise ValueError(msg)
+        candidates.append(directory)
     dirs: list[Path] = []
     seen: set[Path] = set()
     for directory in candidates:
@@ -140,6 +139,8 @@ def load_cases() -> list[GoldenCase]:
     for directory in golden_dirs():
         prefix = "" if directory == LOCAL_DIR else f"{_label(directory)}/"
         for path in sorted(directory.rglob("*.json")):
+            if any(part.startswith(".") for part in path.relative_to(directory).parts):
+                continue
             data = json.loads(path.read_text())
             if not isinstance(data, dict):
                 continue

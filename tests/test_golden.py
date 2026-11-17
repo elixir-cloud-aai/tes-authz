@@ -78,14 +78,26 @@ def test_golden_dirs_setting_accepts_relative_paths(monkeypatch, tmp_path):
     assert f"{str((tmp_path / 'sub').resolve()).lstrip('/')}/extra" in {c.name for c in load_cases()}
 
 
-def test_golden_dirs_setting_warns_about_missing_directories(monkeypatch, tmp_path):
-    """A missing directory in `TES_AUTHZ_GOLDEN_DIRS` is skipped with a warning."""
+def test_golden_dirs_setting_rejects_missing_directories(monkeypatch, tmp_path):
+    """A missing directory in `TES_AUTHZ_GOLDEN_DIRS` fails instead of shrinking the corpus."""
     missing = tmp_path / "missing"
-    monkeypatch.delenv("TES_AUTHZ_GOLDEN_DIRS", raising=False)
-    defaults = golden_dirs()
     monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(missing))
-    with pytest.warns(UserWarning, match=f"no directory {re.escape(str(missing))}"):
-        assert golden_dirs() == defaults
+    with pytest.raises(ValueError, match=f"no directory {re.escape(str(missing))}"):
+        golden_dirs()
+
+
+def test_external_recordings_load_without_golden_dir(monkeypatch, tmp_path):
+    """Without a `golden/` directory, the external recordings still load, hidden files skipped."""
+    extra = tmp_path / "extra"
+    (extra / ".hidden").mkdir(parents=True)
+    shutil.copy(ROOT / "golden" / "poiesis" / "get-other.json", extra / "case.json")
+    shutil.copy(ROOT / "golden" / "poiesis" / "get-other.json", extra / ".hidden" / "case.json")
+    monkeypatch.setattr(golden, "GOLDEN_ROOT", tmp_path / "golden")
+    monkeypatch.setattr(golden, "LOCAL_DIR", tmp_path / "golden" / "requests")
+    monkeypatch.setenv("TES_AUTHZ_GOLDEN_DIRS", str(extra))
+    assert golden_dirs() == [extra]
+    label = str(extra.resolve()).lstrip("/")
+    assert [c.name for c in load_cases()] == [f"{label}/case"]
 
 
 @pytest.mark.parametrize("inside", [False, True])
