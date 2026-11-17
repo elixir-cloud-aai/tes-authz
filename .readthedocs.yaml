@@ -12,10 +12,10 @@ build:
   # so the docs dependency group is installed with uv from the lock
   # (`uv.lock`): the same versions that CI's docs job builds with
   jobs:
+    # The version of uv locked in `uv.lock` (a dev dependency, as for CI);
+    # `tests/test_readthedocs.py` fails when a lock update moves it
     pre_create_environment:
-      - asdf plugin add uv
-      - asdf install uv latest
-      - asdf global uv latest
+      - python -m pip install "uv==0.13.8"
     create_environment:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
