@@ -47,7 +47,10 @@ rules:
     # upper bound in the same block, and reads guarded only by a comparison
     # with a number (`if length > 0:`); whether the branch actually stops
     # the read, and that negative lengths are rejected (`read(-1)` reads to
-    # the end), is left to review
+    # the end), is left to review. Semgrep can't tell such a guard from an
+    # earlier upper-bound check, so after one, skip empty bodies with a
+    # conditional expression (`read(length) if length > 0 else b""`), as
+    # the stub and the issuer do, or read `min(length, MAX_BODY_BYTES)`
     pattern-either:
       - pattern: $SELF.rfile.read()
       - pattern: $SELF.rfile.read(-1)

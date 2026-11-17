@@ -45,6 +45,12 @@ rule:
       has:
         nthChild: 2
         matches: truthy-condition
+# A name, lookup or call, not a comparison or another operator that merely
+# ends in a lookup (`expected == answer["decision"]`)
 constraints:
   VALUE:
     regex: ^((decision|result|allowed)|.+(\.get\(\s*["'](decision|result)["']\s*(,[^)]*)?\)|\[\s*["'](decision|result)["']\s*\]))$
+    any:
+      - kind: identifier
+      - kind: subscript
+      - kind: call

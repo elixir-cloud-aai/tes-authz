@@ -669,6 +669,8 @@ def make_handler(hook: Hook, auth: OidcAuth) -> type[BaseHTTPRequestHandler]:
             length = self._length()
             if length is None:
                 return
+            # `_length()` rejected longer bodies; `min()` bounds the read here too,
+            # where the semgrep rule request-body-unbounded can see it
             raw = self.rfile.read(min(length, MAX_BODY_BYTES)) if length > 0 else b"{}"
 
             def run() -> Any:

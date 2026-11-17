@@ -26,7 +26,8 @@ response is ``{"status": 200, "body": {...}}``, ``{"status": 200,
 "raw": "text"}``, optionally with ``"delay": <seconds>`` (to provoke
 timeouts) or ``"close": true`` (drop the connection without an answer).
 Bodies over ``MAX_BODY_BYTES`` are answered with 413, and invalid lengths
-with 400, unread.
+with 400, unread. Chunked bodies are not supported (read as empty), so
+that a TES that sends them is recorded rather than refused.
 
 Settings (environment): STUB_PORT (default 8080).
 """

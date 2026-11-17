@@ -25,29 +25,33 @@ rule:
         field: name
         regex: (^|\.)decode_unverified$
     - pattern: $JWT.get_unverified_header($$$ARGS)
+    # Only the call's own arguments: `requests.get(url, verify=False)
+    # .content.decode()` is no token
     - all:
         - pattern: $JWT.$DECODE($$$ARGS)
-        - any:
-            - has:
-                stopBy: end
-                kind: pair
-                all:
-                  - has:
-                      field: key
-                      regex: ^["']verify_signature["']$
-                  - has:
-                      field: value
-                      kind: "false"
-            - has:
-                stopBy: end
-                kind: keyword_argument
-                all:
-                  - has:
-                      field: name
-                      regex: ^(verify|verify_signature)$
-                  - has:
-                      field: value
-                      kind: "false"
+        - has:
+            field: arguments
+            any:
+              - has:
+                  stopBy: end
+                  kind: pair
+                  all:
+                    - has:
+                        field: key
+                        regex: ^["']verify_signature["']$
+                    - has:
+                        field: value
+                        kind: "false"
+              - has:
+                  stopBy: end
+                  kind: keyword_argument
+                  all:
+                    - has:
+                        field: name
+                        regex: ^(verify|verify_signature)$
+                    - has:
+                        field: value
+                        kind: "false"
 constraints:
   DECODE:
     regex: ^decode(_complete)?$

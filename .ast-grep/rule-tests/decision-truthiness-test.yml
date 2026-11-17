@@ -8,6 +8,8 @@ valid:
   - 'if not isinstance(answer, dict) or not isinstance(answer.get("decision"), bool): fail()'
   - 'self._send(200, {"decision": decision})'
   - 'return decision'
+  - 'if expected == answer.get("decision"): pass'
+  - 'if True is answer["decision"]: allow()'
 invalid:
   - 'return bool(answer.get("decision"))'
   - 'return bool(answer["result"])'

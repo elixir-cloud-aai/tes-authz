@@ -6,6 +6,7 @@ valid:
   - 'claims = jwt.decode(token, key, algorithms=["RS256"], options={"verify_signature": True})'
   - 'from minijose import verify_jwt as verify'
   - 'text = data.decode("utf-8")'
+  - 'text = requests.get(url, verify=False, timeout=5).content.decode()'
 invalid:
   - '_, claims = decode_unverified(token)'
   - 'header, _ = minijose.decode_unverified(token)'
