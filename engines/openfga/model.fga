@@ -22,9 +22,10 @@ type tes_task_set
 type tes_service
   relations
     define owner: [user:* with is_owner]
+    define member: [user:* with entitled]
     define admin: [user:* with entitled]
-    define GetTask: owner or admin
-    define CancelTask: owner or admin
+    define GetTask: (owner and member) or admin
+    define CancelTask: (owner and member) or admin
     define CreateTask: [user]
     define ListTasks: [user]
 

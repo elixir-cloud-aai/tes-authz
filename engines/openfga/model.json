@@ -28,13 +28,20 @@
       "type": "tes_service",
       "relations": {
         "owner": {"this": {}},
+        "member": {"this": {}},
         "admin": {"this": {}},
         "GetTask": {"union": {"child": [
-          {"computedUserset": {"relation": "owner"}},
+          {"intersection": {"child": [
+            {"computedUserset": {"relation": "owner"}},
+            {"computedUserset": {"relation": "member"}}
+          ]}},
           {"computedUserset": {"relation": "admin"}}
         ]}},
         "CancelTask": {"union": {"child": [
-          {"computedUserset": {"relation": "owner"}},
+          {"intersection": {"child": [
+            {"computedUserset": {"relation": "owner"}},
+            {"computedUserset": {"relation": "member"}}
+          ]}},
           {"computedUserset": {"relation": "admin"}}
         ]}},
         "CreateTask": {"this": {}},
@@ -42,6 +49,7 @@
       },
       "metadata": {"relations": {
         "owner": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "is_owner"}]},
+        "member": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
         "admin": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
         "CreateTask": {"directly_related_user_types": [{"type": "user"}]},
         "ListTasks": {"directly_related_user_types": [{"type": "user"}]}

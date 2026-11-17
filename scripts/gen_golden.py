@@ -271,8 +271,29 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-own-no-entitlement",
             "9",
-            "owners read their tasks without entitlement",
+            "owners need a current entitlement (Q11)",
             request(FRANK, "GetTask", "tes_task", "task-f1", task_meta("frank-sub"), view),
+            F,
+        ),
+        (
+            "get-own-near-miss",
+            "9",
+            "owner with only a near-miss entitlement (Q11)",
+            request(CAROL, "GetTask", "tes_task", "task-c1", task_meta("carol-sub"), view),
+            F,
+        ),
+        (
+            "get-other-no-entitlement",
+            "10",
+            "no entitlement, someone else's task",
+            request(FRANK, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view),
+            F,
+        ),
+        (
+            "get-own-admin",
+            "9",
+            "admin reads their own task",
+            request(DAVE, "GetTask", "tes_task", "task-d1", task_meta("dave-sub"), view),
             T,
         ),
         (
@@ -380,6 +401,13 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "owner cancels",
             request(ALICE, "CancelTask", "tes_task", "task-a1", task_meta("alice-sub")),
             T,
+        ),
+        (
+            "cancel-own-no-entitlement",
+            "10",
+            "owners need a current entitlement to cancel (Q11)",
+            request(FRANK, "CancelTask", "tes_task", "task-f1", task_meta("frank-sub")),
+            F,
         ),
         (
             "cancel-other",
