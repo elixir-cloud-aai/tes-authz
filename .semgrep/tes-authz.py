@@ -40,8 +40,18 @@ http.client.HTTPConnection("opa", timeout=None)
 opener = urllib.request.build_opener()
 # ruleid: urlopen-without-timeout
 opener.open(URL)
+# ruleid: urlopen-without-timeout
+opener.open(URL, b"{}", None)
+# ruleid: urlopen-without-timeout
+urllib.request.urlopen(URL, b"{}", None)
+# ruleid: urlopen-without-timeout
+http.client.HTTPConnection("opa", 8181, None)
+# ok: urlopen-without-timeout
+http.client.HTTPConnection("opa", 8181, 1.5)
 # ok: urlopen-without-timeout
 opener.open(URL, timeout=1.5)
+# ok: urlopen-without-timeout
+opener.open(URL, b"{}", 1.5)
 # ok: urlopen-without-timeout
 urllib.request.urlopen(URL, timeout=1.5)
 # ok: urlopen-without-timeout
@@ -147,6 +157,18 @@ class BoundedHandler:
 # credentials-or-subject-logged
 
 
+def log_tokens(auth_token: str, jwt: str, raw_bearer: str, tokens: list[str]) -> None:
+    """Log values named as tokens."""
+    # ruleid: credentials-or-subject-logged
+    log.info("token=%s", auth_token)
+    # ruleid: credentials-or-subject-logged
+    log.info("token=%s", jwt)
+    # ruleid: credentials-or-subject-logged
+    log.info("token=%s", raw_bearer)
+    # ok: credentials-or-subject-logged
+    log.info("%d tokens", len(tokens))
+
+
 def log_requests(headers: dict[str, str], req: dict[str, dict[str, str]], token: str, request_id: str) -> None:
     """Log parts of a request."""
     # ruleid: credentials-or-subject-logged
@@ -176,7 +198,7 @@ def log_requests(headers: dict[str, str], req: dict[str, dict[str, str]], token:
     log.info("decision action=%s request_id=%s", req["action"]["name"], request_id)
     # ok: credentials-or-subject-logged
     log.info("subject=%s", hash_id(req["subject"]["id"]))
-    # ok: credentials-or-subject-logged
+    # ruleid: credentials-or-subject-logged
     log.info("subject=%s", encode_id(subject["id"]))
     # ok: credentials-or-subject-logged
     log.info("authorization present=%s", "Authorization" in headers)

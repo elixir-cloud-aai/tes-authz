@@ -7,7 +7,8 @@ note: |
   error): check `isinstance(decision, bool)` and fail otherwise, or
   compare with `is True`. `bool()`, `if`, `while`, conditional
   expressions, `== True`, `!= False`, `and` and `or` also accept `1`,
-  `"false"` or non-empty objects. Detected for `decision`, `result` and
+  `"false"` or non-empty objects, and denying only for `== False` or
+  `is False` lets them through. Detected for `decision`, `result` and
   `allowed` variables and for `["decision"]`, `["result"]` and
   `.get(...)` lookups.
 # The decision path: shims and the mock TES
@@ -31,6 +32,9 @@ rule:
     - pattern: $VALUE == True
     - pattern: $VALUE != False
     - pattern: $VALUE is not False
+    # A deny only for `False` lets anything else through the other branch
+    - pattern: $VALUE == False
+    - pattern: $VALUE is False
     - pattern: $VALUE or $OTHER
     - pattern: $VALUE and $OTHER
     - any:

@@ -17,7 +17,9 @@ rules:
       waiting for a shim must fail closed with 503 in time); pass `timeout=`
     pattern-either:
       - pattern: urllib.request.urlopen(..., timeout=None, ...)
+      - pattern: urllib.request.urlopen($URL, $DATA, None, ...)
       - pattern: http.client.$CONNECTION(..., timeout=None, ...)
+      - pattern: http.client.$CONNECTION($HOST, $PORT, None, ...)
       - patterns:
           - pattern: urllib.request.urlopen(...)
           - pattern-not: urllib.request.urlopen(..., timeout=$TIMEOUT, ...)
@@ -28,14 +30,19 @@ rules:
           - pattern-inside: |
               $OPENER = urllib.request.build_opener(...)
               ...
-          - pattern: $OPENER.open(...)
-          - pattern-not: $OPENER.open(..., timeout=$TIMEOUT, ...)
-          - pattern-not: $OPENER.open($URL, $DATA, $TIMEOUT, ...)
+          - pattern-either:
+              - pattern: $OPENER.open($URL, $DATA, None, ...)
+              - patterns:
+                  - pattern: $OPENER.open(...)
+                  - pattern-not: $OPENER.open(..., timeout=$TIMEOUT, ...)
+                  - pattern-not: $OPENER.open($URL, $DATA, $TIMEOUT, ...)
       - patterns:
           - pattern-either:
               - pattern: http.client.HTTPConnection(...)
               - pattern: http.client.HTTPSConnection(...)
           - pattern-not: http.client.$CONNECTION(..., timeout=$TIMEOUT, ...)
+          # `HTTPConnection(host, port, timeout)`
+          - pattern-not: http.client.$CONNECTION($HOST, $PORT, $TIMEOUT, ...)
   - id: request-body-unbounded
     languages: [python]
     severity: ERROR
@@ -95,7 +102,8 @@ rules:
       Access tokens, the `Authorization` header and the subject of AuthZEN
       requests (its ID and claims are personal data) must not be logged or
       printed; log the request ID, the action and the resource instead, or
-      a hash of the subject ID (`hash_id()`)
+      a hash of the subject ID (`hash_id()`, not `encode_id()`, which keeps
+      plain IDs)
     pattern-sources:
       - patterns:
           - pattern-either:
@@ -107,15 +115,16 @@ rules:
       - pattern-either:
           - pattern: $REQUEST["subject"]
           - pattern: $REQUEST.get("subject", ...)
-      # Variables and parameters that hold tokens
+      # Variables and parameters that hold tokens, by name (`token`,
+      # `auth_token`, `jwt`, `raw_jwt`, `bearer`, ...)
       - patterns:
           - pattern: $TOKEN
           - metavariable-regex:
               metavariable: $TOKEN
-              regex: ^(access_|bearer_|id_|refresh_)?token$
+              regex: (?i)^(\w+_)?(token|jwt|bearer)$
+    # `hash_id()` hashes unconditionally; `encode_id()` keeps plain IDs
     pattern-sanitizers:
       - pattern: hash_id(...)
-      - pattern: encode_id(...)
       - pattern: hashlib.sha256(...)
     pattern-sinks:
       - pattern-either:

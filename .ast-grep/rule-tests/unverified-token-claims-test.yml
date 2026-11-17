@@ -7,7 +7,12 @@ valid:
   - 'from minijose import verify_jwt as verify'
   - 'text = data.decode("utf-8")'
   - 'text = requests.get(url, verify=False, timeout=5).content.decode()'
+  - 'from jwt import PyJWKClient'
+  - 'from jwt.exceptions import InvalidTokenError'
 invalid:
+  - 'from jwt import decode as decode_token'
+  - 'from jwt import get_unverified_header'
+  - 'from jwt import PyJWKClient, decode_complete'
   - '_, claims = decode_unverified(token)'
   - 'header, _ = minijose.decode_unverified(token)'
   - 'from minijose import decode_unverified as peek'

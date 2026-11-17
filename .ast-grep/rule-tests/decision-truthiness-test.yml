@@ -22,6 +22,12 @@ invalid:
   - 'allowed = post_json(url, body, timeout)["result"] == True'
   - 'allowed = resp.json()["decision"] != False'
   - 'allowed = answer["decision"] is not False'
+  - |
+    if decision is False:
+        deny()
+    else:
+        allow()
+  - 'denied = answer.get("decision") == False'
   - 'return answer["decision"] or False'
   - 'return answer["decision"] and owner == subject'
   - 'return True if answer.get("decision") else False'

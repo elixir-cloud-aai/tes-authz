@@ -13,14 +13,16 @@ from http import HTTPStatus
 import pytest
 
 from stub.recording_pdp import MAX_BODY_BYTES as STUB_MAX_BODY_BYTES
-from stub.recording_pdp import make_server
+from stub.recording_pdp import State, make_server
 from tes.mock import server as mock_tes
 
 STUB_PATHS = [("POST", "/access/v1/evaluation"), ("PUT", "/_control/script")]
 MOCK_TES_PATHS = [f"{mock_tes.PREFIX}/tasks", f"{mock_tes.PREFIX}/tasks/t1:cancel"]
 
 
-def _request(port: int, method: str, path: str, headers: dict[str, str], body: bytes = b"") -> int:
+def _request(
+    port: int, method: str, path: str, headers: dict[str, str], body: bytes = b"", timeout: float = 5.0
+) -> int:
     """Send a request with the given headers and body, as they are.
 
     Args:
@@ -29,11 +31,12 @@ def _request(port: int, method: str, path: str, headers: dict[str, str], body: b
         path: Request path.
         headers: Headers, e.g. a ``Content-Length`` that doesn't match the body.
         body: The bytes sent after the headers.
+        timeout: Seconds to wait for the response.
 
     Returns:
         The response status; a server that waited for more body would time out.
     """
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
     try:
         connection.putrequest(method, path)
         connection.putheader("Content-Type", "application/json")
@@ -61,13 +64,19 @@ def _declare_length(port: int, method: str, path: str, length: int | str) -> int
 
 
 @pytest.fixture(scope="module")
-def stub_port() -> Iterator[int]:
-    """An in-process stub on a free loopback port."""
-    server, _ = make_server(0, host="127.0.0.1")
+def stub() -> Iterator[tuple[int, State]]:
+    """An in-process stub on a free loopback port: its port and state."""
+    server, state = make_server(0, host="127.0.0.1")
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield server.server_address[1]
+    yield server.server_address[1], state
     server.shutdown()
     server.server_close()
+
+
+@pytest.fixture
+def stub_port(stub: tuple[int, State]) -> int:
+    """The port of the in-process stub."""
+    return stub[0]
 
 
 @pytest.fixture(scope="module")
@@ -92,11 +101,15 @@ def test_stub_rejects_bad_lengths(stub_port: int, method: str, path: str, length
     assert _declare_length(stub_port, method, path, length) == HTTPStatus.BAD_REQUEST
 
 
-def test_stub_reads_bodies_up_to_its_limit(stub_port: int) -> None:
-    """A body of exactly the limit is read and answered."""
-    body = b'"' + b"x" * (STUB_MAX_BODY_BYTES - 2) + b'"'
-    status = _request(stub_port, "POST", "/access/v1/evaluation", {"Content-Length": str(len(body))}, body)
+def test_stub_reads_bodies_up_to_its_limit(stub: tuple[int, State]) -> None:
+    """A body of exactly the limit is read, recorded and answered."""
+    port, state = stub
+    state.reset()
+    text = "x" * (STUB_MAX_BODY_BYTES - 2)
+    body = f'"{text}"'.encode()
+    status = _request(port, "POST", "/access/v1/evaluation", {"Content-Length": str(len(body))}, body)
     assert status == HTTPStatus.OK
+    assert [request["body"] for request in state.requests] == [text]
 
 
 @pytest.mark.parametrize("path", MOCK_TES_PATHS)
@@ -117,6 +130,12 @@ def test_mock_tes_requires_content_length(mock_tes_port: int) -> None:
     """The mock TES answers 411 for chunked bodies."""
     status = _request(mock_tes_port, "POST", MOCK_TES_PATHS[0], {"Transfer-Encoding": "chunked"}, b"0\r\n\r\n")
     assert status == HTTPStatus.LENGTH_REQUIRED
+
+
+def test_mock_tes_waits_for_bodies_up_to_its_limit(mock_tes_port: int) -> None:
+    """A declared body of exactly the limit is accepted: the mock TES waits to read it."""
+    with pytest.raises(TimeoutError):
+        _request(mock_tes_port, "POST", MOCK_TES_PATHS[0], {"Content-Length": str(mock_tes.MAX_BODY_BYTES)}, timeout=1)
 
 
 def test_mock_tes_reads_bodies_up_to_its_limit(mock_tes_port: int) -> None:

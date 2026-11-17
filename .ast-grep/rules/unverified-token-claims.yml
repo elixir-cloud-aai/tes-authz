@@ -8,7 +8,8 @@ note: |
   algorithms. A use that only selects how to verify (e.g. reads `iss` to
   pick a pinned issuer's JWKS) may suppress the finding, on the line
   before, with `# ast-grep-ignore: unverified-token-claims` and the reason.
-  Not detected: options passed in a variable, and tokens decoded by hand
+  Import PyJWT as a module (`import jwt`), not its decoders by name. Not
+  detected: options passed in a variable, and tokens decoded by hand
   (base64 and JSON).
 # The definition in `oidc/minijose.py` (used by `verify_jwt()`) and tests
 # that inspect tokens they minted are exempt
@@ -24,6 +25,19 @@ rule:
       has:
         field: name
         regex: (^|\.)decode_unverified$
+    # PyJWT's decoders imported by name (`from jwt import decode as d`):
+    # calls of them would escape the patterns below; import the module
+    - kind: import_from_statement
+      all:
+        - has:
+            field: module_name
+            regex: ^jwt(\.|$)
+        # Any of the imported names (`field: name` would test the first)
+        - has:
+            any:
+              - kind: dotted_name
+              - kind: aliased_import
+            regex: ^(decode|decode_complete|get_unverified_header)(\s+as\s+\w+)?$
     - pattern: $JWT.get_unverified_header($$$ARGS)
     # Only the call's own arguments: `requests.get(url, verify=False)
     # .content.decode()` is no token
