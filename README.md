@@ -30,10 +30,13 @@ Needs Docker with Compose, `uv` and `make`:
 make test     # lint, types, `opa check`, start services, all suites, stop and remove
 make up       # start only (OPA front on 18190, OpenFGA shim on 18191, ...)
 make down     # stop and remove containers and the state volume
+make kubernetes  # deploy deploy/kubernetes/ to the current kubectl context (e.g. kind) and test it
 ```
 
 The services are a local test setup: the engines' own APIs are published
-unauthenticated. Read [Getting started][docs-getting-started] first.
+unauthenticated. Read [Getting started][docs-getting-started] first. To
+run the OPA decision service on Kubernetes, see [Operators][docs-operators]
+(`deploy/kubernetes/`).
 
 ## Documentation
 

@@ -4,7 +4,74 @@ These notes are for operators who run the reference decision services.
 
 ## Deployment
 
-This compose file is a local test and reference setup. All containers are read-only, drop all capabilities and run without new privileges, and ports bind to loopback only. But OPA's and OpenFGA's own APIs (18181, 18080) are published for the findings tests and are **not authenticated**: any local process can change policy data or tuples. A deployment publishes only the shims and enables OPA token authorization and OpenFGA preshared keys.
+This compose file is a local test and reference setup. All containers are read-only, drop all capabilities and run without new privileges, and ports bind to loopback only. But OPA's and OpenFGA's own APIs (18181, 18080) are published for the findings tests and are **not authenticated**: any local process can change policy data or tuples. A deployment publishes only the shims and enables OPA token authorization and OpenFGA preshared keys, or keeps the engines' APIs off the network, as the Kubernetes manifest below does for OPA.
+
+## Kubernetes
+
+[`deploy/kubernetes/tes-authz.yaml`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/deploy/kubernetes/tes-authz.yaml) runs the OPA decision service in one pod: OPA with the reference policy, behind the AuthZEN front `shims/opa_front.py`. There is no image of its own: the pod uses the OPA and Python images of `compose.yaml` (pinned by digest), and the policy, the policy data and the front's code come from ConfigMaps. So a deployment is pinned by a commit of this repository, without a release.
+
+| Object | What |
+|---|---|
+| Deployment `tes-authz` | container `opa` (Data API on the pod's loopback `127.0.0.1:8181` only, so it is never reachable from other pods; `/health` on the diagnostic port 8282 for the probes) and container `opa-front` (AuthZEN on port 8080) |
+| Service `tes-authz` | `ClusterIP`, port 8080 only: the evaluation URL is `http://tes-authz.<namespace>.svc:8080/access/v1/evaluation` |
+| NetworkPolicy `tes-authz` | only pods labelled `tes-authz/client: "true"` reach the front; label the TES API pods (Poiesis: `api.podLabels`) |
+
+The pod has no service account token, runs as a non-root user with a read-only root file system, without capabilities and with the runtime's default seccomp profile. It needs no Secret: the front takes no credential, and only labelled pods reach it. The connection is plain HTTP inside the cluster, which TES implementations warn about (spec [§4](specification.md#4-failure-semantics-configuration-security)); use a service mesh with mTLS where the cluster network isn't trusted.
+
+Deploy from a checkout at the commit you want to run, into the namespace of the TES:
+
+```sh
+commit=<full commit SHA>
+namespace=<namespace of the TES>
+git clone https://github.com/elixir-cloud-aai/tes-authz.git
+git -C tes-authz checkout --detach "$commit"
+# The policy data: a copy of the reference data with your groups (below)
+cp tes-authz/config/reference-policy.json policy-data.json
+"${EDITOR:-vi}" policy-data.json
+kubectl -n "$namespace" create configmap tes-authz-policy \
+  --from-file=tes-authz/engines/opa/policy/tes_authz.rego
+kubectl -n "$namespace" create configmap tes-authz-shims \
+  --from-file=tes-authz/shims/common.py --from-file=tes-authz/shims/opa_front.py
+kubectl -n "$namespace" create configmap tes-authz-data --from-file=data.json=policy-data.json
+kubectl -n "$namespace" apply -f tes-authz/deploy/kubernetes/tes-authz.yaml
+kubectl -n "$namespace" rollout status deployment/tes-authz
+```
+
+OPA and the front read their files at startup only. To change the policy data later, replace the ConfigMap and restart the pod:
+
+```sh
+kubectl -n "$namespace" create configmap tes-authz-data --from-file=data.json=policy-data.json \
+  --dry-run=client -o yaml | kubectl -n "$namespace" apply -f -
+kubectl -n "$namespace" rollout restart deployment/tes-authz
+```
+
+The policy data (`data.json`) has the fields of `config/reference-policy.json`:
+
+- `entitlement_claim`: the claim in `subject.properties.claims` with the caller's groups. The TES must send it: in Poiesis, `authz.decisionService.claims: [eduperson_entitlement]`.
+- `members` and `admins`: exact `values` and raw string `prefixes` of the entitlements. Members create tasks and list, read and cancel their own; admins read, list and cancel all tasks, but create tasks only if they are members too, so list the admin group under `members` as well if admins should run tasks.
+- `image_prefixes`: allowed executor image prefixes, compared as raw strings (`alpine:3` doesn't start with `docker.io/library/`); an empty list allows any image.
+- `services`: the service-info IDs of the TES implementations the policy answers for (Poiesis: `org.ga4gh.poiesis`); requests from any other service are denied.
+
+Then point the TES at the Service, e.g. for Poiesis (Helm values):
+
+```yaml
+api:
+  podLabels:
+    tes-authz/client: "true"
+authz:
+  decisionService:
+    url: http://tes-authz.<namespace>.svc:8080/access/v1/evaluation
+    claims: [eduperson_entitlement]
+```
+
+**OpenShift** assigns the user and the seccomp profile itself, and its default security context constraint refuses pods that set a fixed user. Remove the three fields before applying, e.g. with [yq](https://github.com/mikefarah/yq):
+
+```sh
+yq 'del(.spec.template.spec.securityContext.runAsUser, .spec.template.spec.securityContext.runAsGroup, .spec.template.spec.securityContext.seccompProfile)' \
+  tes-authz/deploy/kubernetes/tes-authz.yaml | kubectl -n "$namespace" apply -f -
+```
+
+`make kubernetes` (`scripts/test-kubernetes.sh`) deploys the manifest with the reference policy data to the current `kubectl` context (e.g. a kind cluster), replays the golden requests through a port forward, and checks from client pods that only labelled pods reach the Service and that no pod reaches OPA on the pod IP. CI runs it on kind.
 
 ## Reference policy
 

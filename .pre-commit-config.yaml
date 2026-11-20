@@ -11,6 +11,8 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-yaml
+        # The Kubernetes manifest holds several objects (documents)
+        args: [--allow-multiple-documents]
         # `mkdocs.yml` uses MkDocs' `!ENV` tag (the docs build checks it)
         exclude: ^mkdocs\.yml$
       - id: end-of-file-fixer

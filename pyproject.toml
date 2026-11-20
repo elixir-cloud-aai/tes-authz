@@ -20,6 +20,8 @@ dev = [
   # Project rules of `.ast-grep/` (`sgconfig.yml`), run by the `ast-grep`
   # and `ast-grep-test` hooks
   "ast-grep-cli>=0.51",
+  # Reads `compose.yaml` and the Kubernetes manifest in the tests
+  "pyyaml>=6.0",
 ]
 # Documentation (`mkdocs.yml`), built by Read the Docs (`.readthedocs.yaml`)
 # and in CI. The packages that add warnings, which fail the strict build,
@@ -39,6 +41,7 @@ pythonpath = [".", "shims", "oidc"]
 testpaths = ["tests"]
 markers = [
   "services: needs the compose services (make up)",
+  "kubernetes: needs the service deployed by scripts/test-kubernetes.sh",
 ]
 addopts = "-ra"
 

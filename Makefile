@@ -4,7 +4,7 @@ COMPOSE := eval "$$(python3 harness/stack.py)" && docker compose -p "$$TES_AUTHZ
 export UV_CACHE_DIR := $(CURDIR)/.cache/uv
 export UV_PROJECT_ENVIRONMENT := $(CURDIR)/.venv
 
-.PHONY: test up down logs unit golden lint
+.PHONY: test up down logs unit golden lint kubernetes
 
 ## Run everything (lint, types, policy check, services, all suites, cleanup).
 test:
@@ -21,6 +21,10 @@ down:
 ## Show the last 100 log lines of each service.
 logs:
 	$(COMPOSE) logs --tail=100
+
+## Deploy deploy/kubernetes/ to the current kubectl context (e.g. kind) and test it.
+kubernetes:
+	bash scripts/test-kubernetes.sh
 
 ## Unit tests only (no containers).
 unit:

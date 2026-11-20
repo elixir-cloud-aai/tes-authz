@@ -1,0 +1,188 @@
+# Reference decision service of tes-authzen/1 on Kubernetes: OPA with the
+# reference policy, behind the AuthZEN front (`shims/opa_front.py`), in one
+# pod. Only the front's port is served (Service `tes-authz`, ClusterIP);
+# OPA listens on the pod's loopback, so its unauthenticated Data API is never
+# reachable from outside the pod. The NetworkPolicy admits only pods labelled
+# `tes-authz/client: "true"` (the TES API pods).
+#
+# Needs three ConfigMaps in the same namespace, made from the same commit of
+# this repository (see "Kubernetes" in docs/operators.md):
+#
+#   tes-authz-policy  engines/opa/policy/tes_authz.rego
+#   tes-authz-shims   shims/common.py, shims/opa_front.py
+#   tes-authz-data    data.json: the operator's copy of
+#                     config/reference-policy.json
+#
+# The images are those of `compose.yaml` (same tags, which the tests check),
+# pinned by digest. On OpenShift, remove `runAsUser`, `runAsGroup` and
+# `seccompProfile` (the platform assigns them; see docs/operators.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tes-authz
+  labels:
+    app.kubernetes.io/name: tes-authz
+    app.kubernetes.io/component: decision-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tes-authz
+      app.kubernetes.io/component: decision-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tes-authz
+        app.kubernetes.io/component: decision-service
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: opa
+          image: docker.io/openpolicyagent/opa:1.22.4@sha256:ff50f50332ff9e722ffafe2658c195ced1f9b6d4f3064000c2ecfa8cdf7acccf
+          # `--ignore=.*` skips the hidden `..data` directories of ConfigMap
+          # volumes, which would load the policy twice. The diagnostic
+          # address serves only /health and /metrics, for the probes
+          args:
+            - run
+            - --server
+            - --addr=127.0.0.1:8181
+            - --diagnostic-addr=0.0.0.0:8282
+            - --log-level=info
+            - --ignore=.*
+            - /policy
+            - /data
+          ports:
+            - name: diagnostics
+              containerPort: 8282
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: diagnostics
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: diagnostics
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+            # Loaded as `data.tes_authz` (the directory name)
+            - name: data
+              mountPath: /data/tes_authz
+              readOnly: true
+        - name: opa-front
+          image: docker.io/library/python:3.13.18-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+          command: [python, /shims/opa_front.py]
+          workingDir: /shims
+          env:
+            - name: OPA_URL
+              value: http://127.0.0.1:8181
+            # Served in /.well-known/authzen-configuration; set it to the
+            # URL that TESes use (the Service, or the mesh name)
+            - name: SHIM_BASE_URL
+              value: http://tes-authz:8080
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: shims
+              mountPath: /shims
+              readOnly: true
+      volumes:
+        - name: policy
+          configMap:
+            name: tes-authz-policy
+        - name: data
+          configMap:
+            name: tes-authz-data
+        - name: shims
+          configMap:
+            name: tes-authz-shims
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tes-authz
+  labels:
+    app.kubernetes.io/name: tes-authz
+    app.kubernetes.io/component: decision-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tes-authz
+    app.kubernetes.io/component: decision-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Only the TES API pods (label `tes-authz/client: "true"`) reach the front;
+# nothing reaches OPA's diagnostic port from other pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tes-authz
+  labels:
+    app.kubernetes.io/name: tes-authz
+    app.kubernetes.io/component: decision-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tes-authz
+      app.kubernetes.io/component: decision-service
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tes-authz/client: "true"
+      ports:
+        - port: http
+          protocol: TCP
