@@ -14,26 +14,53 @@ loopback only. Exits non-zero on the first failed check.
 from __future__ import annotations
 
 import sys
+import time
+import urllib.error
 import urllib.request
 
 SERVICE_HEALTH = "http://tes-authz:8080/health"
 """Health endpoint of the front, through the Service."""
 
 
+RETRIES = 6
+"""Attempts of a check that expects a connection (policies may lag the rollout)."""
+
+
 def reachable(url: str) -> bool:
-    """Return whether a GET of the URL answers 200 within 5 seconds.
+    """Return whether the URL accepts a connection within 5 seconds.
+
+    Any HTTP answer, even an error status, counts as reachable; only a
+    refused, reset or timed-out connection does not.
 
     Args:
         url: The URL to get.
 
     Returns:
-        Whether the URL answered 200.
+        Whether the URL answered at all.
     """
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            return bool(response.status == 200)
+        with urllib.request.urlopen(url, timeout=5):
+            return True
+    except urllib.error.HTTPError:
+        return True
     except OSError:
         return False
+
+
+def reachable_soon(url: str) -> bool:
+    """Return whether the URL becomes reachable within a few attempts.
+
+    Args:
+        url: The URL to get.
+
+    Returns:
+        Whether one of `RETRIES` attempts, a second apart, connected.
+    """
+    for _ in range(RETRIES):
+        if reachable(url):
+            return True
+        time.sleep(1)
+    return False
 
 
 def main(argv: list[str]) -> int:
@@ -47,7 +74,8 @@ def main(argv: list[str]) -> int:
     """
     kind, pod_ip = argv
     labelled = kind == "labelled"
-    if reachable(SERVICE_HEALTH) is not labelled:
+    service = reachable_soon(SERVICE_HEALTH) if labelled else reachable(SERVICE_HEALTH)
+    if service is not labelled:
         print(f"[FAIL] {kind} client: Service reachable is {not labelled}")
         return 1
     print(f"[ok] {kind} client {'reaches' if labelled else 'does not reach'} the Service")

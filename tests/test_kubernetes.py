@@ -63,7 +63,10 @@ def test_images_are_pinned_by_digest_and_match_compose():
     for name, container in _containers().items():
         match = re.fullmatch(r"docker\.io/(?:library/)?(?P<tag>[^@]+)@sha256:[0-9a-f]{64}", container["image"])
         assert match, f"{name}: not pinned by digest: {container['image']}"
-        assert match["tag"] == expected[name], f"{name}: bump the manifest to {expected[name]} (compose.yaml)"
+        assert match["tag"] == expected[name], (
+            f"{name}: bump the manifest to {expected[name]} (compose.yaml) and its index digest "
+            f"(`docker buildx imagetools inspect {expected[name]}`, first `Digest:`)"
+        )
 
 
 def test_opa_listens_on_loopback_only():
@@ -105,15 +108,23 @@ def test_pod_is_hardened():
     assert deployment["spec"]["selector"]["matchLabels"] == LABELS
     spec = deployment["spec"]["template"]["spec"]
     assert spec["automountServiceAccountToken"] is False
-    assert spec["securityContext"]["runAsNonRoot"] is True
+    assert spec["enableServiceLinks"] is False
+    # The fields that docs/operators.md tells OpenShift users to remove
+    assert spec["securityContext"] == {
+        "runAsNonRoot": True,
+        "runAsUser": 65534,
+        "runAsGroup": 65534,
+        "seccompProfile": {"type": "RuntimeDefault"},
+    }
     for name, container in _containers().items():
         context = container["securityContext"]
         assert context["allowPrivilegeEscalation"] is False, name
         assert context["readOnlyRootFilesystem"] is True, name
         assert context["capabilities"] == {"drop": ["ALL"]}, name
         assert all(mount.get("readOnly") for mount in container["volumeMounts"]), name
-        resources = container["resources"]
-        assert set(resources) == {"requests", "limits"}, name
+        assert set(container["resources"]) == {"requests", "limits"}, name
+        for probe in ("readinessProbe", "livenessProbe"):
+            assert container[probe]["httpGet"]["path"] == "/health", f"{name}: {probe}"
 
 
 def test_configmaps_are_documented_and_made_from_existing_files():
@@ -129,6 +140,8 @@ def test_configmaps_are_documented_and_made_from_existing_files():
         for source in sources:
             assert (ROOT / source).is_file(), source
             assert source in script, source
+            if name != "tes-authz-data":  # the docs use the operator's copy
+                assert f"tes-authz/{source}" in docs, source
 
 
 @pytest.fixture(scope="module")

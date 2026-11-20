@@ -21,6 +21,7 @@ guide][contributing] and mind our [code of conduct][code-of-conduct].
   uv run pre-commit run --all-files --hook-stage manual gitleaks-all  # secrets in the whole checkout
   make unit                             # tests without containers
   make test                             # everything, with the services (needs Docker; pulls the images of compose.yaml)
+  make kubernetes                       # deploy/kubernetes/ on the current kubectl context (needs a disposable cluster, e.g. kind)
   uv run --isolated --only-group docs mkdocs build --strict  # these docs (leaves .venv as is); fails on warnings
   ```
 

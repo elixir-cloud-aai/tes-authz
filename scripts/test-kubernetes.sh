@@ -21,18 +21,25 @@ namespace="${TES_AUTHZ_K8S_NAMESPACE:-tes-authz-test}"
 port="${TES_AUTHZ_K8S_PORT:-18290}"
 kube=(kubectl -n "$namespace")
 forward_pid=""
+created=0
 
+# Deletes the namespace only if this run created it, never an existing one
 cleanup() {
   if [[ -n "$forward_pid" ]]; then
     kill "$forward_pid" 2>/dev/null || true
   fi
-  if [[ "${TES_AUTHZ_KEEP:-0}" != "1" ]]; then
+  if [[ "$created" == "1" && "${TES_AUTHZ_KEEP:-0}" != "1" ]]; then
     kubectl delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
 
+if kubectl get namespace "$namespace" >/dev/null 2>&1; then
+  echo "[FAIL] namespace $namespace exists: use a new one (TES_AUTHZ_K8S_NAMESPACE)" >&2
+  exit 1
+fi
 kubectl create namespace "$namespace"
+created=1
 # The three ConfigMaps of the manifest, from this checkout; the data is the
 # reference policy, which the golden expectations are written for
 "${kube[@]}" create configmap tes-authz-policy --from-file="$root/engines/opa/policy/tes_authz.rego"
@@ -50,6 +57,17 @@ fi
 # front's image: with the NetworkPolicy's label, a client reaches the
 # Service; without it, it doesn't; neither reaches OPA on the pod IP
 pod_ip="$("${kube[@]}" get pods -l app.kubernetes.io/name=tes-authz -o jsonpath='{.items[0].status.podIP}')"
+# Inside the pod (no NetworkPolicy in the way), OPA answers on loopback only
+"${kube[@]}" exec deploy/tes-authz -c opa-front -- python -c "
+import sys, urllib.request
+urllib.request.urlopen('http://127.0.0.1:8181/health', timeout=5)
+try:
+    urllib.request.urlopen('http://$pod_ip:8181/health', timeout=5)
+except OSError:
+    print('[ok] OPA listens on the pod loopback only')
+else:
+    sys.exit('[FAIL] OPA answers on the pod IP')
+"
 image="$("${kube[@]}" get deployment tes-authz \
   -o jsonpath='{.spec.template.spec.containers[?(@.name=="opa-front")].image}')"
 "${kube[@]}" run tes-authz-client --image="$image" --restart=Never --rm -i --quiet \
@@ -57,16 +75,24 @@ image="$("${kube[@]}" get deployment tes-authz \
 "${kube[@]}" run tes-authz-other --image="$image" --restart=Never --rm -i --quiet \
   --command -- python - unlabelled "$pod_ip" <"$root/scripts/k8s_probe.py"
 
-"${kube[@]}" port-forward service/tes-authz "$port:8080" >/dev/null &
+forward_log="$(mktemp)"
+"${kube[@]}" port-forward service/tes-authz "$port:8080" >"$forward_log" 2>&1 &
 forward_pid=$!
+forwarded=0
 for _ in $(seq 30); do
   if curl -sf "http://127.0.0.1:$port/health" >/dev/null; then
+    forwarded=1
     break
   fi
   sleep 1
 done
+if [[ "$forwarded" != "1" ]]; then
+  echo "[FAIL] port forward to service/tes-authz not ready after 30 s:" >&2
+  cat "$forward_log" >&2
+  exit 1
+fi
 
-uv sync --project "$root" --quiet
+uv sync --project "$root" --locked --quiet
 cd "$root"
 TES_AUTHZ_KUBERNETES_URL="http://127.0.0.1:$port/access/v1/evaluation" \
   uv run --project "$root" pytest -p no:cacheprovider -m kubernetes "$@"
