@@ -1,8 +1,9 @@
 # Everything that must pass on pull requests and pushes to `dev`: the pull
 # request title, lint (ruff, mypy and the pre-commit hooks), the unit tests,
-# the documentation (`mkdocs build --strict`), and all suites against the Docker Compose services (`make test`). The gate
-# `passed` ("CI passed") is the only required check. No `paths:` filters, so
-# that the gate always reports; skip jobs with `if:` instead (and allow the
+# the documentation (`mkdocs build --strict`), all suites against the Docker
+# Compose services (`make test`), and the Kubernetes manifest on kind (`make
+# kubernetes`). The gate `passed` ("CI passed") is the only required check.
+# No `paths:` filters, so that the gate always reports; skip jobs with `if:` instead (and allow the
 # skip in the gate). Runs also when a pull request is edited, so that the
 # title check follows the title; all jobs run then, as a run that skipped the
 # tests would report "CI passed" for the commit
@@ -169,6 +170,41 @@ jobs:
         if: always()
         run: make down
 
+  # The Kubernetes manifest of `deploy/kubernetes/` on kind (`make
+  # kubernetes`, `scripts/test-kubernetes.sh`): deploy it with the reference
+  # policy data, replay the golden requests, and check the NetworkPolicy and
+  # that OPA isn't reachable from other pods (kind's network plugin enforces
+  # NetworkPolicies)
+  kubernetes:
+    name: Kubernetes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      # As in `lint`
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version-file: uv.lock
+      - name: Install dependencies
+        run: uv sync --locked --python "$(which python)"
+      # Dependabot updates the action, but not the kind version: bump it by
+      # hand
+      - name: Create kind cluster
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          version: v0.33.0
+          cluster_name: tes-authz
+      - name: Deploy and test the manifest
+        run: make kubernetes
+
   # The documentation, as Read the Docs builds it (`.readthedocs.yaml`)
   docs:
     name: Docs
@@ -207,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
-    needs: [title, lint, test, docs, integration]
+    needs: [title, lint, test, docs, integration, kubernetes]
     permissions: {}
     steps:
       - name: Check results of all jobs

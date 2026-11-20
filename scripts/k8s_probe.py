@@ -1,0 +1,92 @@
+"""Network checks of the Kubernetes deployment, run in a client pod.
+
+`scripts/test-kubernetes.sh` pipes this file into `python -` in a pod with
+or without the NetworkPolicy's label `tes-authz/client: "true"`:
+
+    python - labelled|unlabelled <pod IP of the decision service>
+
+A labelled client must reach the Service and an unlabelled one must not
+(given a network plugin that enforces NetworkPolicies, as kind's does);
+neither may reach OPA's Data API on the pod IP, as OPA listens on the pod's
+loopback only. Exits non-zero on the first failed check.
+"""
+
+from __future__ import annotations
+
+import sys
+import time
+import urllib.error
+import urllib.request
+
+SERVICE_HEALTH = "http://tes-authz:8080/health"
+"""Health endpoint of the front, through the Service."""
+
+
+RETRIES = 6
+"""Attempts of a check that expects a connection (policies may lag the rollout)."""
+
+
+def reachable(url: str) -> bool:
+    """Return whether the URL accepts a connection within 5 seconds.
+
+    Any HTTP answer, even an error status, counts as reachable; only a
+    refused, reset or timed-out connection does not.
+
+    Args:
+        url: The URL to get.
+
+    Returns:
+        Whether the URL answered at all.
+    """
+    try:
+        with urllib.request.urlopen(url, timeout=5):
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except OSError:
+        return False
+
+
+def reachable_soon(url: str) -> bool:
+    """Return whether the URL becomes reachable within a few attempts.
+
+    Args:
+        url: The URL to get.
+
+    Returns:
+        Whether one of `RETRIES` attempts, a second apart, connected.
+    """
+    for _ in range(RETRIES):
+        if reachable(url):
+            return True
+        time.sleep(1)
+    return False
+
+
+def main(argv: list[str]) -> int:
+    """Run the checks for one client.
+
+    Args:
+        argv: The client kind (`labelled` or `unlabelled`) and the pod IP.
+
+    Returns:
+        0 if all checks passed, else 1.
+    """
+    kind, pod_ip = argv
+    # The negative checks can't tell a dropped connection from a DNS failure;
+    # the labelled run, which must connect, vouches for DNS and the Service
+    labelled = kind == "labelled"
+    service = reachable_soon(SERVICE_HEALTH) if labelled else reachable(SERVICE_HEALTH)
+    if service is not labelled:
+        print(f"[FAIL] {kind} client: Service reachable is {not labelled}")
+        return 1
+    print(f"[ok] {kind} client {'reaches' if labelled else 'does not reach'} the Service")
+    if reachable(f"http://{pod_ip}:8181/health"):
+        print(f"[FAIL] {kind} client reaches OPA's Data API on the pod IP")
+        return 1
+    print(f"[ok] {kind} client does not reach OPA on the pod IP")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

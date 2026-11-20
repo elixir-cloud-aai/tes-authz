@@ -1121,6 +1121,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "uv" },
 ]
@@ -1139,6 +1140,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.6" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
     { name = "pytest", specifier = ">=8.3" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.8" },
     { name = "uv", specifier = ">=0.12" },
 ]
