@@ -34,7 +34,10 @@ updates:
   # the shims, stub and mock OIDC issuer; `scripts/test.sh` runs `opa check`
   # with the OPA image of `compose.yaml`). Python is bumped within its minor
   # version only: CI tests with the same minor version (`python-version` in
-  # `ci.yml`), so a new one is a change by hand in both places
+  # `ci.yml`), so a new one is a change by hand in both places. A bump of
+  # `opa` or `python` must also change the tag and index digest in
+  # `deploy/kubernetes/tes-authz.yaml`, in the same pull request
+  # (`tests/test_kubernetes.py` fails until then)
   - package-ecosystem: docker-compose
     directory: /
     labels: ["type: dependencies"]

@@ -15,18 +15,23 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# As in the Makefile, so that the script also runs on its own
 export UV_CACHE_DIR="$root/.cache/uv"
 export UV_PROJECT_ENVIRONMENT="$root/.venv"
 namespace="${TES_AUTHZ_K8S_NAMESPACE:-tes-authz-test}"
 port="${TES_AUTHZ_K8S_PORT:-18290}"
 kube=(kubectl -n "$namespace")
 forward_pid=""
+forward_log=""
 created=0
 
 # Deletes the namespace only if this run created it, never an existing one
 cleanup() {
   if [[ -n "$forward_pid" ]]; then
     kill "$forward_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$forward_log" ]]; then
+    rm -f "$forward_log"
   fi
   if [[ "$created" == "1" && "${TES_AUTHZ_KEEP:-0}" != "1" ]]; then
     kubectl delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
@@ -57,12 +62,17 @@ fi
 # front's image: with the NetworkPolicy's label, a client reaches the
 # Service; without it, it doesn't; neither reaches OPA on the pod IP
 pod_ip="$("${kube[@]}" get pods -l app.kubernetes.io/name=tes-authz -o jsonpath='{.items[0].status.podIP}')"
+if [[ "$pod_ip" == *:* ]]; then
+  pod_ip="[$pod_ip]"  # IPv6, for URLs
+fi
 # Inside the pod (no NetworkPolicy in the way), OPA answers on loopback only
 "${kube[@]}" exec deploy/tes-authz -c opa-front -- python -c "
-import sys, urllib.request
+import sys, urllib.error, urllib.request
 urllib.request.urlopen('http://127.0.0.1:8181/health', timeout=5)
 try:
     urllib.request.urlopen('http://$pod_ip:8181/health', timeout=5)
+except urllib.error.HTTPError:
+    sys.exit('[FAIL] OPA answers on the pod IP')
 except OSError:
     print('[ok] OPA listens on the pod loopback only')
 else:
@@ -80,7 +90,7 @@ forward_log="$(mktemp)"
 forward_pid=$!
 forwarded=0
 for _ in $(seq 30); do
-  if curl -sf "http://127.0.0.1:$port/health" >/dev/null; then
+  if kill -0 "$forward_pid" 2>/dev/null && curl -sf "http://127.0.0.1:$port/health" >/dev/null; then
     forwarded=1
     break
   fi

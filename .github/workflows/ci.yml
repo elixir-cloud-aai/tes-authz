@@ -2,8 +2,8 @@
 # request title, lint (ruff, mypy and the pre-commit hooks), the unit tests,
 # the documentation (`mkdocs build --strict`), all suites against the Docker
 # Compose services (`make test`), and the Kubernetes manifest on kind (`make
-# kubernetes`). The gate `passed` ("CI passed") is the only required check. No `paths:` filters, so
-# that the gate always reports; skip jobs with `if:` instead (and allow the
+# kubernetes`). The gate `passed` ("CI passed") is the only required check.
+# No `paths:` filters, so that the gate always reports; skip jobs with `if:` instead (and allow the
 # skip in the gate). Runs also when a pull request is edited, so that the
 # title check follows the title; all jobs run then, as a run that skipped the
 # tests would report "CI passed" for the commit

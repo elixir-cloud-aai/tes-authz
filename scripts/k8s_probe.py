@@ -73,6 +73,8 @@ def main(argv: list[str]) -> int:
         0 if all checks passed, else 1.
     """
     kind, pod_ip = argv
+    # The negative checks can't tell a dropped connection from a DNS failure;
+    # the labelled run, which must connect, vouches for DNS and the Service
     labelled = kind == "labelled"
     service = reachable_soon(SERVICE_HEALTH) if labelled else reachable(SERVICE_HEALTH)
     if service is not labelled:
