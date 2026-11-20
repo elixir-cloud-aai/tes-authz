@@ -106,6 +106,7 @@ def test_pod_is_hardened():
     """No service account token, non-root, read-only, no capabilities."""
     deployment = _documents()["Deployment"]
     assert deployment["spec"]["selector"]["matchLabels"] == LABELS
+    assert deployment["spec"]["strategy"] == {"type": "Recreate"}, "no old policy after a change"
     spec = deployment["spec"]["template"]["spec"]
     assert spec["automountServiceAccountToken"] is False
     assert spec["enableServiceLinks"] is False

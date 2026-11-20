@@ -25,6 +25,11 @@ metadata:
     app.kubernetes.io/component: decision-service
 spec:
   replicas: 1
+  # The old pod stops before the new one starts, so that no caller gets
+  # decisions of the old policy after a change (revocations take effect at
+  # once); the TES answers 503 during the restart
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: tes-authz

@@ -34,7 +34,7 @@ cleanup() {
     rm -f "$forward_log"
   fi
   if [[ "$created" == "1" && "${TES_AUTHZ_KEEP:-0}" != "1" ]]; then
-    kubectl delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+    kubectl delete namespace "$namespace" --ignore-not-found --timeout=120s >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
