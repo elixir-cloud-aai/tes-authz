@@ -171,11 +171,14 @@ def test_openfga_mapping_always_passes_condition_parameters():
 
 def test_openfga_mapping_ignores_profile_2_properties():
     """The /2 subject and task properties never reach OpenFGA."""
+    claims = {"eduperson_entitlement": ["urn:a"]}
     plain = _valid()
+    plain["subject"]["properties"] = {"claims": claims}
     plain["resource"]["properties"] = {"owner": "u"}
     extended = _valid()
     extended["context"]["tes"]["profile"] = "tes-authzen/2"
     extended["subject"]["properties"] = {
+        "claims": claims,
         "via": "apikey",
         "credential_id": "key-1",
         "key_age": 60,
@@ -184,7 +187,10 @@ def test_openfga_mapping_ignores_profile_2_properties():
     }
     extended["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
     claim_map = {"entitlements": "eduperson_entitlement"}
-    assert openfga_shim.to_openfga(extended, claim_map) == openfga_shim.to_openfga(plain, claim_map)
+    out = openfga_shim.to_openfga(extended, claim_map)
+    assert out == openfga_shim.to_openfga(plain, claim_map)
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"]}
+    assert out["resource"]["properties"] == {"owner": "u", "images": [""]}
 
 
 def test_openfga_mapping_task_set_and_claims():
