@@ -51,16 +51,20 @@ def test_openfga_missing_condition_parameter_is_an_error(fga_eval):
 
 def test_openfga_subject_id_is_not_in_condition_context(fga_eval):
     """Spec section 7: only subject properties reach the context, not subject.id."""
-    status, body = http("POST", fga_eval, _owner_req({"entitlements": [MEMBER]}, {"owner": "u1"}))
+    status, body = http("POST", fga_eval, _owner_req({"entitlements": [MEMBER], "delegated": False}, {"owner": "u1"}))
     assert status == 400
     assert "subject_id" in body["message"]
 
 
 def test_openfga_with_all_parameters_decides(fga_eval):
     """With all parameters present, OpenFGA decides instead of failing."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": "u1"}))
+    status, body = http(
+        "POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER], "delegated": False}, {"owner": "u1"})
+    )
     assert (status, body) == (200, {"decision": True})
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": ""}))
+    status, body = http(
+        "POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER], "delegated": False}, {"owner": ""})
+    )
     assert (status, body) == (200, {"decision": False})
 
 
@@ -92,7 +96,7 @@ def test_openfga_identifier_limit_boundaries(fga_eval):
 
 def test_openfga_unknown_relation_is_an_error(fga_eval):
     """An action that is not a relation errors (so the shim validates actions first)."""
-    req = _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": ""})
+    req = _owner_req({"id": "u1", "entitlements": [MEMBER], "delegated": False}, {"owner": ""})
     req["action"]["name"] = "DeleteTask"
     status, body = http("POST", fga_eval, req)
     assert status == 400 and "not found" in body["message"]
@@ -100,7 +104,9 @@ def test_openfga_unknown_relation_is_an_error(fga_eval):
 
 def test_openfga_answers_decision_only(fga_eval):
     """Spec section 3.5: native AuthZEN PDPs return only ``decision``."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {"owner": "u1"}))
+    status, body = http(
+        "POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER], "delegated": False}, {"owner": "u1"})
+    )
     assert status == 200 and set(body) == {"decision"}
 
 

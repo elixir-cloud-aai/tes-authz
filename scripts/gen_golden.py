@@ -202,6 +202,7 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
     dave_v2 = with_v2_properties(DAVE, via="oidc")
     alice_key = with_v2_properties(ALICE, via="apikey", credential_id="key-a1", key_age=3600)
     alice_delegated = with_v2_properties(ALICE, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
+    dave_delegated = with_v2_properties(DAVE, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
     shared = {**task_meta("bob-sub"), "groups": ["lab-alpha"]}
     own_shared = {**task_meta("alice-sub"), "groups": ["lab-alpha"]}
     unknown_service = {"tes": {"profile": "tes-authzen/1", "service_id": "other-tes"}}
@@ -287,8 +288,15 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "create-profile-2-actor",
             "7",
-            "profile tes-authzen/2, delegated token: the reference policy ignores the actor",
+            "profile tes-authzen/2, delegated token: members keep member powers",
             create(alice_delegated, context=v2),
+            T,
+        ),
+        (
+            "create-profile-2-actor-admin",
+            "7",
+            "profile tes-authzen/2, delegated token of an admin, who is a member too: may create",
+            create(dave_delegated, context=v2),
             T,
         ),
         (
@@ -470,6 +478,27 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             request(dave_v2, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
             T,
         ),
+        (
+            "get-other-admin-actor",
+            "10",
+            "profile tes-authzen/2, delegated token of an admin: no admin powers, someone else's task denied",
+            request(dave_delegated, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
+            F,
+        ),
+        (
+            "get-own-admin-actor",
+            "9",
+            "profile tes-authzen/2, delegated token of an admin: own task as a member",
+            request(dave_delegated, "GetTask", "tes_task", "task-d1", task_meta("dave-sub"), view, context=v2),
+            T,
+        ),
+        (
+            "cancel-other-admin-actor",
+            "10",
+            "profile tes-authzen/2, delegated token of an admin cancels someone else's task",
+            request(dave_delegated, "CancelTask", "tes_task", "task-b1", shared, context=v2),
+            F,
+        ),
         # CancelTask (case 10)
         (
             "cancel-own",
@@ -592,7 +621,28 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             request(dave_v2, "ListTasks", "tes_task_set", "all", None, view, context=v2),
             T,
         ),
+        (
+            "list-all-admin-actor",
+            "13",
+            "profile tes-authzen/2, delegated token of an admin: no admin powers, all denied",
+            request(dave_delegated, "ListTasks", "tes_task_set", "all", None, view, context=v2),
+            F,
+        ),
+        (
+            "list-own-admin-actor",
+            "13",
+            "profile tes-authzen/2, delegated token of an admin lists own tasks as a member",
+            request(dave_delegated, "ListTasks", "tes_task_set", "own", None, view, context=v2),
+            T,
+        ),
         # Poiesis's own resource type in profile tes-authzen/2: not TES, always denied
+        (
+            "api-keys-get-task-admin",
+            "7",
+            "GetTask on poiesis_api_keys, admin: the resource type alone is outside the TES vocabulary",
+            request(dave_v2, "GetTask", "poiesis_api_keys", "bob-sub", {"owner": "bob-sub"}, view, context=v2),
+            F,
+        ),
         (
             "api-keys-revoke-admin",
             "7",

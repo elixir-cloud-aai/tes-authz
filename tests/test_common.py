@@ -139,7 +139,7 @@ def test_validate_rejects(path, value):
         common.validate_request(req)
 
 
-@pytest.mark.parametrize("action", ["RevokeApiKeys", "ListApiKeys"])
+@pytest.mark.parametrize("action", ["RevokeApiKeys", "ListApiKeys", "GetTask", "ListTasks"])
 def test_validate_rejects_poiesis_api_keys(action):
     """The Poiesis-only resource type poiesis_api_keys is not part of the profile."""
     req = _valid()
@@ -162,7 +162,7 @@ def test_openfga_mapping_always_passes_condition_parameters():
     """Review 2, finding 3: owner and subject ID are never missing."""
     req = _valid()
     out = openfga_shim.to_openfga(req, {"entitlements": "eduperson_entitlement"})
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": []}
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": [], "delegated": False}
     # No task projection: one empty image, which no allowlist prefix matches.
     assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": [""]}}
     assert out["subject"]["id"].startswith("h-")
@@ -188,9 +188,19 @@ def test_openfga_mapping_ignores_profile_2_properties():
     extended["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
     claim_map = {"entitlements": "eduperson_entitlement"}
     out = openfga_shim.to_openfga(extended, claim_map)
-    assert out == openfga_shim.to_openfga(plain, claim_map)
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"]}
-    assert out["resource"]["properties"] == {"owner": "u", "images": [""]}
+    plain_out = openfga_shim.to_openfga(plain, claim_map)
+    assert out["subject"]["properties"] == {**plain_out["subject"]["properties"], "delegated": True}
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"], "delegated": True}
+    assert out["resource"] == plain_out["resource"]
+    assert out["action"] == plain_out["action"]
+
+
+def test_openfga_mapping_marks_delegated_subjects():
+    """Only a subject with an actor is delegated; the flag is always passed."""
+    req = _valid()
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is False
+    req["subject"]["properties"] = {"actor": {"iss": "https://iss", "sub": "proxy"}}
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is True
 
 
 def test_openfga_mapping_task_set_and_claims():
@@ -214,3 +224,10 @@ def test_parse_claim_map():
     assert openfga_shim.parse_claim_map("a=x, b=https://e.org/g") == {"a": "x", "b": "https://e.org/g"}
     with pytest.raises(ValueError):
         openfga_shim.parse_claim_map("bad")
+
+
+@pytest.mark.parametrize("param", ["id", "delegated"])
+def test_parse_claim_map_rejects_reserved_parameters(param):
+    """Claims can't overwrite the shim's own subject parameters."""
+    with pytest.raises(ValueError):
+        openfga_shim.parse_claim_map(f"{param}=x")

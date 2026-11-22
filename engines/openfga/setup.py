@@ -136,10 +136,10 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
         add(own, "creator", "entitled", members)
         add(own, "image_ok", "images_allowed", images)
         add(own, "lister", "entitled", members)
-        add(all_, "lister", "entitled", admins)
+        add(all_, "lister", "entitled_undelegated", admins)
         add(svc, "owner", "is_owner", None)
         add(svc, "member", "entitled", members)
-        add(svc, "admin", "entitled", admins)
+        add(svc, "admin", "entitled_undelegated", admins)
     return tuples
 
 

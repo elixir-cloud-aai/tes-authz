@@ -1,6 +1,6 @@
 {
   "case": "7",
-  "description": "profile tes-authzen/2, delegated token: the reference policy ignores the actor",
+  "description": "profile tes-authzen/2, delegated token: members keep member powers",
   "expect": {
     "reference_policy": {
       "decision": true

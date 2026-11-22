@@ -15,6 +15,8 @@
 #                                    only (owners need a current entitlement)
 #   ListTasks on tes_task_set:own    member
 #   ListTasks on tes_task_set:all    admin
+# Admin needs an admin entitlement and no actor (tes-authzen/2 delegated
+# tokens keep member powers only).
 # Anything else, and any request outside the profiles, is denied (also the
 # TES-specific resource types of tes-authzen/2, such as poiesis_api_keys).
 package tes.authz
@@ -102,7 +104,18 @@ entitled(group) if {
 
 member if entitled(cfg.members)
 
-admin if entitled(cfg.admins)
+# A delegated token (tes-authzen/2 subject.properties.actor) never has admin
+# powers, as in Poiesis's built-in rule: the actor would act with them.
+admin if {
+	entitled(cfg.admins)
+	not delegated
+}
+
+delegated if {
+	props := object.get(input.subject, "properties", {})
+	is_object(props)
+	"actor" in object.keys(props)
+}
 
 owner_or_admin if {
 	owner := object.get(input.resource, ["properties", "owner"], "")

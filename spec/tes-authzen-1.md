@@ -31,7 +31,7 @@ From the Poiesis implementation (2026-11-16):
 
 From the Poiesis implementation (2026-11-22):
 
-18. §12 (new): profile `tes-authzen/2`, a compatible extension of `/1` (subject `via`, `credential_id`, `actor`, `key_age`, `snapshot_age`; task `groups`; TES-specific resource types; an optional response `context.tes`). The reference decision service accepts `/1` and `/2`.
+18. §12 (new): profile `tes-authzen/2`, a compatible extension of `/1` (subject `via`, `credential_id`, `actor`, `key_age`, `snapshot_age`; task `groups`; TES-specific resource types; an optional response `context.tes`). The reference decision service accepts `/1` and `/2`; its policy gives delegated tokens no admin powers.
 
 Changes since draft 2:
 
@@ -441,9 +441,9 @@ Request additions **[profile]**:
 
 Response additions **[profile]**: an optional `context.tes` object with `scope` (other owners' tasks a `ListTasks` on `own` may also list: `owners`, `groups`, `tags`), `groups` (the groups to share a new task with, on `CreateTask`), `obligations` (a TES that doesn't know one MUST deny), `advice` (may be ignored) and `reason` (for the log). A plain `{"decision": true|false}` stays a complete answer.
 
-The reference policy (§7) is unchanged by `/2`: it answers with a plain decision, ignores the new subject and task properties, and denies `poiesis_api_keys`, so with it Poiesis's admin operations on other owners' API keys are refused. Ignoring the new properties has two security consequences an operator must weigh **[profile]**:
+The reference policy (§7) changes in one point for `/2`: a delegated token has no admin powers. Otherwise it answers with a plain decision, ignores the new subject and task properties, and denies `poiesis_api_keys`, so with it Poiesis's admin operations on other owners' API keys are refused. Its handling of the new properties has two security consequences an operator must weigh **[profile]**:
 
-- A delegated request (with `actor`) is decided as the subject's own, admin included. Under `/1` the actor wasn't sent and Poiesis's own delegation guard (actors list, never admin) was the only safeguard; with a decision service, that guard no longer applies, so the policy is the safeguard. Operators whose issuers mint delegated tokens deny `actor` in their policy, at least on the admin branch.
+- A delegated request (with `actor`) keeps the subject's member powers but never gets admin powers, in OPA (`admin` requires no `actor`) and OpenFGA (condition `entitled_undelegated` on the admin tuples, parameter `subject_delegated` from the shim), as in Poiesis's built-in rule. Under `/1` the actor wasn't sent and Poiesis's own delegation guard (actors list, never admin) was the only safeguard; with a decision service that guard no longer applies, so the policy is the safeguard. The reference policy doesn't check who the actor is; operators who don't trust all actors with member powers deny them in their policy.
 - An API key's claims are a snapshot taken at minting, so Q11's "access ends with the entitlement" holds for API keys only when the key expires. Operators bound key lifetimes in the TES or refuse old snapshots (`snapshot_age`) in their policy.
 
-Golden cases: `create-profile-2*`, `get-*-profile-2*`, `list-*-profile-2` extend cases 4b, 7, 9, 10, 12 and 13 to `/2`; `api-keys-*` and `create-wrong-profile` (now `tes-authzen/3`) are contract checks of case 7. `/2` lives in this document on purpose: it is a delta, and `/1` stays valid.
+Golden cases: `create-profile-2*`, `get-*-profile-2*`, `list-*-profile-2` and `*-admin-actor` extend cases 4b, 7, 9, 10, 12 and 13 to `/2`; `api-keys-*` and `create-wrong-profile` (now `tes-authzen/3`) are contract checks of case 7. `/2` lives in this document on purpose: it is a delta, and `/1` stays valid.
