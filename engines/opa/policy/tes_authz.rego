@@ -104,8 +104,9 @@ entitled(group) if {
 
 member if entitled(cfg.members)
 
-# A delegated token (tes-authzen/2 subject.properties.actor) never has admin
-# powers, as in Poiesis's built-in rule: the actor would act with them.
+# A delegated token (an actor key in subject.properties, sent from
+# tes-authzen/2 on) never has admin powers, under every profile, as in
+# Poiesis's built-in rule: the actor would act with them.
 admin if {
 	entitled(cfg.admins)
 	not delegated

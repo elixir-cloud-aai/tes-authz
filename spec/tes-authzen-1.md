@@ -32,7 +32,7 @@ From the Poiesis implementation (2026-11-16):
 From the Poiesis implementation (2026-11-22):
 
 18. §12 (new): profile `tes-authzen/2`, a compatible extension of `/1` (subject `via`, `credential_id`, `actor`, `key_age`, `snapshot_age`; task `groups`; TES-specific resource types; an optional response `context.tes`). The reference decision service accepts `/1` and `/2`; its policy gives delegated tokens no admin powers.
-19. §3.3, §3.5, §7, §12 (2026-11-22, wording only): the reference policy's "no admin with an `actor`" holds under every profile, as implemented and pinned by the golden rows, not only under `/2`; §12 names the two response additions that change what a TES does (`scope`, `obligations`); §3.3 and §3.5 point to §12.
+19. §3.3, §3.5, §7, §12 (2026-11-22, wording only): the reference policy's "no admin with an `actor`" holds under every profile, as implemented and pinned by the golden rows, not only under `/2`; §12 says it also holds under `/1` and with `actor: null`, and names the three response additions that change what a TES does (`scope`, `groups`, `obligations`); §3.3 and §3.5 point to §12; the operator guide's upgrade note names the newly reserved `FGA_CLAIMS` parameter `delegated`.
 
 Changes since draft 2:
 
@@ -182,7 +182,7 @@ Get/cancel send only owner, state and tags because the hook must read the task b
 
 The scope becomes a predicate in the TES's own query, applied with the user's filters and cursor: pages are correct and complete (no duplicates, no gaps, no foreign tasks), with size ≤ `page_size` (TESK already returns short pages, since it filters names, tags and state after reading a page of jobs). The scope is re-evaluated on every page. A TES whose cursor depends on the predicate (TESK: Kubernetes continue tokens belong to the original label selector) MUST bind the page token to the scope and answer a mismatch with 400 **[profile]**; keyset cursors (Poiesis, Funnel, TESP) need nothing.
 
-Two fixed set IDs instead of a filter in the response `context`, because native AuthZEN PDPs (OpenFGA, Cerbos) return only `decision`. Under `tes-authzen/2` a decision on `own` may carry a `context.tes.scope` that widens the list beyond `owner = subject.id` (§12); the table above is the whole rule under `/1` and for plain decisions. `ListTasks` with `view=FULL` triggers no per-task evaluations.
+Two fixed set IDs instead of a filter in the response `context`, because native AuthZEN PDPs (OpenFGA, Cerbos) return only `decision`. Under `tes-authzen/2` a decision on `own` may carry a `context.tes.scope` that widens the list beyond `owner = subject.id` (§12); the table above (and §6's pseudocode) is the whole rule under `/1` and for plain decisions. A TES that binds its page token to the scope includes that `scope` in what it binds. `ListTasks` with `view=FULL` triggers no per-task evaluations.
 
 ### 3.6 Userinfo (identity resolution, in the TES)
 
@@ -429,14 +429,14 @@ Numbers kept from draft 3 for stable references; Q1, Q3 and Q10 are decided (§1
 
 ## 12. `tes-authzen/2` (delta to `/1`)
 
-Added 2026-11-22 from Poiesis's implementation (JaeAeich/poiesis, branch `milestone` at `0fa56aa`, `poiesis/api/authz.py` and its authorization docs). `tes-authzen/2` is `/1` plus the additions below; nothing of `/1` is removed, and a `/2` request that uses none of the additions means what it means under `/1`. Two response additions do change what a TES does with a decision: `scope` widens what a `ListTasks` on `own` lists (§3.5), and `obligations` adds a TES MUST (deny when one is unknown). A TES sends one profile; a decision service that accepts `/2` accepts `/1` too, and the reference decision service (§7) does: its shims and its OPA policy accept `context.tes.profile` `tes-authzen/1` and `tes-authzen/2` and deny any other value.
+Added 2026-11-22 from Poiesis's implementation (JaeAeich/poiesis, branch `milestone` at `0fa56aa`, `poiesis/api/authz.py` and its authorization docs). `tes-authzen/2` is `/1` plus the additions below; nothing of `/1` is removed, and a `/2` request that uses none of the additions means what it means under `/1`. Three response additions do change what a TES does with a decision: `scope` widens what a `ListTasks` on `own` lists (§3.5), `groups` makes the TES share a new task (and so changes later requests), and `obligations` adds a TES MUST (deny when one is unknown). A TES sends one profile; a decision service that accepts `/2` accepts `/1` too, and the reference decision service (§7) does: its shims and its OPA policy accept `context.tes.profile` `tes-authzen/1` and `tes-authzen/2` and deny any other value.
 
 Request additions **[profile]**:
 
 - `subject.properties.via`: how the caller authenticated, `oidc` (access token) or `apikey` (a TES-issued API key).
 - `subject.properties.credential_id`: the credential, when there is one: the token's `jti`, or the key's ID.
 - `subject.properties.key_age`, `snapshot_age` (API keys only): seconds since the key was minted; the claims snapshot taken at minting is as old.
-- `subject.properties.actor` (delegated tokens only): `{"iss": …, "sub": …}` of the RFC 8693 `act` claim. The subject is still the owner; the policy decides what the actor may do on the subject's behalf.
+- `subject.properties.actor` (delegated tokens only): `{"iss": …, "sub": …}` of the RFC 8693 `act` claim (§7 withholds admin powers from any request that carries it). The subject is still the owner; the policy decides what the actor may do on the subject's behalf.
 - `resource.properties.groups` on `tes_task`: the groups the task is shared with (empty unless a `CreateTask` decision shared it, see below).
 - TES-specific resource types: Poiesis asks `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys` (ID: the owner whose keys are concerned) for admin operations on another owner's API keys. They are outside the TES vocabulary of §3.2 and §3.3.
 
