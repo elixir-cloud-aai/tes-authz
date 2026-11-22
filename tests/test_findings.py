@@ -44,7 +44,7 @@ def _owner_req(subject_props, resource_props, subject_id="u1"):
 
 def test_openfga_missing_condition_parameter_is_an_error(fga_eval):
     """Spec section 7 / review 2 finding 3: missing parameter -> error, not deny."""
-    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER]}, {}))
+    status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": [MEMBER], "delegated": False}, {}))
     assert status == 400
     assert "missing context parameters" in body["message"] and "resource_owner" in body["message"]
 
