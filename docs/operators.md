@@ -104,13 +104,13 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 | `ListTasks` | `tes_task_set:own` | the caller is a member |
 | `ListTasks` | `tes_task_set:all` | the caller is an admin |
 
-An admin needs an admin entitlement and must not be a delegated token (`tes-authzen/2` `subject.properties.actor`): a delegated token of an admin has member powers only.
+An admin needs an admin entitlement and must not be a delegated token (an `actor` key in `subject.properties`, sent from `tes-authzen/2` on): a delegated token of an admin has member powers only. The policy applies this under every profile, also to a `/1` request with an `actor`.
 
 Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
 
 Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions, with these consequences for Poiesis (checked against Poiesis 0fa56aa; see its [authorization docs](https://github.com/JaeAeich/poiesis/blob/milestone/docs/app/docs/concepts/authorization.md)):
 
-- **Delegated tokens** (`subject.properties.actor`) keep their subject's member powers but never get admin powers, as in Poiesis without a decision service (which also refuses delegated tokens unless the actor is in the issuer's `actors`). The policy doesn't look at who the actor is: if your issuers mint delegated tokens (RFC 8693 token exchange) for actors you don't trust with member powers, deny them in your policy.
+- **Delegated tokens** (`subject.properties.actor`, under every profile) keep their subject's member powers but never get admin powers, as in Poiesis without a decision service (which also refuses delegated tokens unless the actor is in the issuer's `actors`). The policy doesn't look at who the actor is: if your issuers mint delegated tokens (RFC 8693 token exchange) for actors you don't trust with member powers, deny them in your policy.
 - **API keys** (`via: apikey`) carry the claims snapshot taken when the key was minted, and the policy ignores `key_age` and `snapshot_age`. Revoking an entitlement therefore ends the access of that user's keys only when they expire (Poiesis `auth.apiKeys.maxTtl`), not at once as for tokens (spec Q11). Shorten the key lifetime, or refuse old snapshots in your policy.
 - **Admins** see other owners' tasks only if Poiesis's `authz.sharing` is on: with it off, Poiesis never asks `ListTasks` on `all` or about other owners' tasks.
 - **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
@@ -118,7 +118,7 @@ Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delt
 
 To change any of this, extend the policy.
 
-**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends.
+**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends. When you upgrade from a shim before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19): the new shim also reserves the parameter name `delegated` (as it did `id`), so an `FGA_CLAIMS` entry `delegated=<claim>` makes it fail at start (`ValueError: bad FGA_CLAIMS entry`). Only a shim started with `FGA_STORE_ID` and no state file can have such an entry; with a state file, `FGA_CLAIMS` must match the policy data file anyway. Rename such an entry, and the condition parameter `subject_delegated` it fed in your OpenFGA model, before you upgrade.
 
 ## OpenFGA mapping (shim)
 
