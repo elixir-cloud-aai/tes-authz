@@ -17,7 +17,7 @@ build:
     # executable that pip installs (the virtual environment has no uv);
     # `tests/test_readthedocs.py` fails when a lock update moves it
     pre_create_environment:
-      - python -m pip install "uv==0.13.8"
+      - python -m pip install "uv==0.13.9"
       - asdf reshim python
     create_environment:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
