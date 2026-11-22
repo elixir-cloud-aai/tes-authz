@@ -16,7 +16,7 @@ shim rewrites a profile request into a request OpenFGA can answer:
   ``subject_id``, ``resource_owner`` (empty string when the task has no
   owner or does not exist), ``resource_images`` and one list parameter per
   mapped claim (empty when the claim is missing), and ``subject_delegated``
-  (whether ``subject.properties`` has an ``actor``, ``tes-authzen/2``).
+  (whether ``subject.properties`` has an ``actor``, under every profile).
   OpenFGA answers a missing parameter with HTTP 400, which would turn a
   missing task into 503.
 
