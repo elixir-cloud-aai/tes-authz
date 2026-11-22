@@ -94,7 +94,7 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     """Rewrite a validated profile request into an OpenFGA AuthZEN request.
 
     Args:
-        req: The validated AuthZEN request (``tes-authzen/1``).
+        req: The validated AuthZEN request (``tes-authzen/1`` or ``/2``).
         claim_map: Condition parameter suffix to claim name.
 
     Returns:

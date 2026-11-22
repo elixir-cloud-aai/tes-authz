@@ -104,7 +104,9 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 | `ListTasks` | `tes_task_set:own` | the caller is a member |
 | `ListTasks` | `tes_task_set:all` | the caller is an admin |
 
-Anything else is denied, and so is any request with another profile or an unknown `service_id`.
+Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
+
+Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions: a delegated token (`subject.properties.actor`) is decided as the subject's own, an API key (`via: apikey`) like the token it was minted with, whatever its `key_age`, and task `groups` grant nothing. It denies Poiesis's `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' API keys while Poiesis uses this decision service (callers still manage their own keys, which Poiesis doesn't ask about). It never answers with a `context.tes`, so Poiesis's sharing (`scope`, `groups`) stays unused. To change any of this, extend the policy.
 
 ## OpenFGA mapping (shim)
 

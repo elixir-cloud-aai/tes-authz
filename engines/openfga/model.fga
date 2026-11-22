@@ -1,7 +1,7 @@
 model
   schema 1.1
 
-# Reference TES AuthZ policy (tes-authzen/1) for OpenFGA, behind the shim.
+# Reference TES AuthZ policy (tes-authzen/1 and /2) for OpenFGA, behind the shim.
 # Source of truth for loading is model.json (same content, API format);
 # keep both in sync (tests/test_openfga_model.py compares them via the fga CLI).
 
