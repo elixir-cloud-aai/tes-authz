@@ -595,22 +595,22 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         # Poiesis's own resource type in profile tes-authzen/2: not TES, always denied
         (
             "api-keys-revoke-admin",
-            "14",
+            "7",
             "Poiesis RevokeApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
             request(dave_v2, "RevokeApiKeys", "poiesis_api_keys", "bob-sub", None, context=v2),
             F,
         ),
         (
             "api-keys-list-admin",
-            "14",
+            "7",
             "Poiesis ListApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
             request(dave_v2, "ListApiKeys", "poiesis_api_keys", "bob-sub", None, context=v2),
             F,
         ),
         (
             "api-keys-list-own",
-            "14",
-            "Poiesis ListApiKeys on the caller's own poiesis_api_keys: outside the TES vocabulary",
+            "7",
+            "Poiesis ListApiKeys with ?owner= the caller's own owner: outside the TES vocabulary",
             request(alice_v2, "ListApiKeys", "poiesis_api_keys", "alice-sub", None, context=v2),
             F,
         ),

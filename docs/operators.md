@@ -106,7 +106,15 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 
 Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
 
-Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions: a delegated token (`subject.properties.actor`) is decided as the subject's own, an API key (`via: apikey`) like the token it was minted with, whatever its `key_age`, and task `groups` grant nothing. It denies Poiesis's `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' API keys while Poiesis uses this decision service (callers still manage their own keys, which Poiesis doesn't ask about). It never answers with a `context.tes`, so Poiesis's sharing (`scope`, `groups`) stays unused. To change any of this, extend the policy.
+Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions, with these consequences for Poiesis:
+
+- **Delegated tokens** (`subject.properties.actor`) get every power of their subject, admin included. That is wider than Poiesis without a decision service, which refuses delegated tokens unless the actor is in the issuer's `actors` and never treats one as admin. If your issuers mint delegated tokens (RFC 8693 token exchange), deny `actor` in your policy, at least on the admin branch.
+- **API keys** (`via: apikey`) carry the claims snapshot taken when the key was minted, and the policy ignores `key_age` and `snapshot_age`. Revoking an entitlement therefore ends the access of that user's keys only when they expire (Poiesis `auth.apiKeys.maxTtl`), not at once as for tokens (spec Q11). Shorten the key lifetime, or refuse old snapshots in your policy.
+- **Admins** see other owners' tasks only if Poiesis's `authz.sharing` is on: with it off, Poiesis never asks `ListTasks` on `all` or about other owners' tasks.
+- **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
+- **Responses**: the policy never answers with a `context.tes`, so Poiesis's `scope` and `groups` sharing stays unused.
+
+To change any of this, extend the policy.
 
 ## OpenFGA mapping (shim)
 

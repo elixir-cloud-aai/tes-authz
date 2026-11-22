@@ -1,5 +1,5 @@
 {
-  "case": "14",
+  "case": "7",
   "description": "Poiesis RevokeApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
   "expect": {
     "reference_policy": {

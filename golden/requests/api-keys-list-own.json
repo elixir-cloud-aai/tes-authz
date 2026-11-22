@@ -1,6 +1,6 @@
 {
-  "case": "14",
-  "description": "Poiesis ListApiKeys on the caller's own poiesis_api_keys: outside the TES vocabulary",
+  "case": "7",
+  "description": "Poiesis ListApiKeys with ?owner= the caller's own owner: outside the TES vocabulary",
   "expect": {
     "reference_policy": {
       "decision": false

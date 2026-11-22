@@ -107,6 +107,8 @@ def validate_request(req: Any) -> None:
             raise ContractError(f"{name} must be an object")
     tes = context.get("tes") if isinstance(context, dict) else None
     profile = tes.get("profile") if isinstance(tes, dict) else None
+    # The str check comes first: an unhashable profile (a list) must give a
+    # ContractError, not a TypeError from the set lookup.
     if not isinstance(tes, dict) or not isinstance(profile, str) or profile not in PROFILES:
         raise ContractError("context.tes.profile is missing or unsupported")
     if not isinstance(tes.get("service_id"), str) or not tes["service_id"]:

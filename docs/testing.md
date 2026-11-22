@@ -2,7 +2,7 @@
 
 | Layer (spec [§8.1](specification.md#81-layers)) | File | What | Phase-1 result |
 |---|---|---|---|
-| unit | `tests/test_common.py` | URL stripping (36 golden rows of the rule of spec [§3.3](specification.md#33-resources), steps 0 to 6 with 2b and 4b), prefix expansion vs `startswith`, validation of both profiles, OpenFGA mapping | 61 pass |
+| unit | `tests/test_common.py` | URL stripping (36 golden rows of the rule of spec [§3.3](specification.md#33-resources), steps 0 to 6 with 2b and 4b), prefix expansion vs `startswith`, validation of both profiles, OpenFGA mapping | 62 pass |
 | golden | `tests/test_golden.py` | golden files match the generator, every case has an expectation, allowed cases follow the profile, which directories the harness reads (defaults, `TES_AUTHZ_GOLDEN_DIRS`, skipped and rejected directories), Poiesis's URL stripping cases equal `golden/url-stripping.json` | 12 pass |
 | 2: engine conformance | `tests/test_engines.py` | 87 golden requests (81 generated + 6 recorded by Poiesis in `golden/poiesis/`) × {OPA via front, OPA Data API, OpenFGA via shim} | 261 pass |
 | findings | `tests/test_findings.py`, `test_openfga_model.py` | engine behaviours the spec marked unverified (below), shim hardening | 22 pass |
@@ -15,7 +15,7 @@
 | kubernetes | `tests/test_kubernetes.py`, `scripts/test-kubernetes.sh` | the manifest of `deploy/kubernetes/` (static, with the unit tests): images pinned by digest with the tags of `compose.yaml`, OPA on loopback only, Service and NetworkPolicy, hardening, ConfigMap sources; deployed to kind (`make kubernetes`, CI job `kubernetes`): the 87 golden requests through a port forward, a labelled client reaches the Service, an unlabelled one doesn't, neither reaches OPA on the pod IP | 7 + 87 pass (kind v0.33.0; `make unit` and `make test` collect the 87 `kubernetes` cases and skip them) |
 | stack | `tests/test_stack.py` | per-worktree project and port block: defaults, base and overrides, project name check, the exports script, compose uses every port variable | 9 pass |
 
-Total: 521 passed and 87 skipped (`make test`, 2026-11-22, OPA 1.22.4, OpenFGA v1.22.1; the skipped ones are the `kubernetes` cases, which `make kubernetes` runs). The rules of semgrep and ast-grep have tests of their own, run by pre-commit (see [Contributing](contributing.md#project-rules)).
+Total: 522 passed and 87 skipped (`make test`, 2026-11-22, OPA 1.22.4, OpenFGA v1.22.1; the skipped ones are the `kubernetes` cases, which `make kubernetes` runs). The rules of semgrep and ast-grep have tests of their own, run by pre-commit (see [Contributing](contributing.md#project-rules)).
 
 The golden requests cover spec cases 3, 4, 4b, 5, 5d, 6, 7, 9–14 and 17, plus contract checks: missing or unknown profile (`tes-authzen/3`), unknown service, wrong subject type, unknown set or action. Profile `tes-authzen/2` (spec §12): create, get, list as member and admin, with the new subject properties (`via`, an API key with `credential_id`, `key_age` and `snapshot_age`, a delegated token's `actor`) and task `groups`, decided as under `/1`; Poiesis's `poiesis_api_keys` actions are denied. They also cover legacy tasks without an owner, issuer-qualified (`<iss>|<sub>`) and 600-character subject IDs, and task IDs containing `:#@`. Realistic sizes: 1024 entitlements with the match last, 1023 non-matching ones, 1024 executors (all allowed, or the last denied). Malformed projections (executors as object, string or null; entries without image; no task) are denied when an image allowlist is set.
 

@@ -169,6 +169,24 @@ def test_openfga_mapping_always_passes_condition_parameters():
     assert "context" not in out
 
 
+def test_openfga_mapping_ignores_profile_2_properties():
+    """The /2 subject and task properties never reach OpenFGA."""
+    plain = _valid()
+    plain["resource"]["properties"] = {"owner": "u"}
+    extended = _valid()
+    extended["context"]["tes"]["profile"] = "tes-authzen/2"
+    extended["subject"]["properties"] = {
+        "via": "apikey",
+        "credential_id": "key-1",
+        "key_age": 60,
+        "snapshot_age": 60,
+        "actor": {"iss": "https://iss", "sub": "proxy"},
+    }
+    extended["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
+    claim_map = {"entitlements": "eduperson_entitlement"}
+    assert openfga_shim.to_openfga(extended, claim_map) == openfga_shim.to_openfga(plain, claim_map)
+
+
 def test_openfga_mapping_task_set_and_claims():
     """Task sets are service-scoped; images and claims are flattened."""
     req = _valid()
