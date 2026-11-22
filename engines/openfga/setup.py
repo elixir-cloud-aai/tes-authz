@@ -24,12 +24,14 @@ from typing import Any
 
 sys.path.insert(0, os.environ.get("SHIMS_DIR", "/shims"))
 
-from common import PROFILE, UpstreamError, encode_id, post_json
+from common import UpstreamError, encode_id, post_json
 from openfga_shim import task_set_object, to_openfga
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
 ITEM_LENGTH = int(os.environ.get("SELF_CHECK_ITEM_LENGTH", "200"))
+SELF_CHECK_PROFILE = "tes-authzen/2"
+"""Profile of the self-check requests (one of ``common.PROFILES``)."""
 
 
 def check_policy(policy: dict[str, Any]) -> None:
@@ -63,7 +65,7 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     last = policy["image_prefixes"][-1] if policy["image_prefixes"] else "img/"
     member = (policy["members"]["values"] + policy["members"]["prefixes"] or ["none"])[-1]
     claim = policy["entitlement_claim"]
-    context = {"tes": {"profile": PROFILE, "service_id": service}}
+    context = {"tes": {"profile": SELF_CHECK_PROFILE, "service_id": service}}
 
     def req(action: str, rtype: str, rid: str, ents: list[str], props: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -134,10 +136,10 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
         add(own, "creator", "entitled", members)
         add(own, "image_ok", "images_allowed", images)
         add(own, "lister", "entitled", members)
-        add(all_, "lister", "entitled", admins)
+        add(all_, "lister", "entitled_undelegated", admins)
         add(svc, "owner", "is_owner", None)
         add(svc, "member", "entitled", members)
-        add(svc, "admin", "entitled", admins)
+        add(svc, "admin", "entitled_undelegated", admins)
     return tuples
 
 

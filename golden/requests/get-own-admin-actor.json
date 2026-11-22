@@ -1,0 +1,58 @@
+{
+  "case": "9",
+  "description": "profile tes-authzen/2, delegated token of an admin: own task as a member",
+  "expect": {
+    "reference_policy": {
+      "decision": true
+    }
+  },
+  "name": "get-own-admin-actor",
+  "request": {
+    "action": {
+      "name": "GetTask",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/2",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "task-d1",
+      "properties": {
+        "owner": "dave-sub",
+        "state": "RUNNING",
+        "tags": {
+          "project": "demo"
+        }
+      },
+      "type": "tes_task"
+    },
+    "subject": {
+      "id": "dave-sub",
+      "properties": {
+        "actor": {
+          "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+          "sub": "proxy-client"
+        },
+        "claims": {
+          "eduperson_entitlement": [
+            "urn:geant:lifescience-ri.eu:group:example-vo:tes-admins#login.aai.lifescience-ri.eu"
+          ]
+        },
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "dave-sub",
+        "via": "oidc"
+      },
+      "type": "user"
+    }
+  }
+}

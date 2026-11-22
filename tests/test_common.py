@@ -93,6 +93,29 @@ def test_validate_accepts_profile_request():
     common.validate_request(_valid())
 
 
+@pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2"])
+def test_validate_accepts_both_profiles(profile):
+    """Requests in profile /1 and /2 pass validation."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = profile
+    common.validate_request(req)
+
+
+def test_validate_accepts_profile_2_subject_properties():
+    """The /2 subject and task properties are accepted (spec section 12)."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = "tes-authzen/2"
+    req["subject"]["properties"] = {
+        "via": "apikey",
+        "credential_id": "key-1",
+        "key_age": 60,
+        "snapshot_age": 60,
+        "actor": {"iss": "https://iss", "sub": "proxy"},
+    }
+    req["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
+    common.validate_request(req)
+
+
 @pytest.mark.parametrize(
     ("path", "value"),
     [
@@ -102,7 +125,9 @@ def test_validate_accepts_profile_request():
         (("resource", "type"), "tes_service"),
         (("resource", "id"), ""),
         (("resource", "properties"), "x"),
-        (("context", "tes"), {"profile": "tes-authzen/2", "service_id": "s"}),
+        (("context", "tes"), {"profile": "tes-authzen/3", "service_id": "s"}),
+        (("context", "tes"), {"profile": "tes-authzen", "service_id": "s"}),
+        (("context", "tes"), {"profile": ["tes-authzen/1"], "service_id": "s"}),
         (("context", "tes"), {"profile": "tes-authzen/1"}),
     ],
 )
@@ -110,6 +135,17 @@ def test_validate_rejects(path, value):
     """Each contract violation is rejected."""
     req = _valid()
     req[path[0]][path[1]] = value
+    with pytest.raises(common.ContractError):
+        common.validate_request(req)
+
+
+@pytest.mark.parametrize("action", ["RevokeApiKeys", "ListApiKeys", "GetTask", "ListTasks"])
+def test_validate_rejects_poiesis_api_keys(action):
+    """The Poiesis-only resource type poiesis_api_keys is not part of the profile."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = "tes-authzen/2"
+    req["action"] = {"name": action, "properties": {}}
+    req["resource"] = {"type": "poiesis_api_keys", "id": "u"}
     with pytest.raises(common.ContractError):
         common.validate_request(req)
 
@@ -126,11 +162,45 @@ def test_openfga_mapping_always_passes_condition_parameters():
     """Review 2, finding 3: owner and subject ID are never missing."""
     req = _valid()
     out = openfga_shim.to_openfga(req, {"entitlements": "eduperson_entitlement"})
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": []}
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": [], "delegated": False}
     # No task projection: one empty image, which no allowlist prefix matches.
     assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": [""]}}
     assert out["subject"]["id"].startswith("h-")
     assert "context" not in out
+
+
+def test_openfga_mapping_ignores_profile_2_properties():
+    """The /2 subject and task properties never reach OpenFGA."""
+    claims = {"eduperson_entitlement": ["urn:a"]}
+    plain = _valid()
+    plain["subject"]["properties"] = {"claims": claims}
+    plain["resource"]["properties"] = {"owner": "u"}
+    extended = _valid()
+    extended["context"]["tes"]["profile"] = "tes-authzen/2"
+    extended["subject"]["properties"] = {
+        "claims": claims,
+        "via": "apikey",
+        "credential_id": "key-1",
+        "key_age": 60,
+        "snapshot_age": 60,
+        "actor": {"iss": "https://iss", "sub": "proxy"},
+    }
+    extended["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
+    claim_map = {"entitlements": "eduperson_entitlement"}
+    out = openfga_shim.to_openfga(extended, claim_map)
+    plain_out = openfga_shim.to_openfga(plain, claim_map)
+    assert out["subject"]["properties"] == {**plain_out["subject"]["properties"], "delegated": True}
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"], "delegated": True}
+    assert out["resource"] == plain_out["resource"]
+    assert out["action"] == plain_out["action"]
+
+
+def test_openfga_mapping_marks_delegated_subjects():
+    """Only a subject with an actor is delegated; the flag is always passed."""
+    req = _valid()
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is False
+    req["subject"]["properties"] = {"actor": {"iss": "https://iss", "sub": "proxy"}}
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is True
 
 
 def test_openfga_mapping_task_set_and_claims():
@@ -154,3 +224,10 @@ def test_parse_claim_map():
     assert openfga_shim.parse_claim_map("a=x, b=https://e.org/g") == {"a": "x", "b": "https://e.org/g"}
     with pytest.raises(ValueError):
         openfga_shim.parse_claim_map("bad")
+
+
+@pytest.mark.parametrize("param", ["id", "delegated"])
+def test_parse_claim_map_rejects_reserved_parameters(param):
+    """Claims can't overwrite the shim's own subject parameters."""
+    with pytest.raises(ValueError):
+        openfga_shim.parse_claim_map(f"{param}=x")

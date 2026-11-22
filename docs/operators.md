@@ -104,7 +104,21 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 | `ListTasks` | `tes_task_set:own` | the caller is a member |
 | `ListTasks` | `tes_task_set:all` | the caller is an admin |
 
-Anything else is denied, and so is any request with another profile or an unknown `service_id`.
+An admin needs an admin entitlement and must not be a delegated token (`tes-authzen/2` `subject.properties.actor`): a delegated token of an admin has member powers only.
+
+Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
+
+Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions, with these consequences for Poiesis (checked against Poiesis 0fa56aa; see its [authorization docs](https://github.com/JaeAeich/poiesis/blob/milestone/docs/app/docs/concepts/authorization.md)):
+
+- **Delegated tokens** (`subject.properties.actor`) keep their subject's member powers but never get admin powers, as in Poiesis without a decision service (which also refuses delegated tokens unless the actor is in the issuer's `actors`). The policy doesn't look at who the actor is: if your issuers mint delegated tokens (RFC 8693 token exchange) for actors you don't trust with member powers, deny them in your policy.
+- **API keys** (`via: apikey`) carry the claims snapshot taken when the key was minted, and the policy ignores `key_age` and `snapshot_age`. Revoking an entitlement therefore ends the access of that user's keys only when they expire (Poiesis `auth.apiKeys.maxTtl`), not at once as for tokens (spec Q11). Shorten the key lifetime, or refuse old snapshots in your policy.
+- **Admins** see other owners' tasks only if Poiesis's `authz.sharing` is on: with it off, Poiesis never asks `ListTasks` on `all` or about other owners' tasks.
+- **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
+- **Responses**: the policy never answers with a `context.tes`, so Poiesis's `scope` and `groups` sharing stays unused.
+
+To change any of this, extend the policy.
+
+**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends.
 
 ## OpenFGA mapping (shim)
 
@@ -115,7 +129,7 @@ Anything else is denied, and so is any request with another profile or an unknow
 | `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties |
 | `action.name` | the relation of the same name |
 
-OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3). Ownership is the condition `is_owner` on a `user:*` tuple. Membership and admin rights are the condition `entitled` on `user:*` tuples, whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `(owner and member) or admin`, with a `member` relation carrying the members' `entitled` tuple.
+OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `subject_delegated` (whether the subject has an `actor`), `resource_owner` and `resource_images`. The shim always sends all five (review 2, finding 3); `FGA_CLAIMS` can't use the parameter names `id` and `delegated`. Ownership is the condition `is_owner` on a `user:*` tuple. Membership is the condition `entitled`, admin rights the condition `entitled_undelegated` (`entitled` and not delegated), on `user:*` tuples whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `(owner and member) or admin`, with a `member` relation carrying the members' `entitled` tuple.
 
 The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec [§7](specification.md#7-reference-decision-service-and-engines) only names the `tes_service` rewrite for tasks, so this is a small addition.
 

@@ -17,10 +17,11 @@ A TES keeps authentication (OIDC), an owner stamped on every task, and a thin ho
 - [§7 Reference decision service and engines](spec/tes-authzen-1.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
 - [§8 Test plan](spec/tes-authzen-1.md#8-test-plan): test layers and the shared conformance cases
 - [§10 Decisions](spec/tes-authzen-1.md#10-decisions) and [§11 Open questions](spec/tes-authzen-1.md#11-open-questions)
+- [§12 `tes-authzen/2`](spec/tes-authzen-1.md#12-tes-authzen2-delta-to-1): the compatible extension Poiesis sends (authenticator, actor and API key properties, task groups, response context)
 
 ## Reference tooling
 
-Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint, the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). They show that the specification works with real engines and TES implementations; read the specification first.
+Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint (they accept `tes-authzen/2` too), the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). They show that the specification works with real engines and TES implementations; read the specification first.
 
 ### Quick start
 

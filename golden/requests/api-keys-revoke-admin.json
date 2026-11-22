@@ -1,0 +1,45 @@
+{
+  "case": "7",
+  "description": "Poiesis RevokeApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "api-keys-revoke-admin",
+  "request": {
+    "action": {
+      "name": "RevokeApiKeys",
+      "properties": {}
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/2",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "bob-sub",
+      "type": "poiesis_api_keys"
+    },
+    "subject": {
+      "id": "dave-sub",
+      "properties": {
+        "claims": {
+          "eduperson_entitlement": [
+            "urn:geant:lifescience-ri.eu:group:example-vo:tes-admins#login.aai.lifescience-ri.eu"
+          ]
+        },
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "dave-sub",
+        "via": "oidc"
+      },
+      "type": "user"
+    }
+  }
+}

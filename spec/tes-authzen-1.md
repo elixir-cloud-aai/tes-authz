@@ -27,7 +27,11 @@ From the Poiesis implementation (2026-11-16):
 14. §3.3: step 0 omits any value containing TAB, LF or CR (WHATWG deletes them before parsing, so `https://<TAB>/u:p@h/p` slipped past the empty-authority check and leaked `u:p`); found in the review of the TESP hook. Three golden rows; the shared golden file has 34 rows.
 15. §3.3: the empty-authority check moves after userinfo stripping as step 4b (empty host after step 3, `@` in the path), so `https://x@/u:p@h/p` and `https://@/u:p@h/p` no longer turn into the leaking form `https:///u:p@h/p`; found in the review of the Poiesis implementation. Two golden rows; the shared golden file has 36 rows.
 16. §3.6, §4.2 (from the TESK hook): the userinfo cache is a SHOULD; TESK keeps its uncached per-request lookup (revocation takes effect at the next request, as its docs promise), and case 21 runs only for adapters declaring `userinfo-cache`. TESK's built-in model keeps owner = creator `sub` (single issuer, §3.1); only the decision-service path uses `<iss>|<sub>`. New TESK-only key `tesk.api.authz.issuer`.
-17. §7, §11: Q11 decided (2026-11-16, option b): owners need membership. The reference policy's owner branch is `member and owner == subject.id` (OPA) and `(owner and member) or admin` (OpenFGA), so a PDP-only deployment ends owner access when the entitlement is revoked; golden rows for owners without entitlement (get, cancel, near miss). Reference policy only; no TES hook or contract change.
+17. §7, §11: Q11 decided (2026-11-16, option b): owners need membership. The reference policy's owner branch is `member and owner == subject.id` (OPA) and `(owner and member) or admin` (OpenFGA), so a PDP-only deployment ends owner access when the entitlement is revoked (for API keys under `/2`, only when the key expires; see §12); golden rows for owners without entitlement (get, cancel, near miss). Reference policy only; no TES hook or contract change.
+
+From the Poiesis implementation (2026-11-22):
+
+18. §12 (new): profile `tes-authzen/2`, a compatible extension of `/1` (subject `via`, `credential_id`, `actor`, `key_age`, `snapshot_age`; task `groups`; TES-specific resource types; an optional response `context.tes`). The reference decision service accepts `/1` and `/2`; its policy gives delegated tokens no admin powers.
 
 Changes since draft 2:
 
@@ -163,7 +167,7 @@ Get/cancel send only owner, state and tags because the hook must read the task b
 
 ### 3.4 Context
 
-`context.tes`: `{"profile": "tes-authzen/1", "service_id": "<service-info id>"}` **[profile]**. `profile` versions the vocabulary (set IDs, projection fields, owner format), so later changes don't silently change what PDPs receive. The TES sends a server-generated `X-Request-ID` (AuthZEN §10.1.3), new for each evaluation (§3.7), never a client-supplied value; trace propagation follows the TES's existing tracing, if any.
+`context.tes`: `{"profile": "tes-authzen/1", "service_id": "<service-info id>"}` **[profile]**. `profile` versions the vocabulary (set IDs, projection fields, owner format), so later changes don't silently change what PDPs receive. `tes-authzen/2` (§12) is the current extension. The TES sends a server-generated `X-Request-ID` (AuthZEN §10.1.3), new for each evaluation (§3.7), never a client-supplied value; trace propagation follows the TES's existing tracing, if any.
 
 ### 3.5 List filtering
 
@@ -310,8 +314,8 @@ ListTasks(p, f, view):gate(p)
 Reference service: a small AuthZEN PDP (`/access/v1/evaluation` plus `/.well-known/authzen-configuration`) whose behaviour is set by one policy. The reference deployment is one configuration of it:
 
 - CreateTask on `own`: `subject.properties.claims.eduperson_entitlement` contains the group (exact) or a subgroup (prefix `…:vo:`); optional image prefix allowlist on `resource.properties.task.executors[].image`.
-- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement; missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
-- ListTasks: `own` for members; `all` for admins.
+- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement (admin: an admin entitlement and, under `/2`, no `subject.properties.actor`, §12); missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
+- ListTasks: `own` for members; `all` for admins (same admin rule).
 - Optional: Passport visas (`ga4gh_passport_v1`) validated here, never in the TES.
 
 Generic shim step, shared by all shims (not policy): **prefix expansion** adds, for each string value of a list-valued claim, the set of its prefixes ending at a delimiter (e.g. `a:b:c#x` → `a:`, `a:b:`, `a:b:c#x`), so engines without quantifiers (Cedar, Casbin) can test "has a subgroup of" with set membership. The delimiter set is a shim setting (default `:`; e.g. `/` for Keycloak group paths). Reference-policy prefixes must end in a delimiter, or Cedar and Casbin will decide differently from OPA's `startswith` (verified on the golden entitlement sets). OPA and OpenFGA test prefixes natively and don't use expansion.
@@ -420,4 +424,26 @@ Numbers kept from draft 3 for stable references; Q1, Q3 and Q10 are decided (§1
 - **Q7, Entitlements in the access token.** If the IdP can put entitlements into the access token, the userinfo lookup is unnecessary; the design doesn't depend on it. Recommend checking the IdP's tokens for the deployment's client before enabling userinfo.
 - **Q8, Profile home.** Keep as `tes-authzen/1` here, or propose to the GA4GH Cloud WS as a TES AuthZ profile. Recommend: prove it in Poiesis and one more TES, then propose.
 - **Q9, Owner format for multi-issuer TES.** `<iss>|<sub>` (this draft) vs a hash. Recommend `<iss>|<sub>`: readable, policies can compare it; shims encode where engines restrict IDs (OpenFGA: always, §7).
-- **Q11, Owner access after losing the entitlement. Decided (b), 2026-11-16: owners need membership (see change 17).** In a PDP-only deployment (claim rule unset), the reference policy lets owners read and cancel their own tasks without a current entitlement (§7: `owner == subject.id`, or admin). With the claim rule set, the gate blocks such users anyway (D2). Options: (a) keep as is: owners keep access to their own tasks, e.g. to fetch results or cancel running work after leaving a group; (b) require membership on the owner branch too (`member and owner == subject.id`), as suggested during the engine work, so a PDP-only deployment matches a rule-plus-PDP one. Recommend (b): access then ends with the entitlement in both setups, consistent with D2's gate; owners who need results after leaving can be served by an admin, and an operator who wants (a) drops `member` from that branch in their policy. It is a reference-policy choice only; the TES and the contract don't change.
+- **Q11, Owner access after losing the entitlement. Decided (b), 2026-11-16: owners need membership (see change 17).** In a PDP-only deployment (claim rule unset), the reference policy lets owners read and cancel their own tasks without a current entitlement (§7: `owner == subject.id`, or admin). With the claim rule set, the gate blocks such users anyway (D2). Options: (a) keep as is: owners keep access to their own tasks, e.g. to fetch results or cancel running work after leaving a group; (b) require membership on the owner branch too (`member and owner == subject.id`), as suggested during the engine work, so a PDP-only deployment matches a rule-plus-PDP one. Recommend (b): access then ends with the entitlement in both setups (for API keys under `/2`, only when the key expires; see §12), consistent with D2's gate; owners who need results after leaving can be served by an admin, and an operator who wants (a) drops `member` from that branch in their policy. It is a reference-policy choice only; the TES and the contract don't change.
+
+## 12. `tes-authzen/2` (delta to `/1`)
+
+Added 2026-11-22 from Poiesis's implementation (JaeAeich/poiesis, branch `milestone` at `0fa56aa`, `poiesis/api/authz.py` and its authorization docs). `tes-authzen/2` is `/1` plus the additions below; nothing of `/1` is removed or changes meaning. A TES sends one profile; a decision service that accepts `/2` accepts `/1` too, and the reference decision service (§7) does: its shims and its OPA policy accept `context.tes.profile` `tes-authzen/1` and `tes-authzen/2` and deny any other value.
+
+Request additions **[profile]**:
+
+- `subject.properties.via`: how the caller authenticated, `oidc` (access token) or `apikey` (a TES-issued API key).
+- `subject.properties.credential_id`: the credential, when there is one: the token's `jti`, or the key's ID.
+- `subject.properties.key_age`, `snapshot_age` (API keys only): seconds since the key was minted; the claims snapshot taken at minting is as old.
+- `subject.properties.actor` (delegated tokens only): `{"iss": …, "sub": …}` of the RFC 8693 `act` claim. The subject is still the owner; the policy decides what the actor may do on the subject's behalf.
+- `resource.properties.groups` on `tes_task`: the groups the task is shared with (empty unless a `CreateTask` decision shared it, see below).
+- TES-specific resource types: Poiesis asks `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys` (ID: the owner whose keys are concerned) for admin operations on another owner's API keys. They are outside the TES vocabulary of §3.2 and §3.3.
+
+Response additions **[profile]**: an optional `context.tes` object with `scope` (other owners' tasks a `ListTasks` on `own` may also list: `owners`, `groups`, `tags`), `groups` (the groups to share a new task with, on `CreateTask`), `obligations` (a TES that doesn't know one MUST deny), `advice` (may be ignored) and `reason` (for the log). A plain `{"decision": true|false}` stays a complete answer.
+
+The reference policy (§7) changes in one point for `/2`: a delegated token has no admin powers. Otherwise it answers with a plain decision, ignores the new subject and task properties, and denies `poiesis_api_keys`, so with it Poiesis's admin operations on other owners' API keys are refused. Its handling of the new properties has two security consequences an operator must weigh **[profile]**:
+
+- A delegated request (with `actor`) keeps the subject's member powers but never gets admin powers, in OPA (`admin` requires no `actor`) and OpenFGA (condition `entitled_undelegated` on the admin tuples, parameter `subject_delegated` from the shim), as in Poiesis's built-in rule. Under `/1` the actor wasn't sent and Poiesis's own delegation guard (actors list, never admin) was the only safeguard; with a decision service that guard no longer applies, so the policy is the safeguard. The reference policy doesn't check who the actor is; operators who don't trust all actors with member powers deny them in their policy.
+- An API key's claims are a snapshot taken at minting, so Q11's "access ends with the entitlement" holds for API keys only when the key expires. Operators bound key lifetimes in the TES or refuse old snapshots (`snapshot_age`) in their policy.
+
+Golden cases: `create-profile-2*`, `get-*-profile-2*`, `list-*-profile-2` and `*-admin-actor` extend cases 4b, 7, 9, 10, 12 and 13 to `/2`; `api-keys-*` and `create-wrong-profile` (now `tes-authzen/3`) are contract checks of case 7. `/2` lives in this document on purpose: it is a delta, and `/1` stays valid.

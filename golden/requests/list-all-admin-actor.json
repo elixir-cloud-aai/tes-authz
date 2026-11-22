@@ -1,0 +1,51 @@
+{
+  "case": "13",
+  "description": "profile tes-authzen/2, delegated token of an admin: no admin powers, all denied",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "list-all-admin-actor",
+  "request": {
+    "action": {
+      "name": "ListTasks",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/2",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "all",
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "dave-sub",
+      "properties": {
+        "actor": {
+          "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+          "sub": "proxy-client"
+        },
+        "claims": {
+          "eduperson_entitlement": [
+            "urn:geant:lifescience-ri.eu:group:example-vo:tes-admins#login.aai.lifescience-ri.eu"
+          ]
+        },
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "dave-sub",
+        "via": "oidc"
+      },
+      "type": "user"
+    }
+  }
+}

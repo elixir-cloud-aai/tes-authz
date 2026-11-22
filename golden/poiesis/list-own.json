@@ -16,7 +16,7 @@
     },
     "context": {
       "tes": {
-        "profile": "tes-authzen/1",
+        "profile": "tes-authzen/2",
         "service_id": "org.ga4gh.poiesis"
       }
     },
@@ -38,7 +38,8 @@
           "openid",
           "eduperson_entitlement"
         ],
-        "sub": "{{sub}}"
+        "sub": "{{sub}}",
+        "via": "oidc"
       },
       "type": "user"
     }

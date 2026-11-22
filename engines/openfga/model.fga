@@ -1,7 +1,7 @@
 model
   schema 1.1
 
-# Reference TES AuthZ policy (tes-authzen/1) for OpenFGA, behind the shim.
+# Reference TES AuthZ policy (tes-authzen/1 and /2) for OpenFGA, behind the shim.
 # Source of truth for loading is model.json (same content, API format);
 # keep both in sync (tests/test_openfga_model.py compares them via the fga CLI).
 
@@ -12,7 +12,7 @@ type tes_task_set
   relations
     define creator: [user:* with entitled]
     define image_ok: [user:* with images_allowed]
-    define lister: [user:* with entitled]
+    define lister: [user:* with entitled, user:* with entitled_undelegated]
     define CreateTask: creator and image_ok
     define ListTasks: lister
     define GetTask: [user]
@@ -23,7 +23,7 @@ type tes_service
   relations
     define owner: [user:* with is_owner]
     define member: [user:* with entitled]
-    define admin: [user:* with entitled]
+    define admin: [user:* with entitled_undelegated]
     define GetTask: (owner and member) or admin
     define CancelTask: (owner and member) or admin
     define CreateTask: [user]
@@ -31,6 +31,11 @@ type tes_service
 
 condition entitled(subject_entitlements: list<string>, allowed_values: list<string>, allowed_prefixes: list<string>) {
   subject_entitlements.exists(e, e in allowed_values || allowed_prefixes.exists(p, e.startsWith(p)))
+}
+
+# Admin entitlements: never for a delegated token (subject.properties.actor).
+condition entitled_undelegated(subject_entitlements: list<string>, allowed_values: list<string>, allowed_prefixes: list<string>, subject_delegated: bool) {
+  !subject_delegated && subject_entitlements.exists(e, e in allowed_values || allowed_prefixes.exists(p, e.startsWith(p)))
 }
 
 condition images_allowed(resource_images: list<string>, allowed_image_prefixes: list<string>) {

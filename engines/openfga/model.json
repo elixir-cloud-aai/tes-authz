@@ -19,7 +19,7 @@
       "metadata": {"relations": {
         "creator": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
         "image_ok": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "images_allowed"}]},
-        "lister": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
+        "lister": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}, {"type": "user", "wildcard": {}, "condition": "entitled_undelegated"}]},
         "GetTask": {"directly_related_user_types": [{"type": "user"}]},
         "CancelTask": {"directly_related_user_types": [{"type": "user"}]}
       }}
@@ -50,7 +50,7 @@
       "metadata": {"relations": {
         "owner": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "is_owner"}]},
         "member": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
-        "admin": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled"}]},
+        "admin": {"directly_related_user_types": [{"type": "user", "wildcard": {}, "condition": "entitled_undelegated"}]},
         "CreateTask": {"directly_related_user_types": [{"type": "user"}]},
         "ListTasks": {"directly_related_user_types": [{"type": "user"}]}
       }}
@@ -64,6 +64,16 @@
         "subject_entitlements": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
         "allowed_values": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
         "allowed_prefixes": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]}
+      }
+    },
+    "entitled_undelegated": {
+      "name": "entitled_undelegated",
+      "expression": "!subject_delegated && subject_entitlements.exists(e, e in allowed_values || allowed_prefixes.exists(p, e.startsWith(p)))",
+      "parameters": {
+        "subject_entitlements": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "allowed_values": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "allowed_prefixes": {"type_name": "TYPE_NAME_LIST", "generic_types": [{"type_name": "TYPE_NAME_STRING"}]},
+        "subject_delegated": {"type_name": "TYPE_NAME_BOOL"}
       }
     },
     "images_allowed": {

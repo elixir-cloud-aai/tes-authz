@@ -1,6 +1,6 @@
 # TES AuthZ
 
-**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3, accepted for implementation on 2026-11-16): read it on the [Specification](specification.md) page (source: [`spec/tes-authzen-1.md`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/spec/tes-authzen-1.md)).
+**`tes-authzen/1`** is a specification for authorizing requests to GA4GH Task Execution Service (TES) implementations: a TES asks an external decision service, over [AuthZEN 1.0](https://openid.net/specs/authorization-api-1_0.html), whether a caller may create, read, list or cancel tasks, so that access policy lives in one place instead of in every TES. The specification is a **draft** (draft 3, accepted for implementation on 2026-11-16): read it on the [Specification](specification.md) page (source: [`spec/tes-authzen-1.md`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/spec/tes-authzen-1.md)). Its compatible extension `tes-authzen/2`, which Poiesis sends, is described in [§12](specification.md#12-tes-authzen2-delta-to-1).
 
 A TES keeps authentication (OIDC), an owner stamped on every task, and a thin hook that asks one standard AuthZEN Access Evaluation per decision; everything that is policy lives in a decision service of the operator's choice. Without configuration, every TES behaves as today. The specification covers:
 
@@ -11,10 +11,11 @@ A TES keeps authentication (OIDC), an owner stamped on every task, and a thin ho
 - [§7 Reference decision service and engines](specification.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
 - [§8 Test plan](specification.md#8-test-plan): test layers and the shared conformance cases
 - [§10 Decisions](specification.md#10-decisions) and [§11 Open questions](specification.md#11-open-questions)
+- [§12 `tes-authzen/2`](specification.md#12-tes-authzen2-delta-to-1): the compatible extension Poiesis sends (authenticator, actor and API key properties, task groups, response context)
 
 ## Reference tooling
 
-Around the specification, this repository holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint, the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). Phase 1 covers OPA and OpenFGA.
+Around the specification, this repository holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint (they accept `tes-authzen/2` too), the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). Phase 1 covers OPA and OpenFGA.
 
 Decisions the tooling applies (from the spec's open questions):
 
@@ -35,7 +36,7 @@ Decisions the tooling applies (from the spec's open questions):
 
 Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apart. All policy lives in the engine. The shims do only generic, policy-free steps (`shims/common.py`):
 
-- **Contract validation**: profile `tes-authzen/1`, `subject.type == "user"`, the four actions, the two resource types, the set IDs `own`/`all`, and a `service_id`. A request that fails it is denied, not answered with an error.
+- **Contract validation**: profile `tes-authzen/1` or `tes-authzen/2`, `subject.type == "user"`, the four actions, the two resource types, the set IDs `own`/`all`, and a `service_id`. A request that fails it is denied, not answered with an error.
 - **Prefix expansion** (`expand_prefixes`): for engines without quantifiers (Cedar, Casbin). Neither phase-1 engine needs it (see the findings).
 - **Claim normalisation** (`string_list`): a string becomes a one-element list; other types become an empty list.
 - **Identifier encoding** (`encode_id`, `hash_id`): for engines with identifier limits.

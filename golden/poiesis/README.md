@@ -1,7 +1,11 @@
 # Poiesis golden requests (layer 1)
 
 Recorded by Poiesis's hook conformance tests (`tests/unit/test_authz.py` on
-branch `feat/113-authz-contract`, copies of `tests/unit/golden/authz/*.json`).
+branch `milestone` at `0fa56aa`, copies of `tests/unit/golden/authz/*.json`
+except `responses.json`, which tests Poiesis's parsing of answers, not
+engines). The requests use profile `tes-authzen/2`
+([spec §12](../../spec/tes-authzen-1.md#12-tes-authzen2-delta-to-1)):
+subjects carry `via`, tasks carry `groups`.
 Wrapper format of [`docs/testing.md`](../../docs/testing.md) ("Where
 golden requests come from"); subject identity as placeholders
 (`{{subject_id}}`, `{{iss}}`, `{{sub}}`,
