@@ -203,6 +203,8 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
     alice_key = with_v2_properties(ALICE, via="apikey", credential_id="key-a1", key_age=3600)
     alice_delegated = with_v2_properties(ALICE, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
     dave_delegated = with_v2_properties(DAVE, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
+    dave_actor_null = with_v2_properties(DAVE, via="oidc", actor=None)
+    v1 = {"tes": {"profile": "tes-authzen/1", "service_id": SERVICE}}
     shared = {**task_meta("bob-sub"), "groups": ["lab-alpha"]}
     own_shared = {**task_meta("alice-sub"), "groups": ["lab-alpha"]}
     unknown_service = {"tes": {"profile": "tes-authzen/1", "service_id": "other-tes"}}
@@ -483,6 +485,27 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "10",
             "profile tes-authzen/2, delegated token of an admin: no admin powers, someone else's task denied",
             request(dave_delegated, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
+            F,
+        ),
+        (
+            "get-other-admin-actor-null",
+            "10",
+            "delegated token of an admin with actor null: the key alone counts, no admin powers",
+            request(dave_actor_null, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
+            F,
+        ),
+        (
+            "get-other-admin-actor-profile-1",
+            "10",
+            "an actor under tes-authzen/1 counts too: no admin powers",
+            request(dave_delegated, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v1),
+            F,
+        ),
+        (
+            "get-legacy-admin-actor",
+            "11",
+            "legacy task without exact owner, delegated token of an admin: denied",
+            request(dave_delegated, "GetTask", "tes_task", "task-legacy", task_meta(None), view, context=v2),
             F,
         ),
         (

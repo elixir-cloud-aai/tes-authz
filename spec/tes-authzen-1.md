@@ -314,8 +314,8 @@ ListTasks(p, f, view):gate(p)
 Reference service: a small AuthZEN PDP (`/access/v1/evaluation` plus `/.well-known/authzen-configuration`) whose behaviour is set by one policy. The reference deployment is one configuration of it:
 
 - CreateTask on `own`: `subject.properties.claims.eduperson_entitlement` contains the group (exact) or a subgroup (prefix `…:vo:`); optional image prefix allowlist on `resource.properties.task.executors[].image`.
-- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement; missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
-- ListTasks: `own` for members; `all` for admins.
+- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement (admin: an admin entitlement and, under `/2`, no `subject.properties.actor`, §12); missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
+- ListTasks: `own` for members; `all` for admins (same admin rule).
 - Optional: Passport visas (`ga4gh_passport_v1`) validated here, never in the TES.
 
 Generic shim step, shared by all shims (not policy): **prefix expansion** adds, for each string value of a list-valued claim, the set of its prefixes ending at a delimiter (e.g. `a:b:c#x` → `a:`, `a:b:`, `a:b:c#x`), so engines without quantifiers (Cedar, Casbin) can test "has a subgroup of" with set membership. The delimiter set is a shim setting (default `:`; e.g. `/` for Keycloak group paths). Reference-policy prefixes must end in a delimiter, or Cedar and Casbin will decide differently from OPA's `startswith` (verified on the golden entitlement sets). OPA and OpenFGA test prefixes natively and don't use expansion.
