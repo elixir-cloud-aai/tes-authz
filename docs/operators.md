@@ -104,7 +104,7 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 | `ListTasks` | `tes_task_set:own` | the caller is a member |
 | `ListTasks` | `tes_task_set:all` | the caller is an admin |
 
-An admin needs an admin entitlement and must not be a delegated token (`tes-authzen/2` `subject.properties.actor`): a delegated token of an admin has member powers only.
+An admin needs an admin entitlement and must not be a delegated token (an `actor` key in `subject.properties`, sent from `tes-authzen/2` on): a delegated token of an admin has member powers only. The policy applies this under every profile, also to a `/1` request with an `actor`.
 
 Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
 
@@ -118,7 +118,7 @@ Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delt
 
 To change any of this, extend the policy.
 
-**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends.
+**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends. The new shim also reserves the parameter name `delegated` (as it did `id`): an `FGA_CLAIMS` entry `delegated=<claim>` makes it refuse to start (`bad FGA_CLAIMS entry`). Rename such an entry, and the condition parameter `subject_delegated` it fed in your OpenFGA model, before you upgrade.
 
 ## OpenFGA mapping (shim)
 

@@ -32,6 +32,7 @@ From the Poiesis implementation (2026-11-16):
 From the Poiesis implementation (2026-11-22):
 
 18. §12 (new): profile `tes-authzen/2`, a compatible extension of `/1` (subject `via`, `credential_id`, `actor`, `key_age`, `snapshot_age`; task `groups`; TES-specific resource types; an optional response `context.tes`). The reference decision service accepts `/1` and `/2`; its policy gives delegated tokens no admin powers.
+19. §3.3, §3.5, §7, §12 (2026-11-22, wording only): the reference policy's "no admin with an `actor`" holds under every profile, as implemented and pinned by the golden rows, not only under `/2`; §12 names the two response additions that change what a TES does (`scope`, `obligations`); §3.3 and §3.5 point to §12.
 
 Changes since draft 2:
 
@@ -111,7 +112,7 @@ Known limit: behind proTES (PTF), the TES sees proTES as the caller. proTES stay
 
 ### 3.3 Resources
 
-Two types **[profile]**:
+Two types **[profile]** (`tes-authzen/2` adds task `groups` and TES-specific types, §12):
 
 - `tes_task`: a stored task. `id` = task ID. `properties`: `owner`, `state`, `tags`. Used for `GetTask` and `CancelTask`. `owner` is omitted when the TES has no exact owner (TESK legacy tasks, §6); the reference policy treats a missing owner as "not the caller's".
 - `tes_task_set`: a set of tasks; `id` is `own` or `all`. Used for `CreateTask` (`own`: the new task joins the caller's set; AuthZEN requires an `id`, and no TES knows the new task's ID portably before the decision) and `ListTasks` (§3.5).
@@ -181,7 +182,7 @@ Get/cancel send only owner, state and tags because the hook must read the task b
 
 The scope becomes a predicate in the TES's own query, applied with the user's filters and cursor: pages are correct and complete (no duplicates, no gaps, no foreign tasks), with size ≤ `page_size` (TESK already returns short pages, since it filters names, tags and state after reading a page of jobs). The scope is re-evaluated on every page. A TES whose cursor depends on the predicate (TESK: Kubernetes continue tokens belong to the original label selector) MUST bind the page token to the scope and answer a mismatch with 400 **[profile]**; keyset cursors (Poiesis, Funnel, TESP) need nothing.
 
-Two fixed set IDs instead of a filter in the response `context`, because native AuthZEN PDPs (OpenFGA, Cerbos) return only `decision`. `ListTasks` with `view=FULL` triggers no per-task evaluations.
+Two fixed set IDs instead of a filter in the response `context`, because native AuthZEN PDPs (OpenFGA, Cerbos) return only `decision`. Under `tes-authzen/2` a decision on `own` may carry a `context.tes.scope` that widens the list beyond `owner = subject.id` (§12); the table above is the whole rule under `/1` and for plain decisions. `ListTasks` with `view=FULL` triggers no per-task evaluations.
 
 ### 3.6 Userinfo (identity resolution, in the TES)
 
@@ -314,7 +315,7 @@ ListTasks(p, f, view):gate(p)
 Reference service: a small AuthZEN PDP (`/access/v1/evaluation` plus `/.well-known/authzen-configuration`) whose behaviour is set by one policy. The reference deployment is one configuration of it:
 
 - CreateTask on `own`: `subject.properties.claims.eduperson_entitlement` contains the group (exact) or a subgroup (prefix `…:vo:`); optional image prefix allowlist on `resource.properties.task.executors[].image`.
-- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement (admin: an admin entitlement and, under `/2`, no `subject.properties.actor`, §12); missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
+- GetTask/CancelTask: a member entitlement and `resource.properties.owner == subject.id`, or an admin entitlement (admin: an admin entitlement and no `actor` key in `subject.properties`, under every profile, §12); missing owner → only admins. Owners need a current entitlement, so revoking it ends their access at once, also without the claim rule (Q11, decided (b)).
 - ListTasks: `own` for members; `all` for admins (same admin rule).
 - Optional: Passport visas (`ga4gh_passport_v1`) validated here, never in the TES.
 
@@ -428,7 +429,7 @@ Numbers kept from draft 3 for stable references; Q1, Q3 and Q10 are decided (§1
 
 ## 12. `tes-authzen/2` (delta to `/1`)
 
-Added 2026-11-22 from Poiesis's implementation (JaeAeich/poiesis, branch `milestone` at `0fa56aa`, `poiesis/api/authz.py` and its authorization docs). `tes-authzen/2` is `/1` plus the additions below; nothing of `/1` is removed or changes meaning. A TES sends one profile; a decision service that accepts `/2` accepts `/1` too, and the reference decision service (§7) does: its shims and its OPA policy accept `context.tes.profile` `tes-authzen/1` and `tes-authzen/2` and deny any other value.
+Added 2026-11-22 from Poiesis's implementation (JaeAeich/poiesis, branch `milestone` at `0fa56aa`, `poiesis/api/authz.py` and its authorization docs). `tes-authzen/2` is `/1` plus the additions below; nothing of `/1` is removed, and a `/2` request that uses none of the additions means what it means under `/1`. Two response additions do change what a TES does with a decision: `scope` widens what a `ListTasks` on `own` lists (§3.5), and `obligations` adds a TES MUST (deny when one is unknown). A TES sends one profile; a decision service that accepts `/2` accepts `/1` too, and the reference decision service (§7) does: its shims and its OPA policy accept `context.tes.profile` `tes-authzen/1` and `tes-authzen/2` and deny any other value.
 
 Request additions **[profile]**:
 
@@ -441,7 +442,7 @@ Request additions **[profile]**:
 
 Response additions **[profile]**: an optional `context.tes` object with `scope` (other owners' tasks a `ListTasks` on `own` may also list: `owners`, `groups`, `tags`), `groups` (the groups to share a new task with, on `CreateTask`), `obligations` (a TES that doesn't know one MUST deny), `advice` (may be ignored) and `reason` (for the log). A plain `{"decision": true|false}` stays a complete answer.
 
-The reference policy (§7) changes in one point for `/2`: a delegated token has no admin powers. Otherwise it answers with a plain decision, ignores the new subject and task properties, and denies `poiesis_api_keys`, so with it Poiesis's admin operations on other owners' API keys are refused. Its handling of the new properties has two security consequences an operator must weigh **[profile]**:
+The reference policy (§7) changes in one point with `/2`: a delegated token has no admin powers. It applies this under every profile, whenever `subject.properties` has an `actor` key (also `actor: null`), since a `/1` request with an `actor` is no less delegated. Otherwise it answers with a plain decision, ignores the new subject and task properties, and denies `poiesis_api_keys`, so with it Poiesis's admin operations on other owners' API keys are refused. Its handling of the new properties has two security consequences an operator must weigh **[profile]**:
 
 - A delegated request (with `actor`) keeps the subject's member powers but never gets admin powers, in OPA (`admin` requires no `actor`) and OpenFGA (condition `entitled_undelegated` on the admin tuples, parameter `subject_delegated` from the shim), as in Poiesis's built-in rule. Under `/1` the actor wasn't sent and Poiesis's own delegation guard (actors list, never admin) was the only safeguard; with a decision service that guard no longer applies, so the policy is the safeguard. The reference policy doesn't check who the actor is; operators who don't trust all actors with member powers deny them in their policy.
 - An API key's claims are a snapshot taken at minting, so Q11's "access ends with the entitlement" holds for API keys only when the key expires. Operators bound key lifetimes in the TES or refuse old snapshots (`snapshot_age`) in their policy.
