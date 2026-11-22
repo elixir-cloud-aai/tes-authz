@@ -93,6 +93,29 @@ def test_validate_accepts_profile_request():
     common.validate_request(_valid())
 
 
+@pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2"])
+def test_validate_accepts_both_profiles(profile):
+    """Requests in profile /1 and /2 pass validation."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = profile
+    common.validate_request(req)
+
+
+def test_validate_accepts_profile_2_subject_properties():
+    """The /2 subject and task properties are accepted (spec section 12)."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = "tes-authzen/2"
+    req["subject"]["properties"] = {
+        "via": "apikey",
+        "credential_id": "key-1",
+        "key_age": 60,
+        "snapshot_age": 60,
+        "actor": {"iss": "https://iss", "sub": "proxy"},
+    }
+    req["resource"]["properties"] = {"owner": "u", "groups": ["lab-alpha"]}
+    common.validate_request(req)
+
+
 @pytest.mark.parametrize(
     ("path", "value"),
     [
@@ -102,7 +125,9 @@ def test_validate_accepts_profile_request():
         (("resource", "type"), "tes_service"),
         (("resource", "id"), ""),
         (("resource", "properties"), "x"),
-        (("context", "tes"), {"profile": "tes-authzen/2", "service_id": "s"}),
+        (("context", "tes"), {"profile": "tes-authzen/3", "service_id": "s"}),
+        (("context", "tes"), {"profile": "tes-authzen", "service_id": "s"}),
+        (("context", "tes"), {"profile": ["tes-authzen/1"], "service_id": "s"}),
         (("context", "tes"), {"profile": "tes-authzen/1"}),
     ],
 )
@@ -110,6 +135,17 @@ def test_validate_rejects(path, value):
     """Each contract violation is rejected."""
     req = _valid()
     req[path[0]][path[1]] = value
+    with pytest.raises(common.ContractError):
+        common.validate_request(req)
+
+
+@pytest.mark.parametrize("action", ["RevokeApiKeys", "ListApiKeys"])
+def test_validate_rejects_poiesis_api_keys(action):
+    """The Poiesis-only resource type poiesis_api_keys is not part of the profile."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = "tes-authzen/2"
+    req["action"] = {"name": action, "properties": {}}
+    req["resource"] = {"type": "poiesis_api_keys", "id": "u"}
     with pytest.raises(common.ContractError):
         common.validate_request(req)
 

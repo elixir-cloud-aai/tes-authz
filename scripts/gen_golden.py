@@ -64,6 +64,26 @@ def subject(
     return {"type": "user", "id": owner_id or sub, "properties": props}
 
 
+def with_v2_properties(subj: dict[str, Any], **properties: Any) -> dict[str, Any]:
+    """Add ``tes-authzen/2`` subject properties (spec section 12).
+
+    A ``key_age`` also sets ``snapshot_age`` to the same value, as Poiesis
+    sends both for API keys.
+
+    Args:
+        subj: The subject.
+        **properties: The properties to add (``via``, ``credential_id``,
+            ``actor``, ``key_age``).
+
+    Returns:
+        A copy of the subject with the properties added.
+    """
+    props = {**subj["properties"], **properties}
+    if "key_age" in properties:
+        props["snapshot_age"] = properties["key_age"]
+    return {**subj, "properties": props}
+
+
 ALICE = subject("alice-sub", [SUBGROUP, OTHER_VO])
 BOB = subject("bob-sub", [GROUP])
 CAROL = subject("carol-sub", [NEAR_MISS, OTHER_VO])
@@ -176,7 +196,14 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
     parent = subject("ivan-sub", [VO])
     bad_type = {**ALICE, "type": "client"}
     no_profile = {"tes": {"service_id": SERVICE}}
-    wrong_profile = {"tes": {"profile": "tes-authzen/2", "service_id": SERVICE}}
+    wrong_profile = {"tes": {"profile": "tes-authzen/3", "service_id": SERVICE}}
+    v2 = {"tes": {"profile": "tes-authzen/2", "service_id": SERVICE}}
+    alice_v2 = with_v2_properties(ALICE, via="oidc")
+    dave_v2 = with_v2_properties(DAVE, via="oidc")
+    alice_key = with_v2_properties(ALICE, via="apikey", credential_id="key-a1", key_age=3600)
+    alice_delegated = with_v2_properties(ALICE, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
+    shared = {**task_meta("bob-sub"), "groups": ["lab-alpha"]}
+    own_shared = {**task_meta("alice-sub"), "groups": ["lab-alpha"]}
     unknown_service = {"tes": {"profile": "tes-authzen/1", "service_id": "other-tes"}}
     odd_task_id = "task:with#odd@chars-" + "y" * 300
     others = [f"urn:geant:lifescience-ri.eu:group:vo-{i}:sub#login.aai.lifescience-ri.eu" for i in range(1023)]
@@ -243,6 +270,34 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         ("create-on-all", "7", "CreateTask only on the 'own' set", create(ALICE, set_id="all"), F),
         ("create-no-profile", "7", "context.tes.profile missing", create(ALICE, context=no_profile), F),
         ("create-wrong-profile", "7", "unknown profile version", create(ALICE, context=wrong_profile), F),
+        (
+            "create-profile-2",
+            "7",
+            "profile tes-authzen/2 with the subject property via",
+            create(alice_v2, context=v2),
+            T,
+        ),
+        (
+            "create-profile-2-apikey",
+            "7",
+            "profile tes-authzen/2, API key subject with credential_id, key_age and snapshot_age",
+            create(alice_key, context=v2),
+            T,
+        ),
+        (
+            "create-profile-2-actor",
+            "7",
+            "profile tes-authzen/2, delegated token: the reference policy ignores the actor",
+            create(alice_delegated, context=v2),
+            T,
+        ),
+        (
+            "create-profile-2-near-miss",
+            "4b",
+            "profile tes-authzen/2 changes nothing for a near-miss entitlement",
+            create(with_v2_properties(CAROL, via="oidc"), context=v2),
+            F,
+        ),
         (
             "create-unknown-service",
             "7",
@@ -394,6 +449,27 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             request(ALICE, "GetTask", "tes_task_set", "own", None, view),
             F,
         ),
+        (
+            "get-own-profile-2-groups",
+            "9",
+            "profile tes-authzen/2, own task with groups",
+            request(alice_v2, "GetTask", "tes_task", "task-a1", own_shared, view, context=v2),
+            T,
+        ),
+        (
+            "get-other-profile-2-groups",
+            "10",
+            "profile tes-authzen/2, someone else's task with groups: the reference policy ignores groups",
+            request(alice_v2, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
+            F,
+        ),
+        (
+            "get-other-admin-profile-2",
+            "9",
+            "profile tes-authzen/2, admin reads someone else's task",
+            request(dave_v2, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
+            T,
+        ),
         # CancelTask (case 10)
         (
             "cancel-own",
@@ -500,6 +576,42 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "14",
             "action outside the profile",
             request(DAVE, "DeleteTask", "tes_task_set", "all", None, view),
+            F,
+        ),
+        (
+            "list-own-profile-2",
+            "13",
+            "profile tes-authzen/2, members list their own tasks",
+            request(alice_v2, "ListTasks", "tes_task_set", "own", None, view, context=v2),
+            T,
+        ),
+        (
+            "list-all-admin-profile-2",
+            "12",
+            "profile tes-authzen/2, admins list all tasks",
+            request(dave_v2, "ListTasks", "tes_task_set", "all", None, view, context=v2),
+            T,
+        ),
+        # Poiesis's own resource type in profile tes-authzen/2: not TES, always denied
+        (
+            "api-keys-revoke-admin",
+            "14",
+            "Poiesis RevokeApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
+            request(dave_v2, "RevokeApiKeys", "poiesis_api_keys", "bob-sub", None, context=v2),
+            F,
+        ),
+        (
+            "api-keys-list-admin",
+            "14",
+            "Poiesis ListApiKeys on poiesis_api_keys, admin: outside the TES vocabulary",
+            request(dave_v2, "ListApiKeys", "poiesis_api_keys", "bob-sub", None, context=v2),
+            F,
+        ),
+        (
+            "api-keys-list-own",
+            "14",
+            "Poiesis ListApiKeys on the caller's own poiesis_api_keys: outside the TES vocabulary",
+            request(alice_v2, "ListApiKeys", "poiesis_api_keys", "alice-sub", None, context=v2),
             F,
         ),
         # Realistic sizes: LS Login users carry many entitlements (review 1 of the service)

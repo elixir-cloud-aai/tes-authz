@@ -5,7 +5,7 @@ a Python image. It holds the steps that the spec (draft 3, section 7)
 assigns to all shims:
 
 * contract validation of an incoming AuthZEN Access Evaluation request
-  against the ``tes-authzen/1`` profile;
+  against the ``tes-authzen/1`` or ``tes-authzen/2`` profile;
 * prefix expansion of list-valued claims, for engines without quantifiers;
 * normalisation of claim values to a list of strings;
 * identifier encoding for engines with identifier pattern or length limits;
@@ -30,8 +30,13 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-PROFILE = "tes-authzen/1"
-"""Profile version that the TES sends in ``context.tes.profile``."""
+PROFILES = frozenset({"tes-authzen/1", "tes-authzen/2"})
+"""Profile versions a TES may send in ``context.tes.profile``.
+
+``tes-authzen/2`` only adds optional subject and task properties, a
+response ``context.tes`` and TES-specific resource types (spec section 12),
+so one validation and one policy serve both versions.
+"""
 
 ACTIONS = frozenset({"CreateTask", "GetTask", "ListTasks", "CancelTask"})
 """Action names of the profile (TES OpenAPI operation IDs)."""
@@ -59,7 +64,7 @@ log = logging.getLogger("tes-authz-shim")
 
 
 class ContractError(ValueError):
-    """Raised when a request does not follow the ``tes-authzen/1`` profile."""
+    """Raised when a request follows neither ``tes-authzen/1`` nor ``/2``."""
 
 
 def validate_request(req: Any) -> None:
@@ -101,7 +106,8 @@ def validate_request(req: Any) -> None:
         if not isinstance(value, dict):
             raise ContractError(f"{name} must be an object")
     tes = context.get("tes") if isinstance(context, dict) else None
-    if not isinstance(tes, dict) or tes.get("profile") != PROFILE:
+    profile = tes.get("profile") if isinstance(tes, dict) else None
+    if not isinstance(tes, dict) or not isinstance(profile, str) or profile not in PROFILES:
         raise ContractError("context.tes.profile is missing or unsupported")
     if not isinstance(tes.get("service_id"), str) or not tes["service_id"]:
         raise ContractError("context.tes.service_id must be a non-empty string")

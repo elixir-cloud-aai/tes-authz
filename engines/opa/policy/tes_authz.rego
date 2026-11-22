@@ -1,4 +1,5 @@
-# Reference TES AuthZ policy (tes-authzen/1), spec draft 3, section 7.
+# Reference TES AuthZ policy (tes-authzen/1 and /2), spec draft 3, sections 7
+# and 12.
 #
 # Input: one AuthZEN 1.0 Access Evaluation request, unchanged.
 # Data:  data.tes_authz, loaded from config/reference-policy.json:
@@ -14,7 +15,8 @@
 #                                    only (owners need a current entitlement)
 #   ListTasks on tes_task_set:own    member
 #   ListTasks on tes_task_set:all    admin
-# Anything else, and any request outside the profile, is denied.
+# Anything else, and any request outside the profiles, is denied (also the
+# TES-specific resource types of tes-authzen/2, such as poiesis_api_keys).
 package tes.authz
 
 import rego.v1
@@ -56,7 +58,7 @@ allow if {
 }
 
 contract_ok if {
-	input.context.tes.profile == "tes-authzen/1"
+	input.context.tes.profile in {"tes-authzen/1", "tes-authzen/2"}
 	input.context.tes.service_id in cfg.services
 	input.subject.type == "user"
 	is_string(input.subject.id)
