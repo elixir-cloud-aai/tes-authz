@@ -1,4 +1,4 @@
-"""Minimal in-memory TES with the AuthZ hook of spec draft 3, section 6.
+"""Minimal in-memory TES with the AuthZ hook of spec draft 3, section 6 (``tes-authzen/3``).
 
 Test-only. It exists to exercise the harness (stub, golden comparison,
 engines) end to end before a real TES has the hook, and as executable
@@ -11,6 +11,9 @@ pseudo-code of the hook. It is not a TES implementation:
   only, cached by token hash until min(``exp``, 5 minutes)). With more than
   one issuer, owners are ``<iss>|<sub>``.
 * No executors, no backend; tasks stay ``QUEUED``.
+* Owner only (spec section 3): get and cancel reach only the caller's own
+  tasks and lists show only them, whatever the decision service answers; the
+  decision service is asked about own tasks and the ``own`` set only.
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ from common import strip_url
 from minijose import JoseError, UnknownKeyError, decode_unverified, verify_jwt
 
 PREFIX = "/ga4gh/tes/v1"
-PROFILE = "tes-authzen/1"
+PROFILE = "tes-authzen/3"
 USERINFO_TTL = 300.0
 """Longest time a userinfo answer is cached (spec section 3.6)."""
 USERINFO_CACHE_SIZE = 1024
@@ -437,15 +440,27 @@ class Hook:
             raise HttpError(HTTPStatus.SERVICE_UNAVAILABLE, "decision service unavailable")
         return answer["decision"] is True
 
-    def _meta(self, task_id: str) -> dict[str, Any] | None:
+    def _own_meta(self, p: Principal, task_id: str) -> dict[str, Any]:
+        """Read an own task's metadata; anything else is 404 without a PDP call.
+
+        Args:
+            p: The caller.
+            task_id: The task ID.
+
+        Returns:
+            Owner, state and tags of the caller's own task.
+
+        Raises:
+            HttpError: 404 if the task is missing or someone else's.
+        """
         task = self.store.tasks.get(task_id)
-        if task is None:
-            return None
+        if task is None or task["_owner"] != p.owner_id:
+            raise HttpError(HTTPStatus.NOT_FOUND, "not found")
         return {"owner": task["_owner"], "state": task["state"], "tags": task.get("tags", {})}
 
     @staticmethod
-    def _res(task_id: str, meta: dict[str, Any] | None) -> dict[str, Any]:
-        return {"type": "tes_task", "id": task_id, "properties": meta or {}}
+    def _res(task_id: str, meta: dict[str, Any]) -> dict[str, Any]:
+        return {"type": "tes_task", "id": task_id, "properties": meta}
 
     def create(self, p: Principal, task: dict[str, Any]) -> dict[str, Any]:
         """CreateTask.
@@ -494,12 +509,8 @@ class Hook:
             HttpError: On deny, absence or failure.
         """
         self.gate(p)
-        meta = self._meta(task_id)
-        if self.settings.pdp_url:
-            allow = self.ask(p, "GetTask", self._res(task_id, meta), {"view": view})
-        else:
-            allow = meta is not None and meta["owner"] == p.owner_id
-        if meta is None or not allow:
+        meta = self._own_meta(p, task_id)
+        if self.settings.pdp_url and not self.ask(p, "GetTask", self._res(task_id, meta), {"view": view}):
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
         return self._render(self.store.tasks[task_id], view)
 
@@ -517,15 +528,10 @@ class Hook:
             HttpError: On deny, absence or failure.
         """
         self.gate(p)
-        meta = self._meta(task_id)
-        if not self.settings.pdp_url:
-            if meta is None or meta["owner"] != p.owner_id:
-                raise HttpError(HTTPStatus.NOT_FOUND, "not found")
-        elif not (self.ask(p, "CancelTask", self._res(task_id, meta)) and meta is not None):
-            # Missing or denied: the same calls either way (case 11c), then
-            # 403 only for an existing task the caller may read.
-            readable = self.ask(p, "GetTask", self._res(task_id, meta))
-            if meta is not None and readable:
+        meta = self._own_meta(p, task_id)
+        if self.settings.pdp_url and not self.ask(p, "CancelTask", self._res(task_id, meta)):
+            # Denied: 403 only if the owner may still read the task (case 11d).
+            if self.ask(p, "GetTask", self._res(task_id, meta)):
                 raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
         self.store.tasks[task_id]["state"] = "CANCELED"
@@ -547,15 +553,10 @@ class Hook:
             HttpError: On deny or failure.
         """
         self.gate(p)
-        if not self.settings.pdp_url:
-            own_only = True
-        else:
-            if self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "all"}, {"view": view}):
-                own_only = False
-            elif self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}):
-                own_only = True
-            else:
-                raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
+        if self.settings.pdp_url and not self.ask(
+            p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}
+        ):
+            raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
         try:
             after = int(page_token) if page_token else -1
         except ValueError as exc:
@@ -565,7 +566,7 @@ class Hook:
             rows = [
                 t
                 for t in (self.store.tasks[i] for i in ids)
-                if self.store.order[t["id"]] > after and (not own_only or t["_owner"] == p.owner_id)
+                if self.store.order[t["id"]] > after and t["_owner"] == p.owner_id
             ]
         page = rows[:page_size]
         result: dict[str, Any] = {"tasks": [self._render(t, view) for t in page]}

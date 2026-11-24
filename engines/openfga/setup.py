@@ -30,7 +30,7 @@ from openfga_shim import task_set_object, to_openfga
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
 ITEM_LENGTH = int(os.environ.get("SELF_CHECK_ITEM_LENGTH", "200"))
-SELF_CHECK_PROFILE = "tes-authzen/2"
+SELF_CHECK_PROFILE = "tes-authzen/3"
 """Profile of the self-check requests (one of ``common.PROFILES``)."""
 
 
@@ -42,9 +42,13 @@ def check_policy(policy: dict[str, Any]) -> None:
 
     Raises:
         SystemExit: If a prefix is empty (CEL ``"".startsWith("")`` would
-            match the shim's empty-image sentinel).
+            match the shim's empty-image sentinel), or if the file still has
+            ``admins`` (removed: nobody reaches other owners' tasks, so an
+            admin group would silently grant nothing).
     """
-    prefixes = [*policy["members"]["prefixes"], *policy["admins"]["prefixes"], *policy["image_prefixes"]]
+    if "admins" in policy:
+        raise SystemExit("the policy data file has 'admins': the reference policy is owner only, remove it")
+    prefixes = [*policy["members"]["prefixes"], *policy["image_prefixes"]]
     if any(not isinstance(p, str) or not p for p in prefixes):
         raise SystemExit("empty or non-string prefix in the policy data file")
 
@@ -78,9 +82,6 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     task = {"executors": [{"image": last + filler} for _ in range(MAX_LIST_ITEMS)]}
     return [
         req("ListTasks", "tes_task_set", "own", entitlements, {}),
-        req("ListTasks", "tes_task_set", "all", entitlements, {}),
-        # member is false here, so OpenFGA may skip is_owner (cheap); member and admin walk the list.
-        req("GetTask", "tes_task", "t", entitlements, {"owner": "self-check"}),
         req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
     ]
 
@@ -112,6 +113,12 @@ def self_check(policy: dict[str, Any], store_id: str, model_id: str) -> None:
 def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
     """Generate the tuples of the reference policy.
 
+    Owner only: the entitlement is needed only to create; ``GetTask`` and
+    ``CancelTask`` need ownership alone, and ``ListTasks`` on ``own`` is open
+    to every caller (the TES lists only their tasks). No tuple on a
+    service's ``all`` set, so ``ListTasks`` on it is always denied, and no
+    admin tuple on ``tes_service``.
+
     Args:
         policy: The decoded policy data file.
 
@@ -119,27 +126,22 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
         The tuple keys to write.
     """
     members = {"allowed_values": policy["members"]["values"], "allowed_prefixes": policy["members"]["prefixes"]}
-    admins = {"allowed_values": policy["admins"]["values"], "allowed_prefixes": policy["admins"]["prefixes"]}
     images = {"allowed_image_prefixes": policy["image_prefixes"]}
     tuples: list[dict[str, Any]] = []
 
-    def add(obj: str, relation: str, condition: str, context: dict[str, Any] | None) -> None:
-        cond: dict[str, Any] = {"name": condition}
-        if context is not None:
-            cond["context"] = context
-        tuples.append({"user": "user:*", "relation": relation, "object": obj, "condition": cond})
+    def add(obj: str, relation: str, condition: str | None, context: dict[str, Any] | None = None) -> None:
+        key: dict[str, Any] = {"user": "user:*", "relation": relation, "object": obj}
+        if condition is not None:
+            key["condition"] = {"name": condition} if context is None else {"name": condition, "context": context}
+        tuples.append(key)
 
     for service in policy["services"]:
         own = "tes_task_set:" + task_set_object(service, "own")
-        all_ = "tes_task_set:" + task_set_object(service, "all")
         svc = "tes_service:" + encode_id(service)
         add(own, "creator", "entitled", members)
         add(own, "image_ok", "images_allowed", images)
-        add(own, "lister", "entitled", members)
-        add(all_, "lister", "entitled_undelegated", admins)
-        add(svc, "owner", "is_owner", None)
-        add(svc, "member", "entitled", members)
-        add(svc, "admin", "entitled_undelegated", admins)
+        add(own, "lister", None)
+        add(svc, "owner", "is_owner")
     return tuples
 
 

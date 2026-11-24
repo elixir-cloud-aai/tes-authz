@@ -5,7 +5,7 @@ a Python image. It holds the steps that the spec (draft 3, section 7)
 assigns to all shims:
 
 * contract validation of an incoming AuthZEN Access Evaluation request
-  against the ``tes-authzen/1`` or ``tes-authzen/2`` profile;
+  against the ``tes-authzen/1``, ``/2`` or ``/3`` profile;
 * prefix expansion of list-valued claims, for engines without quantifiers;
 * normalisation of claim values to a list of strings;
 * identifier encoding for engines with identifier pattern or length limits;
@@ -30,12 +30,13 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-PROFILES = frozenset({"tes-authzen/1", "tes-authzen/2"})
+PROFILES = frozenset({"tes-authzen/1", "tes-authzen/2", "tes-authzen/3"})
 """Profile versions a TES may send in ``context.tes.profile``.
 
 ``tes-authzen/2`` only adds optional subject and task properties, a
-response ``context.tes`` and TES-specific resource types (spec section 12),
-so one validation and one policy serve both versions.
+response ``context.tes`` and TES-specific resource types (spec section 12);
+``tes-authzen/3`` removes the task set ``all`` (spec section 13). One
+validation and one owner-only policy serve all three versions.
 """
 
 ACTIONS = frozenset({"CreateTask", "GetTask", "ListTasks", "CancelTask"})
@@ -45,7 +46,13 @@ RESOURCE_TYPES = frozenset({"tes_task", "tes_task_set"})
 """Resource types of the profile."""
 
 TASK_SET_IDS = frozenset({"own", "all"})
-"""Fixed task set IDs of the profile."""
+"""Fixed task set IDs of ``tes-authzen/1`` and ``/2``."""
+
+TASK_SET_IDS_BY_PROFILE = {"tes-authzen/3": frozenset({"own"})}
+"""Task set IDs of the profiles that differ from ``TASK_SET_IDS``.
+
+``tes-authzen/3`` removes ``all`` from the vocabulary (spec section 13).
+"""
 
 MAX_BODY_BYTES = int(os.environ.get("SHIM_MAX_BODY_BYTES", str(1024 * 1024)))
 """Largest request body a shim accepts (``SHIM_MAX_BODY_BYTES``).
@@ -64,7 +71,7 @@ log = logging.getLogger("tes-authz-shim")
 
 
 class ContractError(ValueError):
-    """Raised when a request follows neither ``tes-authzen/1`` nor ``/2``."""
+    """Raised when a request follows none of the profiles ``tes-authzen/1`` to ``/3``."""
 
 
 def validate_request(req: Any) -> None:
@@ -96,8 +103,6 @@ def validate_request(req: Any) -> None:
         raise ContractError("resource.type is not a TES resource type")
     if not isinstance(resource.get("id"), str) or not resource["id"]:
         raise ContractError("resource.id must be a non-empty string")
-    if resource["type"] == "tes_task_set" and resource["id"] not in TASK_SET_IDS:
-        raise ContractError("unknown task set")
     for name, value in (
         ("subject.properties", subject.get("properties", {})),
         ("action.properties", action.get("properties", {})),
@@ -113,6 +118,9 @@ def validate_request(req: Any) -> None:
         raise ContractError("context.tes.profile is missing or unsupported")
     if not isinstance(tes.get("service_id"), str) or not tes["service_id"]:
         raise ContractError("context.tes.service_id must be a non-empty string")
+    set_ids = TASK_SET_IDS_BY_PROFILE.get(profile, TASK_SET_IDS)
+    if resource["type"] == "tes_task_set" and resource["id"] not in set_ids:
+        raise ContractError("unknown task set")
     try:
         json.dumps(req, ensure_ascii=False).encode("utf-8")
     except UnicodeEncodeError as exc:

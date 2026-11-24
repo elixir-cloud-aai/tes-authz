@@ -7,7 +7,9 @@ shim rewrites a profile request into a request OpenFGA can answer:
 
 * ``tes_task:<id>`` becomes ``tes_service:<service>``; per-task ownership is
   a condition on a ``user:*`` tuple (``resource_owner == subject_id``).
-* ``tes_task_set:<own|all>`` becomes ``tes_task_set:<service>/<own|all>``.
+* ``tes_task_set:<own|all>`` becomes ``tes_task_set:<service>/<own|all>``
+  (``all`` has no tuples in the reference store, so it is always denied;
+  ``tes-authzen/3`` doesn't have it at all).
 * The subject ID becomes ``user:h-<sha256>`` because OpenFGA rejects
   subject IDs with ``:``, ``#``, ``@``, whitespace or more than 500
   characters (``https://iss|sub`` owners would fail); the real ID travels as
@@ -15,9 +17,7 @@ shim rewrites a profile request into a request OpenFGA can answer:
 * Every condition parameter is always present (review 2, finding 3):
   ``subject_id``, ``resource_owner`` (empty string when the task has no
   owner or does not exist), ``resource_images`` and one list parameter per
-  mapped claim (empty when the claim is missing), and ``subject_delegated``
-  (whether ``subject.properties`` has an ``actor``, under every profile).
-  OpenFGA answers a missing parameter with HTTP 400, which would turn a
+  mapped claim (empty when the claim is missing). OpenFGA answers a missing parameter with HTTP 400, which would turn a
   missing task into 503.
 
 No policy lives here: which entitlements count is in the tuples.
@@ -73,7 +73,7 @@ def parse_claim_map(spec: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for pair in filter(None, (part.strip() for part in spec.split(","))):
         param, sep, claim = pair.partition("=")
-        if not sep or not param.isidentifier() or not claim or param in {"id", "delegated"}:
+        if not sep or not param.isidentifier() or not claim or param == "id":
             raise ValueError(f"bad FGA_CLAIMS entry: {pair!r}")
         mapping[param] = claim
     return mapping
@@ -96,7 +96,7 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     """Rewrite a validated profile request into an OpenFGA AuthZEN request.
 
     Args:
-        req: The validated AuthZEN request (``tes-authzen/1`` or ``/2``).
+        req: The validated AuthZEN request (``tes-authzen/1``, ``/2`` or ``/3``).
         claim_map: Condition parameter suffix to claim name.
 
     Returns:
@@ -110,8 +110,6 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     subject_props: dict[str, Any] = {"id": subject["id"]}
     for param, claim in claim_map.items():
         subject_props[param] = string_list(claims.get(claim))
-    # A delegated token (RFC 8693 actor); the model decides what that means.
-    subject_props["delegated"] = "actor" in properties
 
     resource = req["resource"]
     props = resource.get("properties", {})
