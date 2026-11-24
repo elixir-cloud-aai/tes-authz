@@ -52,7 +52,7 @@ kubectl -n "$namespace" rollout restart deployment/tes-authz
 The policy data (`data.json`) has the fields of `config/reference-policy.json`:
 
 - `entitlement_claim`: the claim in `subject.properties.claims` with the caller's groups. The TES must send it: in Poiesis, `authz.decisionService.claims: [eduperson_entitlement]`.
-- `members`: exact `values` and raw string `prefixes` of the entitlement that may create tasks (e.g. one compute group). It is needed for `CreateTask` only: everyone reads, lists and cancels their own tasks, also after the entitlement is revoked, and nobody reaches other owners' tasks. There is no admin group; the setup job of OpenFGA refuses a data file that still has `admins` (see the upgrade notes below).
+- `members`: exact `values` and raw string `prefixes` of the entitlement that may create tasks (e.g. one compute group). It is needed for `CreateTask` only: everyone reads, lists and cancels their own tasks, also after the entitlement is revoked, and nobody reaches other owners' tasks. There is no admin group: a data file that still has `admins` makes OPA deny every request and the OpenFGA setup job refuse to start (see the upgrade notes below).
 - `image_prefixes`: allowed executor image prefixes, compared as raw strings (`alpine:3` doesn't start with `docker.io/library/`); an empty list allows any image, but leaving the field out denies every creation.
 - `services`: the service-info IDs of the TES implementations the policy answers for (Poiesis: `org.ga4gh.poiesis`); requests from any other service are denied.
 
@@ -124,7 +124,7 @@ To change any of this, extend the policy; a policy that grants other owners' tas
 
 **Owner only and `tes-authzen/3`** ([#23](https://github.com/elixir-cloud-aai/tes-authz/issues/23), breaking):
 
-- Remove `admins` from your policy data. OPA ignores it; the OpenFGA setup job refuses to start with it (`the policy data file has 'admins'`), so that nobody assumes admins still see other tasks.
+- Remove `admins` from your policy data. With it, OPA denies every request and the OpenFGA setup job refuses to start (`the policy data file has 'admins'`), so that nobody assumes admins still see other tasks.
 - `members` now means "may create tasks" only. Owners keep get, cancel and their own list after their entitlement is revoked (it was the other way round before, spec Q11); users without the entitlement get an empty list instead of `403`.
 - Callers with an admin entitlement lose access to other owners' tasks and to `ListTasks` on `all`. If you relied on it, inspect tasks through the infrastructure instead.
 - The decision services accept `tes-authzen/3` (and still `/1` and `/2`). Deploy this version before a TES switches to `/3`; an older one denies every `/3` request. A `/3` request on `tes_task_set:all` is a contract error (deny).

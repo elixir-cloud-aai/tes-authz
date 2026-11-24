@@ -20,7 +20,8 @@ from .conftest import http
 
 pytestmark = pytest.mark.services
 
-# A member entitlement: owners need one (Q11), so the owner condition is evaluated.
+# A member entitlement. Owners no longer need one (Q11, option a); it keeps the
+# requests realistic and the entitlement list in the condition context.
 MEMBER = "urn:geant:lifescience-ri.eu:group:example-vo#login.aai.lifescience-ri.eu"
 
 

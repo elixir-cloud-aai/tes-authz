@@ -17,8 +17,9 @@ shim rewrites a profile request into a request OpenFGA can answer:
 * Every condition parameter is always present (review 2, finding 3):
   ``subject_id``, ``resource_owner`` (empty string when the task has no
   owner or does not exist), ``resource_images`` and one list parameter per
-  mapped claim (empty when the claim is missing). OpenFGA answers a missing parameter with HTTP 400, which would turn a
-  missing task into 503.
+  mapped claim (empty when the claim is missing). OpenFGA answers a
+  missing parameter with HTTP 400, which would turn a missing task into
+  503.
 
 No policy lives here: which entitlements count is in the tuples.
 

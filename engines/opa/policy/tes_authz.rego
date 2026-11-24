@@ -15,7 +15,8 @@
 #                                    the entitlement is revoked; a missing or
 #                                    empty owner: nobody
 #   ListTasks on tes_task_set:own    any caller (the TES lists own tasks only)
-# There is no admin: nobody reads, lists or cancels another owner's tasks,
+# Policy data with an "admins" key (from before owner only) denies every
+# request. There is no admin: nobody reads, lists or cancels another owner's tasks,
 # whatever their entitlements, and tes_task_set:all is never allowed (it is
 # no longer in the vocabulary from tes-authzen/3 on). Anything else, and any
 # request outside the profiles, is denied (also the TES-specific resource
@@ -52,6 +53,9 @@ allow if {
 }
 
 contract_ok if {
+	# Policy data from before owner only: deny everything, as the OpenFGA
+	# setup job refuses to start, so nobody assumes admins still work.
+	not "admins" in object.keys(cfg)
 	input.context.tes.profile in {"tes-authzen/1", "tes-authzen/2", "tes-authzen/3"}
 	input.context.tes.service_id in cfg.services
 	input.subject.type == "user"
