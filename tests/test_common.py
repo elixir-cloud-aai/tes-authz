@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -61,7 +62,13 @@ def test_reference_policy_has_no_admins():
     assert "admins" not in POLICY
 
 
-def _openfga_setup():
+@pytest.fixture(scope="module")
+def openfga_setup() -> ModuleType:
+    """Load ``engines/openfga/setup.py`` once (it is a script, not a package module).
+
+    Returns:
+        The loaded module.
+    """
     spec = importlib.util.spec_from_file_location("openfga_setup", ROOT / "engines" / "openfga" / "setup.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -69,17 +76,17 @@ def _openfga_setup():
     return module
 
 
-def test_openfga_setup_refuses_admins():
+def test_openfga_setup_refuses_admins(openfga_setup):
     """The OpenFGA setup job refuses policy data that still has ``admins`` (upgrade notes)."""
-    setup = _openfga_setup()
+    setup = openfga_setup
     setup.check_policy(POLICY)
     with pytest.raises(SystemExit, match="has 'admins'"):
         setup.check_policy({**POLICY, "admins": {"values": ["urn:a"], "prefixes": []}})
 
 
-def test_openfga_setup_tuples_are_owner_only():
+def test_openfga_setup_tuples_are_owner_only(openfga_setup):
     """No admin tuples and no tuples on ``all``; the ``own`` lister is unconditioned."""
-    tuples = _openfga_setup().tuples_for(POLICY)
+    tuples = openfga_setup.tuples_for(POLICY)
     assert not any(t["object"].endswith("/all") for t in tuples)
     assert {t["relation"] for t in tuples} == {"creator", "image_ok", "lister", "owner"}
     assert all("condition" not in t for t in tuples if t["relation"] == "lister")

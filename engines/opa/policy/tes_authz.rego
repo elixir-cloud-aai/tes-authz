@@ -15,10 +15,10 @@
 #                                    the entitlement is revoked; a missing or
 #                                    empty owner: nobody
 #   ListTasks on tes_task_set:own    any caller (the TES lists own tasks only)
-# Policy data with an "admins" key (from before owner only) denies every
-# request. There is no admin: nobody reads, lists or cancels another owner's tasks,
+# There is no admin: nobody reads, lists or cancels another owner's tasks,
 # whatever their entitlements, and tes_task_set:all is never allowed (it is
-# no longer in the vocabulary from tes-authzen/3 on). Anything else, and any
+# no longer in the vocabulary from tes-authzen/3 on). Leftover policy data
+# with an "admins" key (from before owner only) denies every request. Anything else, and any
 # request outside the profiles, is denied (also the TES-specific resource
 # types of tes-authzen/2, such as poiesis_api_keys).
 package tes.authz

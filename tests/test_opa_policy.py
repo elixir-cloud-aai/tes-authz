@@ -8,13 +8,17 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 POLICY = json.loads((ROOT / "config" / "reference-policy.json").read_text())
-OPA = "openpolicyagent/opa:1.22.4"
+OPA = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["opa"]["image"]
 """The OPA image of ``compose.yaml``."""
 
-pytestmark = pytest.mark.services
+pytestmark = [
+    pytest.mark.services,
+    pytest.mark.skipif(shutil.which("docker") is None, reason="docker not available"),
+]
 
 OWN_TASK = {
     "subject": {"type": "user", "id": "u1"},
@@ -63,8 +67,6 @@ def _allow(data: dict, tmp_path: Path) -> bool:
 
 def test_leftover_admins_deny_everything(tmp_path):
     """An ``admins`` key in the data denies even an owner's own task (fail closed)."""
-    if not shutil.which("docker"):
-        pytest.skip("docker not available")
     tmp_path.chmod(0o755)
     assert _allow(POLICY, tmp_path) is True
     assert _allow({**POLICY, "admins": {"values": ["urn:a"], "prefixes": []}}, tmp_path) is False
