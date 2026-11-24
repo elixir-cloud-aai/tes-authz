@@ -6,7 +6,7 @@ A TES keeps authentication (OIDC), an owner stamped on every task, and a thin ho
 
 - [§3 The contract](specification.md#3-the-contract-authzen-mapping): subject, actions, the two resource types, context, list filtering, userinfo and the exact request shape
 - [§4 Failure semantics, configuration, security](specification.md#4-failure-semantics-configuration-security): status codes, configuration keys, startup checks
-- [§5 Built-in claim rule and composition](specification.md#5-built-in-claim-rule-and-composition): the optional admission gate, ANDed with the decision
+- [§5 Built-in claim rule and composition](specification.md#5-built-in-claim-rule-and-composition): the optional gate on who may create tasks, ANDed with the decision
 - [§6 The hook](specification.md#6-the-hook): pseudo-code and implementation notes for Poiesis, TESK, Funnel and TESP
 - [§7 Reference decision service and engines](specification.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
 - [§8 Test plan](specification.md#8-test-plan): test layers and the shared conformance cases
@@ -63,7 +63,7 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 
 - **Mock OIDC issuer:** done (`oidc/`, compose service `oidc`; see [Add a TES](adding-a-tes.md)). Every adapter still needs its `token()` and OIDC wiring.
 - **Adapters** for Poiesis (kind), TESK (kind), Funnel and TESP (compose), each mapping `HookConfig` onto its configuration keys (spec [§4.2](specification.md#42-configuration-keys)).
-- **Cases the mock TES can't exercise:** 1 and 22 per TES; 23 (startup refusal); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
+- **Cases the mock TES can't exercise:** 1 and 22 per TES; 23 and 23b (startup refusals); 24 (Funnel over gRPC, with grpcurl or a Go test). Add them to `tests/conformance/` gated on adapter `features`, and give case 22 a per-TES expectation (today it runs for `mock` only). The userinfo cases 6b, 20 and 21 are in the suite and run for every adapter with the `userinfo` feature.
 - **More golden requests from each TES** in `golden/<tes>/`, like Poiesis's in `golden/poiesis/` (the harness reads every such directory): each needs a `reference_policy` expectation (in the wrapper or in `golden/expectations.json`), its service ID in the policy's `services`, and placeholders for owner and issuer values.
 - **A home and CI:** done: this repository; the `Integration` job of the `CI` workflow runs `make test` (Docker, with the images of `compose.yaml`).
 - **Further engines when needed:** Cedar and Casbin (they use `expand_prefixes`), Cerbos and Topaz (whose behaviour is still unverified).

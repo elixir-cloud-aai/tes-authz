@@ -12,7 +12,7 @@ A TES keeps authentication (OIDC), an owner stamped on every task, and a thin ho
 
 - [§3 The contract](spec/tes-authzen-1.md#3-the-contract-authzen-mapping): subject, actions, the two resource types, context, list filtering, userinfo and the exact request shape
 - [§4 Failure semantics, configuration, security](spec/tes-authzen-1.md#4-failure-semantics-configuration-security): status codes, configuration keys, startup checks
-- [§5 Built-in claim rule and composition](spec/tes-authzen-1.md#5-built-in-claim-rule-and-composition): the optional admission gate, ANDed with the decision
+- [§5 Built-in claim rule and composition](spec/tes-authzen-1.md#5-built-in-claim-rule-and-composition): the optional gate on who may create tasks, ANDed with the decision
 - [§6 The hook](spec/tes-authzen-1.md#6-the-hook): pseudo-code and implementation notes for Poiesis, TESK, Funnel and TESP
 - [§7 Reference decision service and engines](spec/tes-authzen-1.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
 - [§8 Test plan](spec/tes-authzen-1.md#8-test-plan): test layers and the shared conformance cases
