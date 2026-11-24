@@ -49,11 +49,15 @@ def _golden_entitlement_sets():
 
 def test_prefix_expansion_matches_startswith_for_delimited_prefixes():
     """Spec claim: expansion equals startswith when prefixes end in a delimiter."""
-    for group in ("members", "admins"):
-        values, prefixes = POLICY[group]["values"], POLICY[group]["prefixes"]
-        assert all(p.endswith(":") for p in prefixes)
-        for ents in _golden_entitlement_sets():
-            assert _startswith_member(values, prefixes, ents) == _expanded_member(values, prefixes, ents)
+    values, prefixes = POLICY["members"]["values"], POLICY["members"]["prefixes"]
+    assert all(p.endswith(":") for p in prefixes)
+    for ents in _golden_entitlement_sets():
+        assert _startswith_member(values, prefixes, ents) == _expanded_member(values, prefixes, ents)
+
+
+def test_reference_policy_has_no_admins():
+    """Owner only (spec section 7): the reference policy data has no admin group."""
+    assert "admins" not in POLICY
 
 
 def test_prefix_expansion_differs_for_undelimited_prefix():
@@ -93,9 +97,9 @@ def test_validate_accepts_profile_request():
     common.validate_request(_valid())
 
 
-@pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2"])
-def test_validate_accepts_both_profiles(profile):
-    """Requests in profile /1 and /2 pass validation."""
+@pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2", "tes-authzen/3"])
+def test_validate_accepts_every_profile(profile):
+    """Requests in profile /1, /2 and /3 pass validation."""
     req = _valid()
     req["context"]["tes"]["profile"] = profile
     common.validate_request(req)
@@ -125,7 +129,7 @@ def test_validate_accepts_profile_2_subject_properties():
         (("resource", "type"), "tes_service"),
         (("resource", "id"), ""),
         (("resource", "properties"), "x"),
-        (("context", "tes"), {"profile": "tes-authzen/3", "service_id": "s"}),
+        (("context", "tes"), {"profile": "tes-authzen/4", "service_id": "s"}),
         (("context", "tes"), {"profile": "tes-authzen", "service_id": "s"}),
         (("context", "tes"), {"profile": ["tes-authzen/1"], "service_id": "s"}),
         (("context", "tes"), {"profile": "tes-authzen/1"}),
@@ -158,11 +162,32 @@ def test_validate_rejects_unknown_set():
         common.validate_request(req)
 
 
+@pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2"])
+def test_validate_accepts_all_set_before_profile_3(profile):
+    """Under /1 and /2, 'all' is in the vocabulary (the reference policy denies it)."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = profile
+    req["action"] = {"name": "ListTasks", "properties": {"view": "MINIMAL"}}
+    req["resource"] = {"type": "tes_task_set", "id": "all"}
+    common.validate_request(req)
+
+
+@pytest.mark.parametrize("action", ["ListTasks", "CreateTask"])
+def test_validate_rejects_all_set_in_profile_3(action):
+    """Profile /3 removes tes_task_set:all from the vocabulary (spec section 13)."""
+    req = _valid()
+    req["context"]["tes"]["profile"] = "tes-authzen/3"
+    req["action"] = {"name": action, "properties": {}}
+    req["resource"] = {"type": "tes_task_set", "id": "all"}
+    with pytest.raises(common.ContractError, match="unknown task set"):
+        common.validate_request(req)
+
+
 def test_openfga_mapping_always_passes_condition_parameters():
     """Review 2, finding 3: owner and subject ID are never missing."""
     req = _valid()
     out = openfga_shim.to_openfga(req, {"entitlements": "eduperson_entitlement"})
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": [], "delegated": False}
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": []}
     # No task projection: one empty image, which no allowlist prefix matches.
     assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": [""]}}
     assert out["subject"]["id"].startswith("h-")
@@ -189,18 +214,17 @@ def test_openfga_mapping_ignores_profile_2_properties():
     claim_map = {"entitlements": "eduperson_entitlement"}
     out = openfga_shim.to_openfga(extended, claim_map)
     plain_out = openfga_shim.to_openfga(plain, claim_map)
-    assert out["subject"]["properties"] == {**plain_out["subject"]["properties"], "delegated": True}
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"], "delegated": True}
+    assert out["subject"]["properties"] == plain_out["subject"]["properties"]
+    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"]}
     assert out["resource"] == plain_out["resource"]
     assert out["action"] == plain_out["action"]
 
 
-def test_openfga_mapping_marks_delegated_subjects():
-    """Only a subject with an actor is delegated; the flag is always passed."""
+def test_openfga_mapping_ignores_actor():
+    """Without admin powers, a delegated token decides like its subject: no delegation flag."""
     req = _valid()
-    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is False
     req["subject"]["properties"] = {"actor": {"iss": "https://iss", "sub": "proxy"}}
-    assert openfga_shim.to_openfga(req, {})["subject"]["properties"]["delegated"] is True
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"] == {"id": "u"}
 
 
 def test_openfga_mapping_task_set_and_claims():
@@ -226,8 +250,8 @@ def test_parse_claim_map():
         openfga_shim.parse_claim_map("bad")
 
 
-@pytest.mark.parametrize("param", ["id", "delegated"])
-def test_parse_claim_map_rejects_reserved_parameters(param):
-    """Claims can't overwrite the shim's own subject parameters."""
+def test_parse_claim_map_rejects_reserved_parameters():
+    """Claims can't overwrite the shim's own subject parameter ``id``."""
     with pytest.raises(ValueError):
-        openfga_shim.parse_claim_map(f"{param}=x")
+        openfga_shim.parse_claim_map("id=x")
+    assert openfga_shim.parse_claim_map("delegated=x") == {"delegated": "x"}

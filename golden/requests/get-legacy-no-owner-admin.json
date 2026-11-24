@@ -1,9 +1,9 @@
 {
   "case": "11",
-  "description": "legacy task without exact owner, admin",
+  "description": "legacy task without exact owner, admin entitlement: denied (owner only)",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "get-legacy-no-owner-admin",

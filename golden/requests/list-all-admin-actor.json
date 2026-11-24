@@ -1,6 +1,6 @@
 {
   "case": "13",
-  "description": "profile tes-authzen/2, delegated token of an admin: no admin powers, all denied",
+  "description": "profile tes-authzen/2, delegated token of an admin-entitled user: all denied",
   "expect": {
     "reference_policy": {
       "decision": false

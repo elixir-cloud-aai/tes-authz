@@ -1,6 +1,6 @@
 {
   "case": "11",
-  "description": "legacy task without exact owner: only admins",
+  "description": "legacy task without exact owner: reachable by nobody",
   "expect": {
     "reference_policy": {
       "decision": false

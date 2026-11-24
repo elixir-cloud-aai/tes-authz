@@ -1,9 +1,9 @@
 {
   "case": "11",
-  "description": "missing task, admin",
+  "description": "missing task, admin entitlement: denied (owner only)",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "cancel-missing-admin",

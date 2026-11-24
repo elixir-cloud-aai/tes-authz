@@ -1,6 +1,6 @@
 {
   "case": "12",
-  "description": "admin entitlement is a member subgroup",
+  "description": "the tes-admins entitlement is a member subgroup: lists own tasks",
   "expect": {
     "reference_policy": {
       "decision": true

@@ -1,9 +1,9 @@
 {
   "case": "14",
-  "description": "no entitlement: own denied",
+  "description": "no entitlement: own tasks still listed (only CreateTask needs it)",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "list-own-no-claim",
