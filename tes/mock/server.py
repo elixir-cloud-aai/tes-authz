@@ -383,7 +383,7 @@ class Hook:
         return {"type": "user", "id": p.owner_id, "properties": props}
 
     def gate(self, p: Principal) -> None:
-        """Apply the built-in claim rule.
+        """Apply the built-in claim rule (``CreateTask`` only, spec section 5).
 
         Args:
             p: The caller.
@@ -508,7 +508,6 @@ class Hook:
         Raises:
             HttpError: On deny, absence or failure.
         """
-        self.gate(p)
         meta = self._own_meta(p, task_id)
         if self.settings.pdp_url and not self.ask(p, "GetTask", self._res(task_id, meta), {"view": view}):
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
@@ -527,7 +526,6 @@ class Hook:
         Raises:
             HttpError: On deny, absence or failure.
         """
-        self.gate(p)
         meta = self._own_meta(p, task_id)
         if self.settings.pdp_url and not self.ask(p, "CancelTask", self._res(task_id, meta)):
             # Denied: 403 only if the owner may still read the task (case 11d).
@@ -552,7 +550,6 @@ class Hook:
         Raises:
             HttpError: On deny or failure.
         """
-        self.gate(p)
         if self.settings.pdp_url and not self.ask(
             p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}
         ):

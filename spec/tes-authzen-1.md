@@ -40,7 +40,8 @@ Owner only (2026-11-24, [#23](https://github.com/elixir-cloud-aai/tes-authz/issu
 21. §13 (new): profile `tes-authzen/3` removes `tes_task_set:all` from the vocabulary. Breaking on purpose: with few implementations so far, it will never be cheaper than now.
 22. §7, §11: the reference policy has no admins. The entitlement is needed only for `CreateTask`; owners keep `GetTask`, `CancelTask` and their own list after losing it (Q11 revised to option (a)); tasks without an owner are reachable by nobody; `ListTasks` on `all` is never allowed.
 23. §5, §8.2: Funnel SHOULD run with `TaskAccess: Owner` (`All` and `OwnerOrAdmin` don't meet §3); TESK is owner only by default (tesk-api#219).
-24. §12: the response `scope` and `groups` and `resource.properties.groups` move out of `tes-authzen/2` into "Poiesis extensions (outside the contract)", next to `poiesis_api_keys`; a conforming TES needn't send or honour them.
+24. §5, §4.1, §6, §8.2: the built-in claim rule gates `CreateTask` only. It decides who may run tasks; owners keep their own tasks without it, as in the reference policy.
+25. §12: the response `scope` and `groups` and `resource.properties.groups` move out of `tes-authzen/2` into "Poiesis extensions (outside the contract)", next to `poiesis_api_keys`; a conforming TES needn't send or honour them.
 
 Changes since draft 2:
 
@@ -225,7 +226,7 @@ Example (`GetTask` on the caller's own task):
 |---|---|
 | No or invalid token, userinfo failure | 401 |
 | Missing `required_scopes` (Poiesis, existing AuthN check, before the claim rule) | 403 (unchanged) |
-| Claim rule fails | 403 on every action, PDP not called |
+| Claim rule fails (CreateTask only, §5) | 403, PDP not called |
 | PDP deny on CreateTask, ListTasks (`own`) | 403 |
 | Task missing, of another owner, or without an exact owner (GetTask/CancelTask) | 404, PDP not called (§3). Missing and foreign tasks cost the same (no call), also during a PDP outage, so there is no existence oracle |
 | PDP deny on GetTask of an own task | 404 |
@@ -263,13 +264,13 @@ Startup checks: `authz.*` set while auth is disabled → refuse to start (no ano
 
 Rule: allowed if the claim `lookup(rule.name)` (§6: exact name, then dotted path; token first, then userinfo; with userinfo off, the access token only; independent of the PDP allowlist) is a string or list of strings with a value equal to one of `values` or starting with one of `prefixes`. Prefixes are raw string prefixes: operators include the delimiter. LS Login recipe: the group itself as an exact value (`urn:geant:lifescience-ri.eu:group:vo#<authority>`, authority as released by LS Login) plus `urn:geant:lifescience-ri.eu:group:vo:` as prefix for its subgroups; a prefix without the trailing `:` would also admit `…:group:vo2#…`. Off when `name` is unset. Missing claim or wrong type → deny.
 
-Composition: claim rule AND decision. Order: token (issuer, audience, `required_scopes`) → userinfo (if on) → claim rule → store read (get/cancel) → decision (PDP if configured, else built-in owner rule). Both must allow.
+Scope **[profile]**: the rule gates `CreateTask` only. It decides who may run tasks; `GetTask`, `CancelTask` and `ListTasks` reach only the caller's own tasks anyway (§3), and an owner keeps them after losing the claim.
 
-Why AND, not "the PDP replaces the rule" (#113's wording): the rule is an admission gate ("who may use this service"), the PDP decides "what may this user do". With AND, each is meaningful alone, unset is a no-op, an operator who wants PDP-only leaves the rule unset, and a misconfigured PDP can't widen access beyond the gate. Cost: one local comparison.
+Composition: claim rule AND decision. Order: token (issuer, audience, `required_scopes`) → userinfo (if on) → claim rule (`CreateTask`) or store read (get/cancel) → decision (PDP if configured, else built-in owner rule). Both must allow.
 
-Consequence: every caller must carry the claim. Client-credentials tokens (service clients, and proTES, which the TES sees as the caller, §1) carry no user entitlements, so they get 403 when the rule is set. Deployments with service clients or behind proTES leave the rule unset and express "entitled users or client X" in the PDP (e.g. by `subject.properties.client_id`). No OR or exemption keys in the TES: that would be policy. The operator docs say so.
+Why AND, not "the PDP replaces the rule" (#113's wording): the rule is an admission gate ("who may run tasks on this service"), the PDP decides "what may this user do". With AND, each is meaningful alone, unset is a no-op, an operator who wants PDP-only leaves the rule unset, and a misconfigured PDP can't widen access beyond the gate. Cost: one local comparison.
 
-The claim rule gates every action, so with it set, an owner who loses the claim also loses their tasks. Deployments where owners keep get, cancel and their own list after losing the entitlement (as the reference policy does, §7) leave the rule unset and require the entitlement in the PDP for `CreateTask` only.
+Consequence: every caller that creates tasks must carry the claim. Client-credentials tokens (service clients, and proTES, which the TES sees as the caller, §1) carry no user entitlements, so they get 403 on `CreateTask` when the rule is set. Deployments with service clients or behind proTES leave the rule unset and express "entitled users or client X" in the PDP (e.g. by `subject.properties.client_id`). No OR or exemption keys in the TES: that would be policy. The operator docs say so.
 
 Built-in default (no PDP): Poiesis and TESP: today's owner rule (create allowed; get/cancel/list own tasks). TESK: owner only by default (tesk-api#219). Funnel keeps `TaskAccess`; deployments SHOULD set `TaskAccess: Owner`, since `All` (Funnel's default: every admitted user sees every task) and `OwnerOrAdmin` (admins see every task) don't meet §3. When a PDP is set, these are ignored, the PDP decides on own tasks, and the owner filter of §3 applies regardless. Equivalence across implementations is required for the claim rule and the PDP path only.
 
@@ -299,18 +300,17 @@ CreateTask(p, task):  gate(p); drop client id/state/creation_time/logs
 own(p, id)        = meta = store.read_meta(id)                     # owner, state, tags; may be None
                     if not meta or meta.owner != p.owner_id: 404     # missing, foreign or ownerless: no PDP call
                     return meta
-GetTask(p, id, view): gate(p); meta = own(p, id)
+GetTask(p, id, view): meta = own(p, id)                               # no claim rule: owners keep their tasks
                       if pdp and not ask(p,"GetTask",{type:"tes_task",id,properties:meta},{view}): 404
-CancelTask(p, id):    gate(p); meta = own(p, id)
+CancelTask(p, id):    meta = own(p, id)
                       if pdp and not ask(p,"CancelTask",res(id,meta)):
                           if ask(p,"GetTask",res(id,meta)): 403 else 404
                       proceed
-ListTasks(p, f, view):gate(p)
-                      if pdp and not ask(p,"ListTasks",{tes_task_set,"own"},{view}): 403
+ListTasks(p, f, view):if pdp and not ask(p,"ListTasks",{tes_task_set,"own"},{view}): 403
                       store.list(f + owner=p.owner_id)
 ```
 
-**Poiesis** (`poiesis/api/auth.py`, `routes/tasks.py`, `db/tasks.py`, `settings.py`). A new `authz.py` holds `gate`, `ask`, `subject` and the list scope; a FastAPI dependency next to `get_principal` runs the gate. `Principal.claims` already has the validated claims. `principal_claim` keeps its current lookup (`_walk_claim_path`, dotted path only): making it exact-name-first would silently change task owners in existing deployments whose claim names contain dots. Exact-name-first applies only to `lookup` (claim rule and allowlist), a new helper. A cheap owner/state/tags query reads the metadata; anything not owned by the caller is 404 before the PDP call. Lists keep `filters.principal` set; keyset cursor unchanged. Poiesis's `authz.sharing` and `authz.adminRead` are extensions outside the contract (§12): a deployment that turns them on doesn't meet §3. Also: ignore client task IDs. Hard: little; `principal_claim` may differ from `sub`, so `subject.id` and `properties.sub` can differ.
+**Poiesis** (`poiesis/api/auth.py`, `routes/tasks.py`, `db/tasks.py`, `settings.py`). A new `authz.py` holds `gate`, `ask`, `subject` and the list scope; the `CreateTask` route runs the gate. `Principal.claims` already has the validated claims. `principal_claim` keeps its current lookup (`_walk_claim_path`, dotted path only): making it exact-name-first would silently change task owners in existing deployments whose claim names contain dots. Exact-name-first applies only to `lookup` (claim rule and allowlist), a new helper. A cheap owner/state/tags query reads the metadata; anything not owned by the caller is 404 before the PDP call. Lists keep `filters.principal` set; keyset cursor unchanged. Poiesis's `authz.sharing` and `authz.adminRead` are extensions outside the contract (§12): a deployment that turns them on doesn't meet §3. Also: ignore client task IDs. Hard: little; `principal_claim` may differ from `sub`, so `subject.id` and `properties.sub` can differ.
 
 **TESK** (`config/security/ResourceServerConfiguration.java`, `tes/service/TesService.java`, `TesServiceImpl.java`, `k8s/service/KubernetesClientWrapper.java`, `CreatorLabels`). The decision lives in a Spring bean (`@tesAuthz`) called from the existing `@PreAuthorize`/`@PostAuthorize` SpEL; the bean switches on "PDP set?" because annotations are static. AuthN is userinfo introspection, so the resolved view comes from userinfo only; `User` must keep `iss` and the raw userinfo claims. Subject properties TESK can't fill for user tokens: `client_id` and `scope` (userinfo carries neither); service-client tokens are decoded (`ServiceClientTokenServices`) and fill them. TESK gets its own golden values for these fields, and policies that must work with TESK don't use `scope`/`client_id` to judge users. Missing and foreign tasks are 404 before any PDP call (§3), which is what TESK's not-found path does already. List always uses the creator hash label; page tokens need no scope binding (§3.5). Owner = the creator annotation (exact ID, checked against the hash label). Legacy tasks (only `creator-user-id`, lossy `@`→`_`) have no exact owner, so nobody reaches them under a PDP (§3); operators with legacy tasks keep the built-in model until those tasks expire, or clean them up in the cluster. The group model (`GROUP_NAME`, managers) is not part of the contract.
 
@@ -365,7 +365,8 @@ Cases 1 and 22 have per-TES expectations (built-in defaults differ, §5); all ot
 | 3 | rule `values=[a]`, claim `a` | CreateTask | 200 |
 | 4 | rule `prefixes=[urn:g:vo:]`, claim `urn:g:vo:sub#x` | CreateTask | 200 |
 | 4b | rule `prefixes=[urn:g:vo:]`, claim `urn:g:vox#x` | CreateTask | 403 |
-| 5 | rule set, claim missing or no match | each of 4 actions | 403, PDP not called |
+| 5 | rule set, claim missing or no match | CreateTask / GetTask, CancelTask, ListTasks | 403, PDP not called / not gated: decided as without the rule |
+| 5e | rule set, owner without the claim | GetTask / ListTasks / CancelTask on own task | 200 / own tasks / 200 |
 | 5b | rule set (`values=[a]`), no PDP, empty claims allowlist | CreateTask with claim `a` | 200 (rule doesn't depend on the allowlist) |
 | 5c | rule set by dotted path `ctx.groups` / by URI name `https://e.org/groups` | CreateTask with matching claim | 200 |
 | 5d | rule set, client-credentials token without the claim | CreateTask | 403 |
@@ -385,7 +386,7 @@ Cases 1 and 22 have per-TES expectations (built-in defaults differ, §5); all ot
 | 13 | PDP: own=true | ListTasks, pages of 1 | only own tasks, complete, no duplicates, sizes ≤ 1 |
 | 14 | PDP: own=false | ListTasks | 403; only `own` asked |
 | 15 | PDP times out / 500 / `{"decision":"true"}` / no `decision` | any action | 503, logged, nothing executed |
-| 16 | PDP set, rule fails | any | 403, PDP not called |
+| 16 | PDP set, rule fails | CreateTask | 403, PDP not called |
 | 17 | rule passes, PDP denies | CreateTask | 403 |
 | 18 | client sends `X-Request-ID`, identity headers, owner-like tags | CreateTask | subject from token only; PDP sees a server-generated request ID |
 | 19 | allowlist `[eduperson_entitlement]` | any | `properties.claims` has only that claim; no token anywhere in the request |
@@ -419,13 +420,13 @@ Recommendation: two PRs. Before either opens, a comment on #113 moves userinfo t
 Decided by the maintainers, 2026-11-16:
 
 - **D1, claim rule source:** the rule's `lookup` reads the token, then userinfo (§5, §6). With userinfo off (the default), it is token-only. TESK is equivalent. (Was Q1.)
-- **D2, composition:** claim rule AND decision service; service clients and proTES are handled by leaving the rule unset and expressing them in the PDP (§5). Replaces #113's "PDP decides instead of the rule". (Was Q10.)
+- **D2, composition:** claim rule AND decision service (the rule gates `CreateTask` only since D5); service clients and proTES are handled by leaving the rule unset and expressing them in the PDP (§5). Replaces #113's "PDP decides instead of the rule". (Was Q10.)
 - **D3, decision-service failure:** 503 for every failure kind (timeout, connection error, non-200, malformed body); proposing 503 for the TES OpenAPI upstream is optional and not blocking. (Was Q3.)
 - **D4, test scope:** the full TES × engine matrix, phased (§8.1): phase 1 Poiesis + OPA + OpenFGA; phase 2 right after: TESK, Funnel and TESP hooks against the same harness.
 
 Decided by the maintainers, 2026-11-24 (elixir-cloud-aai/generic-issues#124):
 
-- **D5, owner only:** list, get and cancel only by the owner, admins included; no group sharing in the TES; sharing is a client concern; operators act through the infrastructure; group membership only decides who may create tasks (§3, §7, §13). Decides Q2 (none) and revises Q11 (option (a)).
+- **D5, owner only:** list, get and cancel only by the owner, admins included; no group sharing in the TES; sharing is a client concern; operators act through the infrastructure; group membership only decides who may create tasks, so the claim rule gates `CreateTask` only (§3, §5, §7, §13). Decides Q2 (none) and revises Q11 (option (a)).
 
 ## 11. Open questions
 

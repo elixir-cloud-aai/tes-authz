@@ -108,7 +108,7 @@ There are no admins: no entitlement reads, lists or cancels another owner's task
 
 Anything else is denied, and so is any request with a profile other than `tes-authzen/1`, `/2` and `/3`, or an unknown `service_id`.
 
-If you also set the TES's built-in claim rule (`authz.requiredClaim.*`), it gates every action, so an owner who loses the claim loses their tasks too. To keep owner access after revocation, leave the rule unset: the policy already requires the entitlement for `CreateTask`.
+The TES's built-in claim rule (`authz.requiredClaim.*`), if set, gates `CreateTask` only (spec §5), so it doesn't take owners' tasks away either.
 
 Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and `/3` and ignores the additions, with these consequences for Poiesis (checked against Poiesis 0fa56aa; see its [authorization docs](https://github.com/JaeAeich/poiesis/blob/milestone/docs/app/docs/concepts/authorization.md)):
 
@@ -147,4 +147,4 @@ The shim scopes task sets per service (`<service>/own`). That way an unknown `se
 
 ## Owner rule
 
-Owners read, list and cancel their own tasks with or without a current entitlement (spec Q11, revised to option (a)); the entitlement only decides who may create tasks. An operator who wants access to end with the entitlement adds `member` to the owner branch in their copy of the policy (OPA: the `GetTask`/`CancelTask` rule and the `own` list; OpenFGA: `owner and member`, with a `member` relation and tuple), or sets the TES's claim rule. Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `list-own-no-claim`, `get-other-no-entitlement` and the `*-admin*` rows.
+Owners read, list and cancel their own tasks with or without a current entitlement (spec Q11, revised to option (a)); the entitlement only decides who may create tasks. An operator who wants access to end with the entitlement adds `member` to the owner branch in their copy of the policy (OPA: the `GetTask`/`CancelTask` rule and the `own` list; OpenFGA: `owner and member`, with a `member` relation and tuple); the TES's claim rule doesn't do it, since it gates `CreateTask` only. Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `list-own-no-claim`, `get-other-no-entitlement` and the `*-admin*` rows.

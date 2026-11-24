@@ -34,14 +34,26 @@ def test_case_02_service_info_open(start, stub):
 
 
 def test_case_05_rule_fails_pdp_not_called(start, stub):
-    """Case 5/16: a failing claim rule gives 403 on all actions; no PDP call."""
+    """Case 5/16: a failing claim rule gives 403 on CreateTask without a PDP call; other actions aren't gated."""
     stub.script(default=ALLOW)
     tes = start(decision_service="stub", required_claim=RULE, claims=ALLOWLIST)
     assert tes.create(CAROL)[0] == 403
-    assert tes.call("GET", "/tasks/x", CAROL)[0] == 403
-    assert tes.call("GET", "/tasks", CAROL)[0] == 403
-    assert tes.call("POST", "/tasks/x:cancel", CAROL)[0] == 403
     assert stub.requests() == []
+    assert tes.call("GET", "/tasks", CAROL) == (200, {"tasks": []})
+    assert tes.call("GET", "/tasks/x", CAROL)[0] == 404
+    assert tes.call("POST", "/tasks/x:cancel", CAROL)[0] == 404
+
+
+def test_case_05e_owner_keeps_tasks_without_the_claim(start, stub):
+    """Case 5e: an owner who lost the claim still gets, lists and cancels their own tasks."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", required_claim=RULE, claims=ALLOWLIST)
+    task_id = tes.create(ALICE)[1]["id"]
+    revoked = Identity(ALICE.sub, {"scope": SCOPE})
+    assert tes.create(revoked)[0] == 403
+    assert tes.call("GET", f"/tasks/{task_id}", revoked)[0] == 200
+    assert [t["id"] for t in tes.call("GET", "/tasks", revoked)[1]["tasks"]] == [task_id]
+    assert tes.call("POST", f"/tasks/{task_id}:cancel", revoked)[0] == 200
 
 
 def test_case_04b_near_miss_prefix(start):
