@@ -193,7 +193,7 @@ def test_shims_publish_authzen_metadata(services):
         assert status == 200 and body["access_evaluation_endpoint"] == engine.host_url
 
 
-def test_openfga_missing_parameter_without_membership_never_allows(fga_eval):
-    """A request without ``resource_owner`` gets 400 or a deny from OpenFGA, never an allow."""
+def test_openfga_missing_owner_without_entitlement_is_an_error(fga_eval):
+    """``GetTask`` evaluates ``is_owner`` alone: a missing ``resource_owner`` is 400, also for non-members."""
     status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {}))
-    assert status == 400 or (status, body) == (200, {"decision": False})
+    assert status == 400 and "resource_owner" in body["message"]

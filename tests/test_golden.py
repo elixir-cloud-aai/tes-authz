@@ -43,6 +43,19 @@ def test_allowed_cases_follow_the_profile():
             common.validate_request(case.request)
 
 
+def test_allowed_cases_are_owner_only():
+    """Owner only (spec section 3): no allowed case reaches another owner's task or a set other than ``own``."""
+    for case in load_cases():
+        if not case.expect.get("reference_policy"):
+            continue
+        resource, subject_id = case.request["resource"], case.request["subject"]["id"]
+        if resource["type"] == "tes_task":
+            owner = resource.get("properties", {}).get("owner")
+            assert isinstance(owner, str) and owner and owner == subject_id, case.name
+        else:
+            assert resource["id"] == "own", case.name
+
+
 def test_tes_recordings_are_read_by_default(monkeypatch):
     """The recordings in `golden/<tes>/` are replayed without any setting."""
     monkeypatch.delenv("TES_AUTHZ_GOLDEN_DIRS", raising=False)
