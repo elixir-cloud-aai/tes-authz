@@ -1,4 +1,4 @@
-# Reference decision service of tes-authzen/1 and /2 on Kubernetes: OPA with the
+# Reference decision service of tes-authzen/1 to /3 on Kubernetes: OPA with the
 # reference policy, behind the AuthZEN front (`shims/opa_front.py`), in one
 # pod. Only the front's port is served (Service `tes-authz`, ClusterIP);
 # OPA listens on the pod's loopback, so its unauthenticated Data API is never

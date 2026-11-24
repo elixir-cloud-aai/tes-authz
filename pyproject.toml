@@ -1,7 +1,7 @@
 [project]
 name = "tes-authz-service"
 version = "0.1.0"
-description = "Engine side of the TES AuthZ contract (tes-authzen/1 and /2): reference decision services, shims and test harness"
+description = "Engine side of the TES AuthZ contract (tes-authzen/1 to /3): reference decision services, shims and test harness"
 requires-python = ">=3.12"
 dependencies = []
 

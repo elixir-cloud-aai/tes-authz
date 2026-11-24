@@ -8,7 +8,7 @@
 
 ## The specification
 
-A TES keeps authentication (OIDC), an owner stamped on every task, and a thin hook that asks one standard AuthZEN Access Evaluation per decision; everything that is policy lives in a decision service of the operator's choice. Without configuration, every TES behaves as today. The specification covers:
+A TES keeps authentication (OIDC), an owner stamped on every task, and a thin hook that asks one standard AuthZEN Access Evaluation per decision; everything that is policy lives in a decision service of the operator's choice. A TES returns, lists and cancels only the caller's own tasks, whatever the decision service answers (owner only; no admin views, sharing belongs in clients). Without configuration, every TES behaves as today. The specification covers:
 
 - [§3 The contract](spec/tes-authzen-1.md#3-the-contract-authzen-mapping): subject, actions, the two resource types, context, list filtering, userinfo and the exact request shape
 - [§4 Failure semantics, configuration, security](spec/tes-authzen-1.md#4-failure-semantics-configuration-security): status codes, configuration keys, startup checks
@@ -17,11 +17,12 @@ A TES keeps authentication (OIDC), an owner stamped on every task, and a thin ho
 - [§7 Reference decision service and engines](spec/tes-authzen-1.md#7-reference-decision-service-and-engines): the reference policy and how OPA, OpenFGA, Cedar, Casbin, Cerbos and Topaz plug in
 - [§8 Test plan](spec/tes-authzen-1.md#8-test-plan): test layers and the shared conformance cases
 - [§10 Decisions](spec/tes-authzen-1.md#10-decisions) and [§11 Open questions](spec/tes-authzen-1.md#11-open-questions)
-- [§12 `tes-authzen/2`](spec/tes-authzen-1.md#12-tes-authzen2-delta-to-1): the compatible extension Poiesis sends (authenticator, actor and API key properties, task groups, response context)
+- [§12 `tes-authzen/2`](spec/tes-authzen-1.md#12-tes-authzen2-delta-to-1): the extension Poiesis sends (authenticator, actor and API key properties, response context; task sharing marked as Poiesis extensions outside the contract)
+- [§13 `tes-authzen/3`](spec/tes-authzen-1.md#13-tes-authzen3-delta-to-2): the current profile, without the task set `all`
 
 ## Reference tooling
 
-Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint (they accept `tes-authzen/2` too), the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). They show that the specification works with real engines and TES implementations; read the specification first.
+Around the specification, this repository also holds **reference tooling**: decision services for OPA and OpenFGA behind the `tes-authzen/1` endpoint (they accept `tes-authzen/2` and `/3` too), the shims they need, and a conformance harness that TES implementations plug into (Poiesis first, then TESK, Funnel and TESP). They show that the specification works with real engines and TES implementations; read the specification first.
 
 ### Quick start
 

@@ -52,7 +52,7 @@ kubectl -n "$namespace" rollout restart deployment/tes-authz
 The policy data (`data.json`) has the fields of `config/reference-policy.json`:
 
 - `entitlement_claim`: the claim in `subject.properties.claims` with the caller's groups. The TES must send it: in Poiesis, `authz.decisionService.claims: [eduperson_entitlement]`.
-- `members` and `admins`: exact `values` and raw string `prefixes` of the entitlements. Members create tasks and list, read and cancel their own; admins read, list and cancel all tasks, but create tasks only if they are members too, so list the admin group under `members` as well if admins should run tasks. With no admin `values` and `prefixes`, nobody sees other callers' tasks: everyone reads, lists and cancels only their own.
+- `members`: exact `values` and raw string `prefixes` of the entitlement that may create tasks (e.g. one compute group). It is needed for `CreateTask` only: everyone reads, lists and cancels their own tasks, also after the entitlement is revoked, and nobody reaches other owners' tasks. There is no admin group; the setup job of OpenFGA refuses a data file that still has `admins` (see the upgrade notes below).
 - `image_prefixes`: allowed executor image prefixes, compared as raw strings (`alpine:3` doesn't start with `docker.io/library/`); an empty list allows any image, but leaving the field out denies every creation.
 - `services`: the service-info IDs of the TES implementations the policy answers for (Poiesis: `org.ga4gh.poiesis`); requests from any other service are denied.
 
@@ -95,30 +95,42 @@ yq 'del(.spec.template.spec.securityContext.runAsUser, .spec.template.spec.secur
 
 ## Reference policy
 
-The policy implements spec [§7](specification.md#7-reference-decision-service-and-engines) with LS Login entitlements:
+The policy implements spec [§7](specification.md#7-reference-decision-service-and-engines) with LS Login entitlements. It is owner only (spec [§3](specification.md#3-the-contract-authzen-mapping)): a TES returns, lists and cancels only the caller's own tasks, whatever the decision service answers, and the policy matches that.
 
 | Action | Resource | Allowed if |
 |---|---|---|
 | `CreateTask` | `tes_task_set:own` | the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
-| `GetTask`, `CancelTask` | `tes_task:<id>` | the caller is a member and `resource.properties.owner == subject.id` (owner present and not empty), or the caller is an admin; a missing or legacy owner: admins only. Owners need a current entitlement: revoking it ends their access at once (spec Q11, option b) |
-| `ListTasks` | `tes_task_set:own` | the caller is a member |
-| `ListTasks` | `tes_task_set:all` | the caller is an admin |
+| `GetTask`, `CancelTask` | `tes_task:<id>` | `resource.properties.owner == subject.id` (owner present and not empty), with or without a current entitlement; a task without an owner: nobody |
+| `ListTasks` | `tes_task_set:own` | always (the TES lists only the caller's tasks) |
+| `ListTasks` | `tes_task_set:all` | never (profile `tes-authzen/3` doesn't have it) |
 
-An admin needs an admin entitlement and must not be a delegated token (an `actor` key in `subject.properties`, sent from `tes-authzen/2` on): a delegated token of an admin has member powers only. The policy applies this under every profile, also to a `/1` request with an `actor`.
+There are no admins: no entitlement reads, lists or cancels another owner's tasks. Operators inspect and clean up tasks through the infrastructure (the TES's database or cluster), and sharing belongs in clients. A delegated token (an `actor` in `subject.properties`) has its subject's powers.
 
-Anything else is denied, and so is any request with a profile other than `tes-authzen/1` and `tes-authzen/2` or an unknown `service_id`.
+Anything else is denied, and so is any request with a profile other than `tes-authzen/1`, `/2` and `/3`, or an unknown `service_id`.
 
-Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and ignores the additions, with these consequences for Poiesis (checked against Poiesis 0fa56aa; see its [authorization docs](https://github.com/JaeAeich/poiesis/blob/milestone/docs/app/docs/concepts/authorization.md)):
+If you also set the TES's built-in claim rule (`authz.requiredClaim.*`), it gates every action, so an owner who loses the claim loses their tasks too. To keep owner access after revocation, leave the rule unset: the policy already requires the entitlement for `CreateTask`.
 
-- **Delegated tokens** (`subject.properties.actor`, under every profile) keep their subject's member powers but never get admin powers, as in Poiesis without a decision service (which also refuses delegated tokens unless the actor is in the issuer's `actors`). The policy doesn't look at who the actor is: if your issuers mint delegated tokens (RFC 8693 token exchange) for actors you don't trust with member powers, deny them in your policy.
-- **API keys** (`via: apikey`) carry the claims snapshot taken when the key was minted, and the policy ignores `key_age` and `snapshot_age`. Revoking an entitlement therefore ends the access of that user's keys only when they expire (Poiesis `auth.apiKeys.maxTtl`), not at once as for tokens (spec Q11). Shorten the key lifetime, or refuse old snapshots in your policy.
-- **Admins** see other owners' tasks only if Poiesis's `authz.sharing` is on: with it off, Poiesis never asks `ListTasks` on `all` or about other owners' tasks.
+Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delta-to-1)). The reference policy decides it like `/1` and `/3` and ignores the additions, with these consequences for Poiesis (checked against Poiesis 0fa56aa; see its [authorization docs](https://github.com/JaeAeich/poiesis/blob/milestone/docs/app/docs/concepts/authorization.md)):
+
+- **Sharing and admin read** (`authz.sharing`, `authz.adminRead`) are Poiesis extensions outside the contract (spec §12), off by default. Keep them off: a deployment that turns them on no longer meets the owner-only rule, and the policy denies what they would ask anyway (`ListTasks` on `all`, other owners' tasks).
+- **Delegated tokens** (`subject.properties.actor`) have their subject's powers. The policy doesn't look at who the actor is: if your issuers mint delegated tokens (RFC 8693 token exchange) for actors you don't trust with their subjects' powers, deny them in your policy.
+- **API keys** (`via: apikey`) carry the claims snapshot taken when the key was minted, and the policy ignores `key_age` and `snapshot_age`. Revoking an entitlement therefore stops `CreateTask` with that user's keys only when they expire (Poiesis `auth.apiKeys.maxTtl`). Shorten the key lifetime, or refuse old snapshots in your policy.
 - **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
-- **Responses**: the policy never answers with a `context.tes`, so Poiesis's `scope` and `groups` sharing stays unused.
+- **Responses**: the policy never answers with a `context.tes`.
 
-To change any of this, extend the policy.
+To change any of this, extend the policy; a policy that grants other owners' tasks has no effect on a conforming TES.
 
-**Upgrade order**: a decision service without `tes-authzen/2` support (before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)) denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service. The OpenFGA setup job and shim must come from the same version: the new admin tuples need the `subject_delegated` parameter that only the new shim sends. When you upgrade from a shim before [#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19): the new shim also reserves the parameter name `delegated` (as it did `id`), so an `FGA_CLAIMS` entry `delegated=<claim>` makes it fail at start (`ValueError: bad FGA_CLAIMS entry`). Only a shim started with `FGA_STORE_ID` and no state file can have such an entry; with a state file, `FGA_CLAIMS` must match the policy data file anyway. Rename such an entry, and the condition parameter `subject_delegated` it fed in your OpenFGA model, before you upgrade.
+### Upgrade notes
+
+**Owner only and `tes-authzen/3`** ([#23](https://github.com/elixir-cloud-aai/tes-authz/issues/23), breaking):
+
+- Remove `admins` from your policy data. OPA ignores it; the OpenFGA setup job refuses to start with it (`the policy data file has 'admins'`), so that nobody assumes admins still see other tasks.
+- `members` now means "may create tasks" only. Owners keep get, cancel and their own list after their entitlement is revoked (it was the other way round before, spec Q11); users without the entitlement get an empty list instead of `403`.
+- Callers with an admin entitlement lose access to other owners' tasks and to `ListTasks` on `all`. If you relied on it, inspect tasks through the infrastructure instead.
+- The decision services accept `tes-authzen/3` (and still `/1` and `/2`). Deploy this version before a TES switches to `/3`; an older one denies every `/3` request. A `/3` request on `tes_task_set:all` is a contract error (deny).
+- OpenFGA: deploy the model, the setup job and the shim together. The model has no `admin` relation, no `member` relation on `tes_service`, no `entitled_undelegated` condition, and the `own` lister tuple has no condition. The shim no longer sends `subject_delegated` and no longer reserves the `FGA_CLAIMS` parameter name `delegated`; a store set up by an older job still has admin and `all` tuples, so run the new setup job (a new store) rather than reusing it.
+
+**`tes-authzen/2`** ([#19](https://github.com/elixir-cloud-aai/tes-authz/issues/19)): a decision service without `tes-authzen/2` support denies every `tes-authzen/2` request (`decision: false`, so Poiesis answers `403` or `404`). Deploy a commit with it before Poiesis sends `/2`, and on every instance behind the Service.
 
 ## OpenFGA mapping (shim)
 
@@ -126,13 +138,13 @@ To change any of this, extend the policy.
 |---|---|
 | `subject` | `user:h-<sha256(subject.id)>`, properties `id` = the real ID, and `entitlements` (list) from the policy's `entitlement_claim` |
 | `tes_task:<id>` | `tes_service:<service>`, properties `owner` (`""` when absent) and `images` (`[""]` when the task projection or its executor list is missing or malformed, so an allowlist denies) |
-| `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties |
+| `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties (`all` has no tuples, so it is denied) |
 | `action.name` | the relation of the same name |
 
-OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `subject_delegated` (whether the subject has an `actor`), `resource_owner` and `resource_images`. The shim always sends all five (review 2, finding 3); `FGA_CLAIMS` can't use the parameter names `id` and `delegated`. Ownership is the condition `is_owner` on a `user:*` tuple. Membership is the condition `entitled`, admin rights the condition `entitled_undelegated` (`entitled` and not delegated), on `user:*` tuples whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `(owner and member) or admin`, with a `member` relation carrying the members' `entitled` tuple.
+OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3); `FGA_CLAIMS` can't use the parameter name `id`. Ownership is the condition `is_owner` on a `user:*` tuple. Membership is the condition `entitled` on the `creator` tuple of `own`, whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `owner`; `ListTasks` on `own` is an unconditioned `user:*` tuple.
 
 The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec [§7](specification.md#7-reference-decision-service-and-engines) only names the `tes_service` rewrite for tasks, so this is a small addition.
 
 ## Owner rule
 
-Owner rule (Q11, decided option b): owners read and cancel their own tasks only while they hold a member entitlement, so in a PDP-only deployment revoking the entitlement ends access at once, as the claim rule does when it is set. An operator who wants owners to keep access after leaving the group drops `member` from the owner branch in their copy of the policy (OPA: `owner_or_admin`; OpenFGA: `owner and member`). Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `get-other-no-entitlement` and `get-own-admin`. Because `is_owner` now sits inside `owner and member`, a request from a non-member that lacks `resource_owner` or `subject_id` may get a plain deny from OpenFGA instead of the 400 of finding F1; it is never an allow, and the shim always sends both parameters, so the shim, not OpenFGA, guarantees them.
+Owners read, list and cancel their own tasks with or without a current entitlement (spec Q11, revised to option (a)); the entitlement only decides who may create tasks. An operator who wants access to end with the entitlement adds `member` to the owner branch in their copy of the policy (OPA: the `GetTask`/`CancelTask` rule and the `own` list; OpenFGA: `owner and member`, with a `member` relation and tuple), or sets the TES's claim rule. Golden cases `get-own-no-entitlement`, `get-own-near-miss`, `cancel-own-no-entitlement`, `list-own-no-claim`, `get-other-no-entitlement` and the `*-admin*` rows.
