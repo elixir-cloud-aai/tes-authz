@@ -135,7 +135,7 @@ def check_settings(settings: Settings) -> None:
             operation, an unknown failure mode, or ``create`` missing from
             ``operations`` or set to ``open``.
     """
-    if settings.pdp_url is None and (settings.operations != ("create",) or settings.failure):
+    if settings.pdp_url is None and (tuple(settings.operations) != ("create",) or settings.failure):
         raise ValueError("authz.operations and authz.failure need authz.decisionService.url")
     unknown = [op for op in (*settings.operations, *settings.failure) if op not in OPERATIONS]
     if unknown:

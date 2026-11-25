@@ -435,11 +435,11 @@ Cases 1 and 22 have per-TES expectations (built-in defaults differ, §5); all ot
 | 8 | PDP denies | CreateTask | 403, nothing stored |
 | 9 | PDP allows everything; default operations | GetTask / CancelTask on another's task | 404 / 404; PDP not called; task unchanged |
 | 10 | `get`, `cancel` switched on; PDP denies GetTask and CancelTask | GetTask / CancelTask on an own task | 404 / 404; task unchanged |
-| 10b | `get`, `cancel` switched on; PDP allows GetTask, denies CancelTask / only `cancel` switched on, PDP denies it | CancelTask on an own task / on an own and a foreign task | 403 / 403 and 404 |
+| 10b | `get`, `cancel` switched on; PDP allows GetTask, denies CancelTask / only `cancel` switched on, PDP denies it | CancelTask on an own task / on an own and a foreign task / only `get` switched on, PDP allows everything: CancelTask on a foreign task | 403 / 403 and 404 / 404, no `CancelTask` or `GetTask` call |
 | 11 | PDP allows or denies; default operations | GetTask / CancelTask on missing ID | 404; PDP not called |
 | 11b | `get`, `list`, `cancel` switched on, failing closed; PDP down | GetTask and CancelTask on an own, a missing and a foreign ID; ListTasks | 503 for all (no existence oracle) |
 | 11c | PDP allows; default operations | CancelTask on a missing and on a foreign ID | 404 for both; PDP not called |
-| 11d | `get`, `cancel` switched on; PDP denies | CancelTask on an own task | 404; PDP asked `CancelTask`, then `GetTask`, with the task's properties and distinct request IDs |
+| 11d | `get`, `cancel` switched on; PDP denies | CancelTask on an own task | 404; PDP asked `CancelTask`, then `GetTask`, with the task's properties and distinct request IDs; if the `GetTask` call fails (get closed): 503 |
 | 12 | PDP allows everything (plain allow); default operations / `list` switched on | ListTasks, pages of 2 | only own tasks, complete, no duplicates; no call / `ListTasks` on `own` once per page; `all` never asked |
 | 13 | default operations | ListTasks, pages of 1 | only own tasks, complete, no duplicates, sizes ≤ 1 |
 | 14 | PDP denies everything; `list` switched on / default operations | ListTasks | 200 with an empty list (scope `none`), only `own` asked / the caller's own tasks, PDP not called |
@@ -458,7 +458,7 @@ Cases 1 and 22 have per-TES expectations (built-in defaults differ, §5); all ot
 | 26 | `get`, `cancel` switched on; PDP allows everything | GetTask / CancelTask on another owner's task | 200 / 200 (the decision service widens); requests name the task's owner and the caller |
 | 27 | `get`, `cancel` switched on | GetTask on an own, a foreign and a missing ID; CancelTask on a missing ID | one call per ID, the missing one with `properties: {}`; 404 on deny, and for the missing ID also on allow |
 | 28 | `list` switched on; answer plain allow / `list_scope` `own` / `all` / `none` / deny / unknown or malformed scope | ListTasks, pages of 1 | own tasks / own tasks / every task / empty / empty / 503 |
-| 29 | `get`, `list`, `cancel` switched on, `authz.failure` `open` for all three / for `list` only; PDP down | each operation on own and foreign tasks | owner rule (own 200, foreign and missing 404, own list) / list owner only, get and cancel 503; `CreateTask` 503 |
+| 29 | `get`, `list`, `cancel` switched on, `authz.failure` `open` for all three / for `list` only; PDP down | each operation on own and foreign tasks | owner rule (own 200, foreign and missing 404, own list) / list owner only, get and cancel 503; `CreateTask` 503; only `cancel` open: a foreign or missing cancel is 404 without a `GetTask` call |
 | 30 | `authz.operations` without `create`, unknown operation or failure value, `authz.failure.create: open`, switch without a PDP URL | startup | refuses to start |
 
 ### 8.3 Harness

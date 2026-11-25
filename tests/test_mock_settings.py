@@ -20,6 +20,7 @@ PDP = "http://127.0.0.1:1/access/v1/evaluation"
         server.Settings(pdp_url=PDP, operations=("create", "get", "list", "cancel")),
         server.Settings(pdp_url=PDP, operations=("create", "list"), failure={"list": "open", "get": "closed"}),
         server.Settings(pdp_url=PDP, failure={"create": "closed"}),
+        server.Settings(operations=["create"]),  # type: ignore[arg-type]
     ],
 )
 def test_valid_settings_start(settings: server.Settings) -> None:
@@ -124,10 +125,11 @@ def test_task_without_owner_counts_as_missing() -> None:
 
     hook.ask = allow_all  # type: ignore[method-assign]
     alice = server.Principal({"sub": "alice"}, owner_id="alice")
-    for call in (lambda: hook.get(alice, "t-legacy", "MINIMAL"), lambda: hook.cancel(alice, "t-legacy")):
-        with pytest.raises(server.HttpError) as err:
-            call()
-        assert err.value.status == 404
+    with pytest.raises(server.HttpError) as got:
+        hook.get(alice, "t-legacy", "MINIMAL")
+    with pytest.raises(server.HttpError) as cancelled:
+        hook.cancel(alice, "t-legacy")
+    assert (got.value.status, cancelled.value.status) == (404, 404)
     assert [r["properties"] for r in asked] == [{}, {}]
     assert store.tasks["t-legacy"]["state"] == "QUEUED"
     assert [t["id"] for t in hook.list(alice, 10, None, "MINIMAL")["tasks"]] == ["t-alice", "t-bob"]
