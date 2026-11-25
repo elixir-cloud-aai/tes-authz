@@ -1,6 +1,6 @@
 site_name: TES AuthZ
 site_description: >-
-  The TES AuthZ specification (tes-authzen/1 and /2) and its reference tooling
+  The TES AuthZ specification (tes-authzen/1 to /3) and its reference tooling
   by ELIXIR On-Cloud
 # Read the Docs serves each version under its own path (e.g., `/en/latest/`)
 site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://tes-authz.readthedocs.io/en/latest/"]

@@ -1,9 +1,9 @@
 {
   "case": "9",
-  "description": "admin reads someone else's task",
+  "description": "an admin entitlement gives no access to someone else's task (owner only)",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "get-other-admin",

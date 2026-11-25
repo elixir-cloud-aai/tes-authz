@@ -1,9 +1,9 @@
 {
   "case": "12",
-  "description": "admins list all tasks",
+  "description": "an admin entitlement doesn't list all tasks: 'all' is never allowed",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "list-all-admin",

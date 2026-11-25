@@ -1,6 +1,6 @@
 {
   "case": "9",
-  "description": "admin reads their own task",
+  "description": "a tes-admins member reads their own task",
   "expect": {
     "reference_policy": {
       "decision": true

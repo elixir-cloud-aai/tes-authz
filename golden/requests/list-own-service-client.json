@@ -1,9 +1,9 @@
 {
   "case": "5d",
-  "description": "service client without claims",
+  "description": "service client without claims lists its own tasks",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "list-own-service-client",

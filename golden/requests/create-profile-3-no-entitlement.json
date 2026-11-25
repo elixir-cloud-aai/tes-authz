@@ -1,0 +1,78 @@
+{
+  "case": "5",
+  "description": "profile tes-authzen/3, caller without the entitlement",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "create-profile-3-no-entitlement",
+  "request": {
+    "action": {
+      "name": "CreateTask",
+      "properties": {}
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/3",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "properties": {
+        "owner": "frank-sub",
+        "task": {
+          "executors": [
+            {
+              "image": "docker.io/library/alpine:3.20"
+            }
+          ],
+          "inputs": [
+            {
+              "path": "/data/in.txt",
+              "type": "FILE",
+              "url": "s3://bucket/in.txt"
+            }
+          ],
+          "name": "hello",
+          "outputs": [
+            {
+              "path": "/data/out",
+              "type": "DIRECTORY",
+              "url": "https://storage.example.org/out/"
+            }
+          ],
+          "resources": {
+            "cpu_cores": 1,
+            "disk_gb": 5.0,
+            "preemptible": false,
+            "ram_gb": 1.0,
+            "zones": []
+          },
+          "tags": {
+            "project": "demo"
+          },
+          "volumes": [
+            "/vol/a"
+          ]
+        }
+      },
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "frank-sub",
+      "properties": {
+        "claims": {},
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "frank-sub"
+      },
+      "type": "user"
+    }
+  }
+}

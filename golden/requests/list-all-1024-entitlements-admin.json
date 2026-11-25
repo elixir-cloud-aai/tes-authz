@@ -1,9 +1,9 @@
 {
   "case": "12",
-  "description": "admin entitlement after 1023 others",
+  "description": "admin entitlement after 1023 others: 'all' is never allowed",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "list-all-1024-entitlements-admin",

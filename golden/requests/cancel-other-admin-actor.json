@@ -1,6 +1,6 @@
 {
   "case": "10",
-  "description": "profile tes-authzen/2, delegated token of an admin cancels someone else's task",
+  "description": "profile tes-authzen/2, delegated token of an admin-entitled user cancels someone else's task",
   "expect": {
     "reference_policy": {
       "decision": false

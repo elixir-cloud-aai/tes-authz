@@ -1,4 +1,4 @@
-# Engine side of the TES AuthZ contract (tes-authzen/1 and /2), plus the mock OIDC
+# Engine side of the TES AuthZ contract (tes-authzen/1 to /3), plus the mock OIDC
 # issuer for the TESes.
 #
 #   make up     start everything      make down   stop and remove

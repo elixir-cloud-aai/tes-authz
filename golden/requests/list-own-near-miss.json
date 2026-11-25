@@ -1,9 +1,9 @@
 {
   "case": "14",
-  "description": "near-miss entitlement",
+  "description": "near-miss entitlement: own tasks still listed",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "list-own-near-miss",

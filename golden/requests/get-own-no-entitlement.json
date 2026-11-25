@@ -1,9 +1,9 @@
 {
   "case": "9",
-  "description": "owners need a current entitlement (Q11)",
+  "description": "owners keep their tasks after the entitlement is revoked",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "get-own-no-entitlement",

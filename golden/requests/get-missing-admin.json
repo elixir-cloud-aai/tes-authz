@@ -1,9 +1,9 @@
 {
   "case": "11",
-  "description": "missing task, admin: the PDP may allow; the TES still answers 404",
+  "description": "missing task, admin entitlement: denied (owner only)",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "get-missing-admin",
