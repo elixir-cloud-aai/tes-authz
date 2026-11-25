@@ -1,9 +1,9 @@
 {
   "case": "12",
-  "description": "profile tes-authzen/2, admins list all tasks",
+  "description": "profile tes-authzen/2, admin entitlement: 'all' is never allowed",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "list-all-admin-profile-2",

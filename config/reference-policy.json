@@ -4,10 +4,6 @@
     "values": ["urn:geant:lifescience-ri.eu:group:example-vo#login.aai.lifescience-ri.eu"],
     "prefixes": ["urn:geant:lifescience-ri.eu:group:example-vo:"]
   },
-  "admins": {
-    "values": ["urn:geant:lifescience-ri.eu:group:example-vo:tes-admins#login.aai.lifescience-ri.eu"],
-    "prefixes": []
-  },
   "image_prefixes": ["docker.io/library/", "ghcr.io/elixir-cloud-aai/"],
   "services": ["tes-authz-test", "org.ga4gh.poiesis", "org.ga4gh.funnel"]
 }

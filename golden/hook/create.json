@@ -9,13 +9,14 @@
     },
     "context": {
       "tes": {
-        "profile": "tes-authzen/1",
+        "profile": "tes-authzen/3",
         "service_id": "tes-authz-test"
       }
     },
     "resource": {
       "id": "own",
       "properties": {
+        "owner": "{{subject_id}}",
         "task": {
           "executors": [
             {

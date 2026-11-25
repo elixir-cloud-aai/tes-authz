@@ -1,6 +1,6 @@
 {
   "case": "10",
-  "description": "an actor under tes-authzen/1 counts too: no admin powers",
+  "description": "tes-authzen/1 with an actor, admin entitlement: someone else's task denied",
   "expect": {
     "reference_policy": {
       "decision": false

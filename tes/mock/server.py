@@ -1,4 +1,4 @@
-"""Minimal in-memory TES with the AuthZ hook of spec draft 3, section 6.
+"""Minimal in-memory TES with the AuthZ hook of spec draft 3, section 6 (``tes-authzen/3``).
 
 Test-only. It exists to exercise the harness (stub, golden comparison,
 engines) end to end before a real TES has the hook, and as executable
@@ -11,12 +11,23 @@ pseudo-code of the hook. It is not a TES implementation:
   only, cached by token hash until min(``exp``, 5 minutes)). With more than
   one issuer, owners are ``<iss>|<sub>``.
 * No executors, no backend; tasks stay ``QUEUED``.
+* Operations (spec section 3): with a decision service, ``CreateTask`` always
+  asks it; ``GetTask``, ``ListTasks`` and ``CancelTask`` ask it only when
+  switched on (``authz.operations``), and otherwise follow the owner rule
+  without a call. A switched-on operation is decided by the decision
+  service alone, which may widen it beyond the owner; ``ListTasks`` then
+  takes the list scope (``own``, ``all`` or ``none``) from the answer.
+* Failure per operation (``authz.failure.<operation>``): ``closed`` (the
+  default) answers 503; ``open`` falls back to the owner rule (never to
+  allow-all), and is refused for ``create`` at start.
 """
 
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
+import logging
 import sys
 import threading
 import time
@@ -38,8 +49,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "oidc"))
 from common import strip_url
 from minijose import JoseError, UnknownKeyError, decode_unverified, verify_jwt
 
+log = logging.getLogger("tes-authz-mock-tes")
+
 PREFIX = "/ga4gh/tes/v1"
-PROFILE = "tes-authzen/1"
+PROFILE = "tes-authzen/3"
 USERINFO_TTL = 300.0
 """Longest time a userinfo answer is cached (spec section 3.6)."""
 USERINFO_CACHE_SIZE = 1024
@@ -51,6 +64,12 @@ As the default of the shims' ``SHIM_MAX_BODY_BYTES`` (``shims/common.py``).
 """
 SOCKET_TIMEOUT = 5.0
 """Seconds a socket read may stay idle, as in the shims."""
+OPERATIONS = ("create", "get", "list", "cancel")
+"""Values of ``authz.operations`` and keys of ``authz.failure`` (spec section 4.2)."""
+FAILURE_MODES = ("closed", "open")
+"""Values of ``authz.failure.<operation>`` (spec section 4.1)."""
+LIST_SCOPES = ("own", "all", "none")
+"""Values of the response's ``context.tes.list_scope`` (spec section 3.5)."""
 
 
 class HttpError(Exception):
@@ -84,6 +103,10 @@ class Settings:
         audience: The ``aud`` access tokens must carry.
         userinfo: ``auth.oidc.userinfo.enabled``.
         userinfo_timeout: Seconds for one discovery, JWKS or userinfo call.
+        operations: ``authz.operations``: the operations the decision
+            service decides (``create`` always among them).
+        failure: ``authz.failure.<operation>``: ``closed`` (default) or
+            ``open`` per operation.
     """
 
     pdp_url: str | None = None
@@ -97,6 +120,36 @@ class Settings:
     audience: str = "tes-authz"
     userinfo: bool = False
     userinfo_timeout: float = 2.0
+    operations: tuple[str, ...] = ("create",)
+    failure: dict[str, str] = field(default_factory=dict)
+
+
+def check_settings(settings: Settings) -> None:
+    """Apply the startup checks of the operation switch (spec section 4.2).
+
+    Args:
+        settings: The settings.
+
+    Raises:
+        ValueError: If the TES must refuse to start: a switch other than the
+            default without a decision service, an unknown or repeated
+            operation, an unknown failure mode, or ``create`` missing from
+            ``operations`` or set to ``open``.
+    """
+    if settings.pdp_url is None and (tuple(settings.operations) != ("create",) or settings.failure):
+        raise ValueError("authz.operations and authz.failure need authz.decisionService.url")
+    unknown = [op for op in (*settings.operations, *settings.failure) if op not in OPERATIONS]
+    if unknown:
+        raise ValueError(f"unknown operation(s): {unknown}")
+    if len(set(settings.operations)) != len(settings.operations):
+        raise ValueError("authz.operations lists an operation twice")
+    modes = [mode for mode in settings.failure.values() if mode not in FAILURE_MODES]
+    if modes:
+        raise ValueError(f"unknown failure mode(s): {modes}")
+    if "create" not in settings.operations:
+        raise ValueError("authz.operations must contain create")
+    if settings.failure.get("create", "closed") != "closed":
+        raise ValueError("authz.failure.create must be closed: the TES has no create rule to fall back to")
 
 
 @dataclass
@@ -161,6 +214,40 @@ def lookup(p: Principal, name: str) -> Any:
         if value is not _MISSING:
             return value
     return _MISSING
+
+
+class DecisionServiceError(HttpError):
+    """A failed decision (timeout, connection error, malformed answer): 503 when failing closed."""
+
+    def __init__(self) -> None:
+        """Create the error."""
+        super().__init__(HTTPStatus.SERVICE_UNAVAILABLE, "decision service unavailable")
+
+
+def list_scope(answer: dict[str, Any]) -> str:
+    """Read the list scope from a ``ListTasks`` answer (spec section 3.5).
+
+    A deny is ``none``; an allow without ``context.tes.list_scope`` is
+    ``own``, so plain AuthZEN PDPs answer ``own`` or ``none``.
+
+    Args:
+        answer: The decision service's answer, ``decision`` a boolean.
+
+    Returns:
+        ``own``, ``all`` or ``none``.
+
+    Raises:
+        DecisionServiceError: If ``context``, ``context.tes`` or
+            ``list_scope`` is present but malformed or unknown.
+    """
+    if answer["decision"] is not True:
+        return "none"
+    context = answer.get("context", {})
+    tes = context.get("tes", {}) if isinstance(context, dict) else None
+    scope = tes.get("list_scope", "own") if isinstance(tes, dict) else None
+    if not isinstance(scope, str) or scope not in LIST_SCOPES:
+        raise DecisionServiceError
+    return scope
 
 
 class UnauthorizedError(HttpError):
@@ -380,7 +467,7 @@ class Hook:
         return {"type": "user", "id": p.owner_id, "properties": props}
 
     def gate(self, p: Principal) -> None:
-        """Apply the built-in claim rule.
+        """Apply the built-in claim rule (``CreateTask`` only, spec section 5).
 
         Args:
             p: The caller.
@@ -401,7 +488,9 @@ class Hook:
             return
         raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
 
-    def ask(self, p: Principal, action: str, resource: dict[str, Any], aprops: dict[str, Any] | None = None) -> bool:
+    def ask(
+        self, p: Principal, action: str, resource: dict[str, Any], aprops: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Ask the decision service.
 
         Args:
@@ -411,10 +500,10 @@ class Hook:
             aprops: Action properties.
 
         Returns:
-            The decision.
+            The answer, whose ``decision`` is a boolean.
 
         Raises:
-            HttpError: 503 on any failure.
+            DecisionServiceError: On any failure.
         """
         assert self.settings.pdp_url is not None
         body = {
@@ -429,23 +518,139 @@ class Hook:
         try:
             with urllib.request.urlopen(request, timeout=self.settings.timeout) as response:
                 if response.status != HTTPStatus.OK:
-                    raise HttpError(HTTPStatus.SERVICE_UNAVAILABLE, "decision service unavailable")
+                    raise DecisionServiceError
                 answer = json.loads(response.read())
-        except (urllib.error.URLError, OSError, ValueError) as exc:
-            raise HttpError(HTTPStatus.SERVICE_UNAVAILABLE, "decision service unavailable") from exc
+        except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as exc:
+            raise DecisionServiceError from exc
         if not isinstance(answer, dict) or not isinstance(answer.get("decision"), bool):
-            raise HttpError(HTTPStatus.SERVICE_UNAVAILABLE, "decision service unavailable")
-        return answer["decision"] is True
+            raise DecisionServiceError
+        return answer
 
-    def _meta(self, task_id: str) -> dict[str, Any] | None:
-        task = self.store.tasks.get(task_id)
-        if task is None:
-            return None
-        return {"owner": task["_owner"], "state": task["state"], "tags": task.get("tags", {})}
+    def switched_on(self, operation: str) -> bool:
+        """Tell whether the decision service decides an operation.
+
+        Args:
+            operation: ``create``, ``get``, ``list`` or ``cancel``.
+
+        Returns:
+            Whether a decision service is set and the operation is in
+            ``authz.operations``.
+        """
+        return self.settings.pdp_url is not None and operation in self.settings.operations
+
+    def fails_open(self, operation: str) -> bool:
+        """Tell whether an operation falls back to the owner rule on a failed decision.
+
+        Args:
+            operation: The operation.
+
+        Returns:
+            Whether ``authz.failure.<operation>`` is ``open``.
+        """
+        return self.settings.failure.get(operation, "closed") == "open"
 
     @staticmethod
-    def _res(task_id: str, meta: dict[str, Any] | None) -> dict[str, Any]:
-        return {"type": "tes_task", "id": task_id, "properties": meta or {}}
+    def _meta(task: dict[str, Any] | None) -> dict[str, Any]:
+        """Return a stored task's properties for a request (``{}`` when missing, spec section 3.7).
+
+        Args:
+            task: The stored task, or ``None``.
+
+        Returns:
+            Owner, state and tags, or ``{}``.
+        """
+        if task is None:
+            return {}
+        return {"owner": task["_owner"], "state": task["state"], "tags": task.get("tags", {})}
+
+    def _lookup(self, task_id: str) -> dict[str, Any] | None:
+        """Read a stored task; one without an exact owner counts as missing (spec section 3.3).
+
+        Args:
+            task_id: The task ID.
+
+        Returns:
+            The task, or ``None``.
+        """
+        task = self.store.tasks.get(task_id)
+        if task is None or not isinstance(task.get("_owner"), str) or not task["_owner"]:
+            return None
+        return task
+
+    def _in_scope(self, scope: str, p: Principal, task: dict[str, Any]) -> bool:
+        """Tell whether a stored task is in a list scope (``own`` or ``all``).
+
+        Args:
+            scope: The list scope.
+            p: The caller.
+            task: The stored task.
+
+        Returns:
+            For ``all``, whether the task has an exact owner (spec section 3.3);
+            for ``own``, whether the caller owns it.
+        """
+        if scope == "all":
+            return isinstance(task.get("_owner"), str) and bool(task["_owner"])
+        return self.owner_rule(p, task)
+
+    @staticmethod
+    def owner_rule(p: Principal, task: dict[str, Any] | None) -> bool:
+        """Apply the TES's own owner rule.
+
+        Args:
+            p: The caller.
+            task: The stored task, or ``None``.
+
+        Returns:
+            Whether the task exists and the caller owns it.
+        """
+        return task is not None and task["_owner"] == p.owner_id
+
+    def fall_back(self, operation: str) -> None:
+        """Handle a failed decision: re-raise when failing closed, else log the fallback.
+
+        Args:
+            operation: The operation.
+
+        Raises:
+            DecisionServiceError: If ``authz.failure.<operation>`` is ``closed``.
+        """
+        if not self.fails_open(operation):
+            raise DecisionServiceError
+        # Identifiers only: no token, no claim values (spec section 4.3)
+        log.warning("decision failed; %s falls back to the owner rule (failure open)", operation)
+
+    def task_decision(
+        self, operation: str, p: Principal, task_id: str, task: dict[str, Any] | None, aprops: dict[str, Any]
+    ) -> tuple[bool, bool]:
+        """Decide ``get`` or ``cancel`` on one task ID (spec section 6).
+
+        Switched on, the decision service decides, for every ID (missing ones
+        too, so the calls don't tell whether a task exists); otherwise, or
+        after a failed decision with ``open``, the owner rule decides.
+
+        Args:
+            operation: ``get`` or ``cancel``.
+            p: The caller.
+            task_id: The requested task ID.
+            task: The stored task, or ``None``.
+            aprops: Action properties.
+
+        Returns:
+            Whether the operation is allowed (the caller still checks that the
+            task exists), and whether the decision service decided it.
+
+        Raises:
+            DecisionServiceError: On a failed decision with ``closed``.
+        """
+        if self.switched_on(operation):
+            action = {"get": "GetTask", "cancel": "CancelTask"}[operation]
+            resource = {"type": "tes_task", "id": task_id, "properties": self._meta(task)}
+            try:
+                return self.ask(p, action, resource, aprops)["decision"] is True, True
+            except DecisionServiceError:
+                self.fall_back(operation)
+        return self.owner_rule(p, task), False
 
     def create(self, p: Principal, task: dict[str, Any]) -> dict[str, Any]:
         """CreateTask.
@@ -458,7 +663,8 @@ class Hook:
             ``{"id": ...}``.
 
         Raises:
-            HttpError: On deny or failure.
+            HttpError: 403 on a failed claim rule or a deny, 400 on bad executors.
+            DecisionServiceError: On a failed decision (503; create always fails closed).
         """
         self.gate(p)
         executors = task.get("executors")
@@ -468,9 +674,8 @@ class Hook:
             raise HttpError(HTTPStatus.BAD_REQUEST, "executors must be a list of objects with an image")
         for key in ("id", "state", "creation_time", "logs"):
             task.pop(key, None)
-        if self.settings.pdp_url and not self.ask(
-            p, "CreateTask", {"type": "tes_task_set", "id": "own", "properties": {"task": project(task)}}
-        ):
+        resource = {"type": "tes_task_set", "id": "own", "properties": {"owner": p.owner_id, "task": project(task)}}
+        if self.switched_on("create") and self.ask(p, "CreateTask", resource)["decision"] is not True:
             raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
         task_id = str(uuid.uuid4())
         with self.store.lock:
@@ -491,17 +696,14 @@ class Hook:
             The task.
 
         Raises:
-            HttpError: On deny, absence or failure.
+            HttpError: 404 on a deny or a missing task.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
-        self.gate(p)
-        meta = self._meta(task_id)
-        if self.settings.pdp_url:
-            allow = self.ask(p, "GetTask", self._res(task_id, meta), {"view": view})
-        else:
-            allow = meta is not None and meta["owner"] == p.owner_id
-        if meta is None or not allow:
+        task = self._lookup(task_id)
+        allowed, _ = self.task_decision("get", p, task_id, task, {"view": view})
+        if allowed is not True or task is None:
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
-        return self._render(self.store.tasks[task_id], view)
+        return self._render(task, view)
 
     def cancel(self, p: Principal, task_id: str) -> dict[str, Any]:
         """CancelTask.
@@ -514,25 +716,31 @@ class Hook:
             ``{}``.
 
         Raises:
-            HttpError: On deny, absence or failure.
+            HttpError: 404 on a missing task or a deny the caller may not
+                read; 403 on a deny the caller may read.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
-        self.gate(p)
-        meta = self._meta(task_id)
-        if not self.settings.pdp_url:
-            if meta is None or meta["owner"] != p.owner_id:
-                raise HttpError(HTTPStatus.NOT_FOUND, "not found")
-        elif not (self.ask(p, "CancelTask", self._res(task_id, meta)) and meta is not None):
-            # Missing or denied: the same calls either way (case 11c), then
-            # 403 only for an existing task the caller may read.
-            readable = self.ask(p, "GetTask", self._res(task_id, meta))
-            if meta is not None and readable:
+        task = self._lookup(task_id)
+        allowed, by_pdp = self.task_decision("cancel", p, task_id, task, {})
+        if allowed is not True:
+            # Denied: 403 only if the caller may read the task (case 11d). A
+            # deny of the owner rule is decided by the owner rule alone, so an
+            # operation that isn't switched on (or fell open) asks nothing more.
+            readable = self.task_decision("get", p, task_id, task, {})[0] if by_pdp else self.owner_rule(p, task)
+            if readable and task is not None:
                 raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
-        self.store.tasks[task_id]["state"] = "CANCELED"
+        if task is None:
+            raise HttpError(HTTPStatus.NOT_FOUND, "not found")
+        task["state"] = "CANCELED"
         return {}
 
     def list(self, p: Principal, page_size: int, page_token: str | None, view: str) -> dict[str, Any]:
-        """ListTasks with keyset paging.
+        """ListTasks with keyset paging, in the list scope (spec section 3.5).
+
+        By default, and after a failed decision with ``open``, the scope is
+        ``own``; switched on, it comes from the answer, and a deny is ``none``
+        (an empty list, without reading the store).
 
         Args:
             p: The caller.
@@ -544,20 +752,24 @@ class Hook:
             The page.
 
         Raises:
-            HttpError: On deny or failure.
+            HttpError: 400 on a bad page token.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
-        self.gate(p)
-        if not self.settings.pdp_url:
-            own_only = True
-        else:
-            if self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "all"}, {"view": view}):
-                own_only = False
-            elif self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}):
-                own_only = True
-            else:
-                raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
+        scope = "own"
+        if self.switched_on("list"):
+            try:
+                scope = list_scope(self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}))
+            except DecisionServiceError:
+                self.fall_back("list")
+        if scope == "none":
+            return {"tasks": []}
+        # Page tokens are bound to the list scope (spec section 3.5): a keyset
+        # cursor from one scope would skip tasks of a wider one.
+        token_scope, _, position = (page_token or "").partition(".")
+        if page_token and token_scope != scope:
+            raise HttpError(HTTPStatus.BAD_REQUEST, "page token of another list scope")
         try:
-            after = int(page_token) if page_token else -1
+            after = int(position) if page_token else -1
         except ValueError as exc:
             raise HttpError(HTTPStatus.BAD_REQUEST, "bad page token") from exc
         with self.store.lock:
@@ -565,12 +777,12 @@ class Hook:
             rows = [
                 t
                 for t in (self.store.tasks[i] for i in ids)
-                if self.store.order[t["id"]] > after and (not own_only or t["_owner"] == p.owner_id)
+                if self.store.order[t["id"]] > after and self._in_scope(scope, p, t)
             ]
         page = rows[:page_size]
         result: dict[str, Any] = {"tasks": [self._render(t, view) for t in page]}
         if len(rows) > page_size:
-            result["next_page_token"] = str(self.store.order[page[-1]["id"]])
+            result["next_page_token"] = f"{scope}.{self.store.order[page[-1]['id']]}"
         return result
 
     @staticmethod
@@ -697,7 +909,11 @@ def start(settings: Settings) -> tuple[ThreadingHTTPServer, str]:
 
     Returns:
         The server and its base URL (with ``/ga4gh/tes/v1``).
+
+    Raises:
+        ValueError: If the settings fail the startup checks.
     """
+    check_settings(settings)
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(Hook(settings, Store()), OidcAuth(settings)))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()

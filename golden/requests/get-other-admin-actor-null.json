@@ -1,6 +1,6 @@
 {
   "case": "10",
-  "description": "delegated token of an admin with actor null: the key alone counts, no admin powers",
+  "description": "delegated token (actor null) of an admin-entitled user: someone else's task denied",
   "expect": {
     "reference_policy": {
       "decision": false

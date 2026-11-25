@@ -56,6 +56,8 @@ class MockTes:
             issuers=(ISSUER,),
             audience=AUDIENCE,
             userinfo=config.userinfo,
+            operations=config.operations,
+            failure=dict(config.failure),
         )
         self._server, url = server.start(settings)
         return url

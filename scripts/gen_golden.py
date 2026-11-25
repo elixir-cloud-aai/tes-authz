@@ -31,6 +31,8 @@ NEAR_MISS = "urn:geant:lifescience-ri.eu:group:example-vox" + AUTH
 OTHER_VO = "urn:geant:lifescience-ri.eu:group:other-vo:sub" + AUTH
 LONG_SUB = "x" * 600
 MULTI_ISSUER_ID = f"{ISS}|abc123@lifescience-ri.eu"
+PROFILE = "tes-authzen/3"
+"""The current profile version (spec section 13), sent by the hook-side golden request."""
 
 
 def subject(
@@ -135,8 +137,16 @@ def request(
     return {"subject": subj, "action": act, "resource": resource, "context": ctx}
 
 
+_CALLER = object()
+"""Default of ``create(owner=...)``: the caller, as ``tes-authzen/3`` sends it."""
+
+
 def create(
-    subj: dict[str, Any], task: dict[str, Any] | None = None, set_id: str = "own", context: dict[str, Any] | None = None
+    subj: dict[str, Any],
+    task: dict[str, Any] | None = None,
+    set_id: str = "own",
+    context: dict[str, Any] | None = None,
+    owner: Any = _CALLER,
 ) -> dict[str, Any]:
     """Build a CreateTask request.
 
@@ -145,13 +155,20 @@ def create(
         task: The task projection (default ``TASK``).
         set_id: The task set.
         context: Replacement for the default context.
+        owner: ``resource.properties.owner``; by default the caller's
+            ``subject.id`` under ``tes-authzen/3`` (spec section 13) and left
+            out under ``/1`` and ``/2``; ``None`` leaves it out.
 
     Returns:
         The AuthZEN request.
     """
-    return request(
-        subj, "CreateTask", "tes_task_set", set_id, {"task": TASK if task is None else task}, {}, context=context
-    )
+    props: dict[str, Any] = {"task": TASK if task is None else task}
+    profile = (context or {}).get("tes", {}).get("profile")
+    if owner is _CALLER:
+        owner = subj["id"] if profile == PROFILE else None
+    if owner is not None:
+        props["owner"] = owner
+    return request(subj, "CreateTask", "tes_task_set", set_id, props, {}, context=context)
 
 
 def task_meta(owner: str | None) -> dict[str, Any]:
@@ -196,8 +213,9 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
     parent = subject("ivan-sub", [VO])
     bad_type = {**ALICE, "type": "client"}
     no_profile = {"tes": {"service_id": SERVICE}}
-    wrong_profile = {"tes": {"profile": "tes-authzen/3", "service_id": SERVICE}}
+    wrong_profile = {"tes": {"profile": "tes-authzen/4", "service_id": SERVICE}}
     v2 = {"tes": {"profile": "tes-authzen/2", "service_id": SERVICE}}
+    v3 = {"tes": {"profile": PROFILE, "service_id": SERVICE}}
     alice_v2 = with_v2_properties(ALICE, via="oidc")
     dave_v2 = with_v2_properties(DAVE, via="oidc")
     alice_key = with_v2_properties(ALICE, via="apikey", credential_id="key-a1", key_age=3600)
@@ -247,7 +265,13 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         ("create-string-claim", "6", "claim as a single string", create(erin), T),
         ("create-list-mixed-types", "6", "non-string list elements are ignored", create(mixed), T),
         ("create-number-claim", "6", "claim of the wrong type", create(number), F),
-        ("create-admin", "3", "admin entitlement is a subgroup, so also a member", create(DAVE), T),
+        (
+            "create-admin",
+            "3",
+            "the tes-admins entitlement is a member subgroup: member powers, nothing more",
+            create(DAVE),
+            T,
+        ),
         (
             "create-image-denied",
             "17",
@@ -297,7 +321,7 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "create-profile-2-actor-admin",
             "7",
-            "profile tes-authzen/2, delegated token of an admin, who is a member too: may create",
+            "profile tes-authzen/2, delegated token of a tes-admins member: may create as a member",
             create(dave_delegated, context=v2),
             T,
         ),
@@ -336,16 +360,16 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-own-no-entitlement",
             "9",
-            "owners need a current entitlement (Q11)",
+            "owners keep their tasks after the entitlement is revoked",
             request(FRANK, "GetTask", "tes_task", "task-f1", task_meta("frank-sub"), view),
-            F,
+            T,
         ),
         (
             "get-own-near-miss",
             "9",
-            "owner with only a near-miss entitlement (Q11)",
+            "owner with only a near-miss entitlement: still the owner",
             request(CAROL, "GetTask", "tes_task", "task-c1", task_meta("carol-sub"), view),
-            F,
+            T,
         ),
         (
             "get-other-no-entitlement",
@@ -357,7 +381,7 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-own-admin",
             "9",
-            "admin reads their own task",
+            "a tes-admins member reads their own task",
             request(DAVE, "GetTask", "tes_task", "task-d1", task_meta("dave-sub"), view),
             T,
         ),
@@ -371,9 +395,9 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-other-admin",
             "9",
-            "admin reads someone else's task",
+            "an admin entitlement gives no access to someone else's task (owner only)",
             request(DAVE, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view),
-            T,
+            F,
         ),
         (
             "get-missing",
@@ -385,23 +409,23 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-missing-admin",
             "11",
-            "missing task, admin: the PDP may allow; the TES still answers 404",
+            "missing task, admin entitlement: denied (owner only)",
             request(DAVE, "GetTask", "tes_task", "no-such-task", {}, view),
-            T,
+            F,
         ),
         (
             "get-legacy-no-owner",
             "11",
-            "legacy task without exact owner: only admins",
+            "legacy task without exact owner: reachable by nobody",
             request(ALICE, "GetTask", "tes_task", "task-legacy", task_meta(None), view),
             F,
         ),
         (
             "get-legacy-no-owner-admin",
             "11",
-            "legacy task without exact owner, admin",
+            "legacy task without exact owner, admin entitlement: denied (owner only)",
             request(DAVE, "GetTask", "tes_task", "task-legacy", task_meta(None), view),
-            T,
+            F,
         ),
         (
             "get-empty-owner",
@@ -476,28 +500,28 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-other-admin-profile-2",
             "9",
-            "profile tes-authzen/2, admin reads someone else's task",
+            "profile tes-authzen/2, admin entitlement on someone else's task: denied (owner only)",
             request(dave_v2, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
-            T,
+            F,
         ),
         (
             "get-other-admin-actor",
             "10",
-            "profile tes-authzen/2, delegated token of an admin: no admin powers, someone else's task denied",
+            "profile tes-authzen/2, delegated token of an admin-entitled user: someone else's task denied",
             request(dave_delegated, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
             F,
         ),
         (
             "get-other-admin-actor-null",
             "10",
-            "delegated token of an admin with actor null: the key alone counts, no admin powers",
+            "delegated token (actor null) of an admin-entitled user: someone else's task denied",
             request(dave_actor_null, "GetTask", "tes_task", "task-b1", shared, view, context=v2),
             F,
         ),
         (
             "get-other-admin-actor-profile-1",
             "10",
-            "an actor under tes-authzen/1 counts too: no admin powers",
+            "tes-authzen/1 with an actor, admin entitlement: someone else's task denied",
             request(dave_delegated, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v1),
             F,
         ),
@@ -511,14 +535,14 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "get-own-admin-actor",
             "9",
-            "profile tes-authzen/2, delegated token of an admin: own task as a member",
+            "profile tes-authzen/2, delegated token of a tes-admins member: own task as a member",
             request(dave_delegated, "GetTask", "tes_task", "task-d1", task_meta("dave-sub"), view, context=v2),
             T,
         ),
         (
             "cancel-other-admin-actor",
             "10",
-            "profile tes-authzen/2, delegated token of an admin cancels someone else's task",
+            "profile tes-authzen/2, delegated token of an admin-entitled user cancels someone else's task",
             request(dave_delegated, "CancelTask", "tes_task", "task-b1", shared, context=v2),
             F,
         ),
@@ -533,9 +557,9 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "cancel-own-no-entitlement",
             "10",
-            "owners need a current entitlement to cancel (Q11)",
+            "owners cancel their tasks after the entitlement is revoked",
             request(FRANK, "CancelTask", "tes_task", "task-f1", task_meta("frank-sub")),
-            F,
+            T,
         ),
         (
             "cancel-other",
@@ -547,17 +571,17 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "cancel-other-admin",
             "10",
-            "admin cancels someone else's task",
+            "an admin entitlement can't cancel someone else's task (owner only)",
             request(DAVE, "CancelTask", "tes_task", "task-b1", task_meta("bob-sub")),
-            T,
+            F,
         ),
         ("cancel-missing", "11", "missing task", request(ALICE, "CancelTask", "tes_task", "no-such-task", {}), F),
         (
             "cancel-missing-admin",
             "11",
-            "missing task, admin",
+            "missing task, admin entitlement: denied (owner only)",
             request(DAVE, "CancelTask", "tes_task", "no-such-task", {}),
-            T,
+            F,
         ),
         # ListTasks (cases 12, 13, 14)
         (
@@ -577,23 +601,23 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "list-all-admin",
             "12",
-            "admins list all tasks",
+            "an admin entitlement doesn't list all tasks: 'all' is never allowed",
             request(DAVE, "ListTasks", "tes_task_set", "all", None, view),
-            T,
+            F,
         ),
         (
             "list-own-admin",
             "12",
-            "admin entitlement is a member subgroup",
+            "the tes-admins entitlement is a member subgroup: lists own tasks",
             request(DAVE, "ListTasks", "tes_task_set", "own", None, view),
             T,
         ),
         (
             "list-own-no-claim",
             "14",
-            "no entitlement: own denied",
+            "no entitlement: own tasks still listed (only CreateTask needs it)",
             request(FRANK, "ListTasks", "tes_task_set", "own", None, view),
-            F,
+            T,
         ),
         (
             "list-all-no-claim",
@@ -605,16 +629,16 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "list-own-near-miss",
             "14",
-            "near-miss entitlement",
+            "near-miss entitlement: own tasks still listed",
             request(CAROL, "ListTasks", "tes_task_set", "own", None, view),
-            F,
+            T,
         ),
         (
             "list-own-service-client",
             "5d",
-            "service client without claims",
+            "service client without claims lists its own tasks",
             request(SERVICE_CLIENT, "ListTasks", "tes_task_set", "own", None, view),
-            F,
+            T,
         ),
         (
             "list-unknown-set",
@@ -640,23 +664,151 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "list-all-admin-profile-2",
             "12",
-            "profile tes-authzen/2, admins list all tasks",
+            "profile tes-authzen/2, admin entitlement: 'all' is never allowed",
             request(dave_v2, "ListTasks", "tes_task_set", "all", None, view, context=v2),
-            T,
+            F,
         ),
         (
             "list-all-admin-actor",
             "13",
-            "profile tes-authzen/2, delegated token of an admin: no admin powers, all denied",
+            "profile tes-authzen/2, delegated token of an admin-entitled user: all denied",
             request(dave_delegated, "ListTasks", "tes_task_set", "all", None, view, context=v2),
             F,
         ),
         (
             "list-own-admin-actor",
             "13",
-            "profile tes-authzen/2, delegated token of an admin lists own tasks as a member",
+            "profile tes-authzen/2, delegated token of a tes-admins member lists own tasks as a member",
             request(dave_delegated, "ListTasks", "tes_task_set", "own", None, view, context=v2),
             T,
+        ),
+        # Profile tes-authzen/3 (spec section 13): tes_task_set:all is no longer in the vocabulary,
+        # CreateTask names the caller as owner, reads are asked only when switched on (section 3)
+        (
+            "create-profile-3",
+            "7",
+            "profile tes-authzen/3, member creates; the request names the caller as owner",
+            create(ALICE, context=v3),
+            T,
+        ),
+        (
+            "create-profile-3-no-owner",
+            "7",
+            "profile tes-authzen/3, CreateTask without resource.properties.owner: contract error",
+            create(ALICE, context=v3, owner=None),
+            F,
+        ),
+        (
+            "create-profile-3-other-owner",
+            "7",
+            "profile tes-authzen/3, CreateTask naming another owner than the caller: contract error",
+            create(ALICE, context=v3, owner="bob-sub"),
+            F,
+        ),
+        (
+            "create-profile-3-no-entitlement",
+            "5",
+            "profile tes-authzen/3, caller without the entitlement",
+            create(FRANK, context=v3),
+            F,
+        ),
+        (
+            "get-own-no-entitlement-profile-3",
+            "27",
+            "profile tes-authzen/3, get switched on: owner without a current entitlement reads",
+            request(FRANK, "GetTask", "tes_task", "task-f1", task_meta("frank-sub"), view, context=v3),
+            T,
+        ),
+        (
+            "get-other-profile-3",
+            "27",
+            "profile tes-authzen/3, get switched on: member on someone else's task: denied",
+            request(ALICE, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v3),
+            F,
+        ),
+        (
+            "get-missing-profile-3",
+            "27",
+            "profile tes-authzen/3, get switched on: a missing task (empty properties) is nobody's",
+            request(ALICE, "GetTask", "tes_task", "no-such-task", {}, view, context=v3),
+            F,
+        ),
+        (
+            "cancel-missing-profile-3",
+            "27",
+            "profile tes-authzen/3, cancel switched on: a missing task (empty properties) is nobody's",
+            request(ALICE, "CancelTask", "tes_task", "no-such-task", {}, context=v3),
+            F,
+        ),
+        (
+            "list-own-no-entitlement-profile-3",
+            "28",
+            "profile tes-authzen/3, list switched on: a caller without the entitlement gets the scope own",
+            request(FRANK, "ListTasks", "tes_task_set", "own", None, view, context=v3),
+            T,
+        ),
+        (
+            "create-on-all-profile-3",
+            "7",
+            "profile tes-authzen/3, CreateTask on 'all'",
+            create(ALICE, set_id="all", context=v3),
+            F,
+        ),
+        (
+            "get-own-profile-3",
+            "9",
+            "profile tes-authzen/3, owner reads",
+            request(ALICE, "GetTask", "tes_task", "task-a1", task_meta("alice-sub"), view, context=v3),
+            T,
+        ),
+        (
+            "get-other-admin-profile-3",
+            "9",
+            "profile tes-authzen/3, admin entitlement on someone else's task: denied",
+            request(DAVE, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v3),
+            F,
+        ),
+        (
+            "get-legacy-no-owner-admin-profile-3",
+            "11",
+            "profile tes-authzen/3, task without owner, admin entitlement: denied",
+            request(DAVE, "GetTask", "tes_task", "task-legacy", task_meta(None), view, context=v3),
+            F,
+        ),
+        (
+            "cancel-own-profile-3",
+            "10",
+            "profile tes-authzen/3, owner cancels",
+            request(ALICE, "CancelTask", "tes_task", "task-a1", task_meta("alice-sub"), context=v3),
+            T,
+        ),
+        (
+            "cancel-other-admin-profile-3",
+            "10",
+            "profile tes-authzen/3, admin entitlement cancels someone else's task: denied",
+            request(DAVE, "CancelTask", "tes_task", "task-b1", task_meta("bob-sub"), context=v3),
+            F,
+        ),
+        (
+            "list-own-profile-3",
+            "13",
+            "profile tes-authzen/3, members list their own tasks",
+            request(ALICE, "ListTasks", "tes_task_set", "own", None, view, context=v3),
+            T,
+        ),
+        (
+            "list-all-member-profile-3",
+            "14",
+            "profile tes-authzen/3, 'all' is not in the vocabulary",
+            request(ALICE, "ListTasks", "tes_task_set", "all", None, view, context=v3),
+            F,
+        ),
+        (
+            "list-all-admin-profile-3",
+            "14",
+            "profile tes-authzen/3, 'all' is not in the vocabulary, also with an admin entitlement",
+            request(DAVE, "ListTasks", "tes_task_set", "all", None, view, context=v3),
+            F,
         ),
         # Poiesis's own resource type in profile tes-authzen/2: not TES, always denied
         (
@@ -693,9 +845,9 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         (
             "list-all-1024-entitlements-admin",
             "12",
-            "admin entitlement after 1023 others",
+            "admin entitlement after 1023 others: 'all' is never allowed",
             request(many_admin, "ListTasks", "tes_task_set", "all", None, view),
-            T,
+            F,
         ),
         ("create-1024-executors-allowed", "17", "1024 executors, all images allowed", create(ALICE, allowed_images), T),
         (
@@ -821,8 +973,9 @@ def hook_create() -> dict[str, Any]:
         "CreateTask",
         "tes_task_set",
         "own",
-        {"task": task},
+        {"owner": "{{subject_id}}", "task": task},
         aprops={},
+        context={"tes": {"profile": PROFILE, "service_id": SERVICE}},
     )
     return {
         "name": "hook-create",

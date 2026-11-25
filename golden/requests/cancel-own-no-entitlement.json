@@ -1,9 +1,9 @@
 {
   "case": "10",
-  "description": "owners need a current entitlement to cancel (Q11)",
+  "description": "owners cancel their tasks after the entitlement is revoked",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "cancel-own-no-entitlement",

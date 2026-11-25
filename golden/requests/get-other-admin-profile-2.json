@@ -1,9 +1,9 @@
 {
   "case": "9",
-  "description": "profile tes-authzen/2, admin reads someone else's task",
+  "description": "profile tes-authzen/2, admin entitlement on someone else's task: denied (owner only)",
   "expect": {
     "reference_policy": {
-      "decision": true
+      "decision": false
     }
   },
   "name": "get-other-admin-profile-2",

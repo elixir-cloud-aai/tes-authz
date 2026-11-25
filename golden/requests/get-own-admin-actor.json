@@ -1,6 +1,6 @@
 {
   "case": "9",
-  "description": "profile tes-authzen/2, delegated token of an admin: own task as a member",
+  "description": "profile tes-authzen/2, delegated token of a tes-admins member: own task as a member",
   "expect": {
     "reference_policy": {
       "decision": true

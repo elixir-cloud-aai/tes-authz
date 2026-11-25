@@ -1,9 +1,9 @@
 {
   "case": "9",
-  "description": "owner with only a near-miss entitlement (Q11)",
+  "description": "owner with only a near-miss entitlement: still the owner",
   "expect": {
     "reference_policy": {
-      "decision": false
+      "decision": true
     }
   },
   "name": "get-own-near-miss",

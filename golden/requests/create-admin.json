@@ -1,6 +1,6 @@
 {
   "case": "3",
-  "description": "admin entitlement is a subgroup, so also a member",
+  "description": "the tes-admins entitlement is a member subgroup: member powers, nothing more",
   "expect": {
     "reference_policy": {
       "decision": true
