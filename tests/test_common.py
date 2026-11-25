@@ -113,7 +113,13 @@ def test_openfga_setup_service_client_tuple(openfga_setup):
 def test_openfga_self_check_walks_the_service_clients(openfga_setup):
     """The self-check subject is an unlisted client, so ``listed_client`` compares against every pair."""
     service = POLICY["services"][0]
-    for case in openfga_setup.worst_cases(POLICY, service):
+    cases = openfga_setup.worst_cases(POLICY, service)
+    assert [c["action"]["name"] for c in cases] == ["ListTasks", "CreateTask", "CreateTask"]
+    member = (POLICY["members"]["values"] + POLICY["members"]["prefixes"])[-1]
+    non_member = cases[-1]["subject"]["properties"]["claims"][POLICY["entitlement_claim"]]
+    assert member not in non_member and len(non_member) == openfga_setup.MAX_LIST_ITEMS
+    assert {"iss": "self-check", "client_id": "self-check"} not in POLICY["service_clients"]
+    for case in cases:
         props = case["subject"]["properties"]
         assert props["sub"] == props["client_id"] == "self-check" and props["iss"] == "self-check"
         mapped = openfga_shim.to_openfga(case, {"entitlements": POLICY["entitlement_claim"]})

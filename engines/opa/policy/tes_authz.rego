@@ -128,8 +128,8 @@ may_create if listed_client
 service_clients := object.get(cfg, "service_clients", [])
 
 # Every entry has exactly iss and client_id, both non-empty strings of
-# printable ASCII without spaces (the OpenFGA setup job refuses the same data), so a
-# malformed list fails closed instead of being skipped in parts.
+# printable ASCII without spaces (the OpenFGA setup job refuses the same
+# data), so a malformed list fails closed instead of being skipped in parts.
 service_clients_ok if {
 	is_array(service_clients)
 	every c in service_clients {
