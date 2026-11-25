@@ -51,7 +51,7 @@ Operations and list scope (2026-11-25, D6 in §10, [#23](https://github.com/elix
 29. §4.1, §4.2: failure behaviour per operation (`authz.failure.<operation>`): `closed` (default, `503`) or `open`, which falls back to the TES's owner rule for that operation, never to allow-all; `create` can't be `open`. The meaning of `open` is a proposal, pending decision (Q12).
 30. §8.2: cases 10–15 now apply to switched-on operations; new cases 25–30 (default reads during a decision-service outage, widening, a call per requested ID, list scopes, failure modes, startup checks).
 
-Service clients in the reference policy (2026-11-25, PR_REF; not breaking, no profile change):
+Service clients in the reference policy (2026-11-25, [#35](https://github.com/elixir-cloud-aai/tes-authz/pull/35); not breaking, no profile change):
 
 31. §5, §7, §8.2: the reference policy data lists service clients (`service_clients`, a list of `{iss, client_id}`). A listed client may `CreateTask` without the entitlement when `subject.properties.iss` and `client_id` equal a listed pair exactly and `sub` equals `client_id` (a client-credentials token, not a user token issued to that client); the image allowlist and the `/3` owner check apply as for members. Like any creator, it then owns its tasks by the owner rule, nothing beyond: no other owner's task and no list scope other than `own`. Policy data without the key lists none; a malformed list fails closed. New case 31; golden rows `*-listed-client*` and `create-unlisted-client`.
 

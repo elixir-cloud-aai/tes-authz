@@ -154,7 +154,7 @@ A switched-on `ListTasks` asks once per page. The answer's list scope decides wh
 
 ### Upgrade notes
 
-**Service clients in the policy data** (PR_REF, not breaking):
+**Service clients in the policy data** ([#35](https://github.com/elixir-cloud-aai/tes-authz/pull/35), not breaking):
 
 - The policy data has a new optional field, `service_clients`. Data without it decides as before: no service client may create tasks. Add your service clients there instead of giving them an entitlement or an exemption in the TES.
 - OpenFGA: deploy the model, the setup job and the shim together. The model has a `service_client` relation (condition `listed_client`) and a `may_create` union of `creator` and `service_client`; the shim always sends `subject_iss`, `subject_sub` and `subject_client_id` (empty strings when missing), so `FGA_CLAIMS` can no longer use the parameter names `iss`, `sub` and `client_id`. A store set up by an older job lacks the `service_client` tuple and its model the relation, so run the new setup job (a new store).
