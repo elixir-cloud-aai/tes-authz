@@ -8,7 +8,7 @@ These notes are for operators who run the reference decision services.
 
 ## Kubernetes
 
-[`deploy/kubernetes/tes-authz.yaml`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/deploy/kubernetes/tes-authz.yaml) runs the OPA decision service in one pod: OPA with the reference policy, behind the AuthZEN front `shims/opa_front.py`. There is no image of its own: the pod uses the OPA and Python images of `compose.yaml` (pinned by digest), and the policy, the policy data and the front's code come from ConfigMaps. So a deployment is pinned by a commit of this repository, without a release.
+[`deploy/kubernetes/tes-authz.yaml`](https://github.com/elixir-cloud-aai/tes-authz/blob/dev/deploy/kubernetes/tes-authz.yaml) runs the OPA decision service in one pod: OPA with the reference policy, behind the AuthZEN front `shims/opa_front.py`. The manifest doesn't use the [container image](image.md) of the releases: the pod uses the OPA and Python images of `compose.yaml` (pinned by digest), and the policy, the policy data and the front's code come from ConfigMaps. So a deployment is pinned by a commit of this repository, without a release; with the image, it is pinned by a release instead.
 
 | Object | What |
 |---|---|
