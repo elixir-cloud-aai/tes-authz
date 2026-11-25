@@ -583,7 +583,7 @@ class Hook:
             action = {"get": "GetTask", "cancel": "CancelTask"}[operation]
             resource = {"type": "tes_task", "id": task_id, "properties": self._meta(task)}
             try:
-                return bool(self.ask(p, action, resource, aprops)["decision"])
+                return self.ask(p, action, resource, aprops)["decision"] is True
             except DecisionServiceError:
                 if not self.fails_open(operation):
                     raise
@@ -611,7 +611,7 @@ class Hook:
         for key in ("id", "state", "creation_time", "logs"):
             task.pop(key, None)
         resource = {"type": "tes_task_set", "id": "own", "properties": {"owner": p.owner_id, "task": project(task)}}
-        if self.switched_on("create") and not self.ask(p, "CreateTask", resource)["decision"]:
+        if self.switched_on("create") and self.ask(p, "CreateTask", resource)["decision"] is not True:
             raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
         task_id = str(uuid.uuid4())
         with self.store.lock:
