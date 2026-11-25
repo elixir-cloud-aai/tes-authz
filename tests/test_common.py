@@ -118,12 +118,20 @@ def test_openfga_self_check_walks_the_service_clients(openfga_setup):
     member = (POLICY["members"]["values"] + POLICY["members"]["prefixes"])[-1]
     non_member = cases[-1]["subject"]["properties"]["claims"][POLICY["entitlement_claim"]]
     assert member not in non_member and len(non_member) == openfga_setup.MAX_LIST_ITEMS
-    assert {"iss": "self-check", "client_id": "self-check"} not in POLICY["service_clients"]
     for case in cases:
         props = case["subject"]["properties"]
-        assert props["sub"] == props["client_id"] == "self-check" and props["iss"] == "self-check"
+        assert props["sub"] == props["client_id"]
+        assert {"iss": props["iss"], "client_id": props["client_id"]} not in POLICY["service_clients"]
         mapped = openfga_shim.to_openfga(case, {"entitlements": POLICY["entitlement_claim"]})
-        assert mapped["subject"]["properties"]["client_id"] == "self-check"
+        assert mapped["subject"]["properties"]["client_id"] == props["client_id"]
+
+
+def test_openfga_self_check_client_is_never_listed(openfga_setup):
+    """The self-check client stays unlisted even when the data lists the obvious candidates."""
+    listed = [{"iss": "self-check", "client_id": f"self-check-{i}"} for i in range(3)]
+    case = openfga_setup.worst_cases({**POLICY, "service_clients": listed}, POLICY["services"][0])[-1]
+    props = case["subject"]["properties"]
+    assert {"iss": props["iss"], "client_id": props["client_id"]} not in listed
 
 
 @pytest.mark.parametrize("clients", MALFORMED_SERVICE_CLIENTS.values(), ids=MALFORMED_SERVICE_CLIENTS.keys())

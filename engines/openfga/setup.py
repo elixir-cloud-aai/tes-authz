@@ -93,9 +93,12 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     claim = policy["entitlement_claim"]
     context = {"tes": {"profile": SELF_CHECK_PROFILE, "service_id": service}}
 
+    listed = {(c["iss"], c["client_id"]) for c in policy.get("service_clients", [])}
+    client = next(f"self-check-{i}" for i in range(len(listed) + 1) if ("self-check", f"self-check-{i}") not in listed)
+
     def req(action: str, rtype: str, rid: str, ents: list[str], props: dict[str, Any]) -> dict[str, Any]:
-        # A client ID that isn't listed, so listed_client walks the whole list too
-        subject = {"iss": "self-check", "sub": "self-check", "client_id": "self-check", "claims": {claim: ents}}
+        # A client that isn't listed, so listed_client walks the whole list too
+        subject = {"iss": "self-check", "sub": client, "client_id": client, "claims": {claim: ents}}
         return {
             "subject": {"type": "user", "id": "self-check", "properties": subject},
             "action": {"name": action},
