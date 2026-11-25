@@ -53,6 +53,7 @@ The policy data (`data.json`) has the fields of `config/reference-policy.json`:
 
 - `entitlement_claim`: the claim in `subject.properties.claims` with the caller's groups. The TES must send it: in Poiesis, `authz.decisionService.claims: [eduperson_entitlement]`.
 - `members`: exact `values` and raw string `prefixes` of the entitlement that may create tasks (e.g. one compute group). It is needed for `CreateTask` only: everyone reads, lists and cancels their own tasks, also after the entitlement is revoked, and nobody reaches other owners' tasks. There is no admin group: a data file that still has `admins` makes OPA deny every request and the OpenFGA setup job refuse to start (see the upgrade notes below).
+- `service_clients` (optional): the service clients that may create tasks without the entitlement, as a list of `{"iss": "<issuer>", "client_id": "<client ID>"}`, e.g. proTES's LS Login client. Leave it out, or make it `[]`, for none. Both values are compared exactly (`https://login.aai.lifescience-ri.eu/oidc/` and `https://login.aai.lifescience-ri.eu/oidc` are different issuers) and must be non-empty strings without spaces or control characters, with no other keys in an entry; otherwise OPA denies every request and the OpenFGA setup job refuses to start (`malformed 'service_clients'`). See [Service clients](#service-clients) below.
 - `image_prefixes`: allowed executor image prefixes, compared as raw strings (`alpine:3` doesn't start with `docker.io/library/`); an empty list allows any image, but leaving the field out denies every creation.
 - `services`: the service-info IDs of the TES implementations the policy answers for (Poiesis: `org.ga4gh.poiesis`); requests from any other service are denied.
 
@@ -99,7 +100,7 @@ The policy implements spec [§7](specification.md#7-reference-decision-service-a
 
 | Action | Resource | Allowed if |
 |---|---|---|
-| `CreateTask` | `tes_task_set:own` | under `tes-authzen/3`, `resource.properties.owner` is the caller; the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
+| `CreateTask` | `tes_task_set:own` | under `tes-authzen/3`, `resource.properties.owner` is the caller; the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) or a listed service client (below); and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
 | `GetTask`, `CancelTask` | `tes_task:<id>` | `resource.properties.owner == subject.id` (owner present and not empty), with or without a current entitlement; a task without an owner: nobody |
 | `ListTasks` | `tes_task_set:own` | always, as a plain allow: the list scope `own` (the TES lists only the caller's tasks); never the scope `all` |
 | `ListTasks` | `tes_task_set:all` | never (profile `tes-authzen/3` doesn't have it) |
@@ -118,7 +119,21 @@ Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delt
 - **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
 - **Responses**: the policy never answers with a `context.tes`.
 
-Service clients (client-credentials tokens, e.g. proTES in front of a TES) carry no entitlements, so this policy denies them `CreateTask`. Their create grant belongs in the policy data, not in the TES (spec §5): the TES lists them for authentication only. The reference policy data has no service-client list yet.
+### Service clients
+
+Service clients (client-credentials tokens, e.g. proTES in front of a TES) carry no entitlements. Their create grant belongs in the policy data, not in the TES (spec [§5](specification.md#5-built-in-claim-rule-and-composition)): list them in `service_clients`, and in the TES only for authentication (which issuers and client IDs it accepts, and with which audience). A deployment that renders both from one list, as a TES chart can, keeps them in step.
+
+A listed client may create tasks when the request's `subject.properties.iss` and `client_id` equal a listed pair and `subject.properties.sub` equals `client_id`. LS Login client-credentials tokens have `sub` = `client_id` = the client ID. A user who signs in through that client gets a token with the same `client_id` but their own `sub`, so the service-client grant doesn't apply to them; they need the entitlement like everyone else. The image allowlist and, under `tes-authzen/3`, the owner check apply as for members.
+
+Like any creator, a listed client then owns its tasks: it reads, lists and cancels them by the owner rule, and nothing else (no other owner's tasks, no list scope `all`, no admin). Behind proTES, that means proTES owns every task it forwards, and proTES decides which of its users sees which task. Unlisted client-credentials tokens are denied `CreateTask`, as before. A delegated token whose subject is a listed client has the client's powers, like any delegated token; which actors a TES accepts is the TES's setting.
+
+```json
+"service_clients": [
+  {"iss": "https://login.aai.lifescience-ri.eu/oidc/", "client_id": "<proTES client ID>"}
+]
+```
+
+The TES must send `iss`, `sub` and `client_id` in `subject.properties` for client tokens (spec [§3.1](specification.md#31-subject)). It should also refuse a user token whose `sub` equals a listed client ID at the same issuer, so that no user can pose as a client or share its tasks. Golden cases `*-listed-client*`, `create-unlisted-client` and `create-service-client` (spec case 31).
 
 To change any of this, extend the policy. A policy that grants more than owner access (another owner's task, the list scope `all`) takes effect only for the operations a TES switches on.
 
@@ -137,6 +152,11 @@ A switched-on `ListTasks` asks once per page. The answer's list scope decides wh
 
 ### Upgrade notes
 
+**Service clients in the policy data** (PR_REF, not breaking):
+
+- The policy data has a new optional field, `service_clients`. Data without it decides as before: no service client may create tasks. Add your service clients there instead of giving them an entitlement or an exemption in the TES.
+- OpenFGA: deploy the model, the setup job and the shim together. The model has a `service_client` relation (condition `listed_client`) and a `may_create` union of `creator` and `service_client`; the shim always sends `subject_iss`, `subject_sub` and `subject_client_id` (empty strings when missing), so `FGA_CLAIMS` can no longer use the parameter names `iss`, `sub` and `client_id`. A store set up by an older job lacks the `service_client` tuple and its model the relation, so run the new setup job (a new store).
+
 **Owner only and `tes-authzen/3`** ([#23](https://github.com/elixir-cloud-aai/tes-authz/issues/23), breaking):
 
 - TESes on `/3` ask the decision service on `CreateTask` only, unless you switch further operations on (`authz.operations`). They send the caller as `resource.properties.owner` on `CreateTask`; this version of the decision services denies a `/3` `CreateTask` without it. A switched-on `ListTasks` that is denied gives an empty list (`200`), not `403`.
@@ -154,12 +174,12 @@ A switched-on `ListTasks` asks once per page. The answer's list scope decides wh
 
 | AuthZEN in | OpenFGA out |
 |---|---|
-| `subject` | `user:h-<sha256(subject.id)>`, properties `id` = the real ID, and `entitlements` (list) from the policy's `entitlement_claim` |
+| `subject` | `user:h-<sha256(subject.id)>`, properties `id` = the real ID, `iss`, `sub` and `client_id` (strings; `""` when missing or not a string), and `entitlements` (list) from the policy's `entitlement_claim` |
 | `tes_task:<id>` | `tes_service:<service>`, properties `owner` (`""` when absent) and `images` (`[""]` when the task projection or its executor list is missing or malformed, so an allowlist denies) |
 | `tes_task_set:<own\|all>` | `tes_task_set:<service>/<own\|all>`, same properties (`all` has no tuples, so it is denied) |
 | `action.name` | the relation of the same name |
 
-OpenFGA turns properties into the condition parameters `subject_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all four (review 2, finding 3); `FGA_CLAIMS` can't use the parameter name `id`. Ownership is the condition `is_owner` on a `user:*` tuple. Membership is the condition `entitled` on the `creator` tuple of `own`, whose tuple context holds the allowed values and prefixes from the data file. On `tes_service`, `GetTask` and `CancelTask` are `owner`; `ListTasks` on `own` is an unconditioned `user:*` tuple.
+OpenFGA turns properties into the condition parameters `subject_id`, `subject_iss`, `subject_sub`, `subject_client_id`, `subject_entitlements`, `resource_owner` and `resource_images`. The shim always sends all of them (review 2, finding 3); `FGA_CLAIMS` can't use the parameter names `id`, `iss`, `sub` and `client_id`. Ownership is the condition `is_owner` on a `user:*` tuple. Membership is the condition `entitled` on the `creator` tuple of `own`, whose tuple context holds the allowed values and prefixes from the data file. Service clients are the condition `listed_client` on the `service_client` tuple of `own`, whose context holds one `"<iss> <client_id>"` string per listed client (joined by one space, which neither value may contain; OpenFGA refuses control characters such as a newline in tuple context values); `CreateTask` is `(creator or service_client) and image_ok`. On `tes_service`, `GetTask` and `CancelTask` are `owner`; `ListTasks` on `own` is an unconditioned `user:*` tuple.
 
 The shim scopes task sets per service (`<service>/own`). That way an unknown `service_id` is denied by both engines alike. Spec [§7](specification.md#7-reference-decision-service-and-engines) only names the `tes_service` rewrite for tasks, so this is a small addition.
 

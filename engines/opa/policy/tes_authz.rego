@@ -6,12 +6,15 @@
 #   entitlement_claim  claim in subject.properties.claims holding entitlements
 #   members            {values: exact entitlements, prefixes: raw string prefixes}
 #                      of the entitlement that may create tasks
+#   service_clients    optional list of {iss, client_id}: service clients that
+#                      may create tasks without the entitlement (spec section 7)
 #   image_prefixes     allowed executor image prefixes; empty = any image
 #   services           service-info IDs this policy answers for
 #
 # Rules:
-#   CreateTask on tes_task_set:own   member, and every executor image allowed;
-#                                    under tes-authzen/3 the request names the
+#   CreateTask on tes_task_set:own   member or listed service client, and
+#                                    every executor image allowed; under
+#                                    tes-authzen/3 the request names the
 #                                    caller as resource owner
 #   GetTask, CancelTask on tes_task  resource owner == subject.id, also after
 #                                    the entitlement is revoked; a missing or
@@ -21,8 +24,10 @@
 #                                    TES lists the caller's tasks only
 # There is no admin: nobody reads, lists or cancels another owner's tasks,
 # whatever their entitlements, and tes_task_set:all is never allowed (it is
-# no longer in the vocabulary from tes-authzen/3 on). Leftover policy data
-# with an "admins" key (from before owner only) denies every request. Anything else, and any
+# no longer in the vocabulary from tes-authzen/3 on). A listed service client
+# gets the create grant and nothing beyond: it owns its tasks like any
+# creator. Leftover policy data with an "admins" key (from before owner only)
+# or a malformed service_clients list denies every request. Anything else, and any
 # request outside the profiles, is denied (also the TES-specific resource
 # types of tes-authzen/2, such as poiesis_api_keys).
 package tes.authz
@@ -39,7 +44,7 @@ allow if {
 	input.resource.type == "tes_task_set"
 	input.resource.id == "own"
 	create_owner_ok
-	member
+	may_create
 	images_ok
 }
 
@@ -61,6 +66,7 @@ contract_ok if {
 	# Policy data from before owner only: deny everything, as the OpenFGA
 	# setup job refuses to start, so nobody assumes admins still work.
 	not "admins" in object.keys(cfg)
+	service_clients_ok
 	input.context.tes.profile in {"tes-authzen/1", "tes-authzen/2", "tes-authzen/3"}
 	input.context.tes.service_id in cfg.services
 	input.subject.type == "user"
@@ -113,6 +119,44 @@ create_owner_ok if {
 
 # Only CreateTask needs the entitlement; owners keep their tasks without it.
 member if entitled(cfg.members)
+
+may_create if member
+
+may_create if listed_client
+
+# Service clients (spec section 7): optional, a list of {iss, client_id}.
+service_clients := object.get(cfg, "service_clients", [])
+
+# Every entry has exactly iss and client_id, both strings without spaces or
+# ASCII control characters (the OpenFGA setup job refuses the same data), so a
+# malformed list fails closed instead of being skipped in parts.
+service_clients_ok if {
+	is_array(service_clients)
+	every c in service_clients {
+		is_object(c)
+		object.keys(c) == {"iss", "client_id"}
+		plain_id(c.iss)
+		plain_id(c.client_id)
+	}
+}
+
+plain_id(x) if {
+	is_string(x)
+	regex.match(`^[^ \x00-\x1f\x7f]+$`, x)
+}
+
+# A client-credentials caller listed by issuer and client ID: sub equals the
+# client ID (LS Login client tokens), so a user token issued to that client
+# (same client_id, the user's sub) doesn't count. Exact string comparison.
+listed_client if {
+	props := input.subject.properties
+	is_string(props.iss)
+	is_string(props.client_id)
+	props.sub == props.client_id
+	some c in service_clients
+	c.iss == props.iss
+	c.client_id == props.client_id
+}
 
 # The caller owns the task: a non-empty string owner equal to subject.id.
 owns_task if {

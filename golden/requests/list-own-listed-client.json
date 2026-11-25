@@ -1,0 +1,41 @@
+{
+  "case": "31",
+  "description": "listed service client lists its own tasks",
+  "expect": {
+    "reference_policy": {
+      "decision": true
+    }
+  },
+  "name": "list-own-listed-client",
+  "request": {
+    "action": {
+      "name": "ListTasks",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "example-service-client",
+      "properties": {
+        "claims": {},
+        "client_id": "example-service-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid"
+        ],
+        "sub": "example-service-client"
+      },
+      "type": "user"
+    }
+  }
+}

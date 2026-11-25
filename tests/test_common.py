@@ -15,6 +15,8 @@ import openfga_shim
 from harness.golden import load_cases
 
 ROOT = Path(__file__).resolve().parent.parent
+NO_CLIENT = {"iss": "", "sub": "", "client_id": ""}
+"""The shim's ``iss``, ``sub`` and ``client_id`` parameters when the subject has none."""
 URL_CASES = json.loads((ROOT / "golden" / "url-stripping.json").read_text())
 POLICY = json.loads((ROOT / "config" / "reference-policy.json").read_text())
 
@@ -89,8 +91,42 @@ def test_openfga_setup_tuples_are_owner_only(openfga_setup):
     """No admin tuples and no tuples on ``all``; the ``own`` lister is unconditioned."""
     tuples = openfga_setup.tuples_for(POLICY)
     assert not any(t["object"].endswith("/all") for t in tuples)
-    assert {t["relation"] for t in tuples} == {"creator", "image_ok", "lister", "owner"}
+    assert {t["relation"] for t in tuples} == {"creator", "service_client", "image_ok", "lister", "owner"}
     assert all("condition" not in t for t in tuples if t["relation"] == "lister")
+
+
+def test_openfga_setup_service_client_tuple(openfga_setup):
+    """Listed service clients become one ``listed_client`` tuple per service, pairs joined by one space."""
+    clients = [t for t in openfga_setup.tuples_for(POLICY) if t["relation"] == "service_client"]
+    assert len(clients) == len(POLICY["services"])
+    expected = [f"{c['iss']} {c['client_id']}" for c in POLICY["service_clients"]]
+    assert all(t["condition"] == {"name": "listed_client", "context": {"allowed_clients": expected}} for t in clients)
+    without = {k: v for k, v in POLICY.items() if k != "service_clients"}
+    empty = [t for t in openfga_setup.tuples_for(without) if t["relation"] == "service_client"]
+    assert all(t["condition"]["context"] == {"allowed_clients": []} for t in empty)
+    openfga_setup.check_policy(without)
+
+
+@pytest.mark.parametrize(
+    "clients",
+    [
+        {"iss": "https://iss", "client_id": "c"},
+        ["https://iss c"],
+        [{"iss": "https://iss"}],
+        [{"iss": "https://iss", "client_id": "c", "audiences": ["x"]}],
+        [{"iss": "https://iss", "client_id": ""}],
+        [{"iss": "", "client_id": "c"}],
+        [{"iss": "https://iss", "client_id": 7}],
+        [{"iss": "https://iss", "client_id": "a b"}],
+        [{"iss": "https://iss\n", "client_id": "c"}],
+        [{"iss": "https://iss", "client_id": "c\x7f"}],
+    ],
+    ids=["object", "string", "no-client-id", "extra-key", "empty-id", "empty-iss", "number", "space", "newline", "del"],
+)
+def test_openfga_setup_refuses_malformed_service_clients(openfga_setup, clients):
+    """Malformed ``service_clients`` stop the setup job (OPA denies every request for the same data)."""
+    with pytest.raises(SystemExit, match="malformed 'service_clients'"):
+        openfga_setup.check_policy({**POLICY, "service_clients": clients})
 
 
 def test_prefix_expansion_differs_for_undelimited_prefix():
@@ -220,7 +256,7 @@ def test_openfga_mapping_always_passes_condition_parameters():
     """Review 2, finding 3: owner and subject ID are never missing."""
     req = _valid()
     out = openfga_shim.to_openfga(req, {"entitlements": "eduperson_entitlement"})
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": []}
+    assert out["subject"]["properties"] == {"id": "u", **NO_CLIENT, "entitlements": []}
     # No task projection: one empty image, which no allowlist prefix matches.
     assert out["resource"] == {"type": "tes_service", "id": "s", "properties": {"owner": "", "images": [""]}}
     assert out["subject"]["id"].startswith("h-")
@@ -248,7 +284,7 @@ def test_openfga_mapping_ignores_profile_2_properties():
     out = openfga_shim.to_openfga(extended, claim_map)
     plain_out = openfga_shim.to_openfga(plain, claim_map)
     assert out["subject"]["properties"] == plain_out["subject"]["properties"]
-    assert out["subject"]["properties"] == {"id": "u", "entitlements": ["urn:a"]}
+    assert out["subject"]["properties"] == {"id": "u", **NO_CLIENT, "entitlements": ["urn:a"]}
     assert out["resource"] == plain_out["resource"]
     assert out["action"] == plain_out["action"]
 
@@ -257,7 +293,17 @@ def test_openfga_mapping_ignores_actor():
     """The shim ignores ``actor``: a delegated token maps like its subject (no ``delegated`` parameter)."""
     req = _valid()
     req["subject"]["properties"] = {"actor": {"iss": "https://iss", "sub": "proxy"}}
-    assert openfga_shim.to_openfga(req, {})["subject"]["properties"] == {"id": "u"}
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"] == {"id": "u", **NO_CLIENT}
+
+
+def test_openfga_mapping_passes_service_client_identity():
+    """``iss``, ``sub`` and ``client_id`` reach the ``listed_client`` condition; other types become ``""``."""
+    req = _valid()
+    req["subject"]["properties"] = {"iss": "https://iss", "sub": "c1", "client_id": "c1", "scope": ["openid"]}
+    props = openfga_shim.to_openfga(req, {})["subject"]["properties"]
+    assert props == {"id": "u", "iss": "https://iss", "sub": "c1", "client_id": "c1"}
+    req["subject"]["properties"] = {"iss": ["https://iss"], "sub": 1, "client_id": None}
+    assert openfga_shim.to_openfga(req, {})["subject"]["properties"] == {"id": "u", **NO_CLIENT}
 
 
 def test_openfga_mapping_task_set_and_claims():
@@ -284,9 +330,10 @@ def test_parse_claim_map():
 
 
 def test_parse_claim_map_rejects_reserved_parameters():
-    """Claims can't overwrite the shim's own subject parameter ``id``."""
-    with pytest.raises(ValueError):
-        openfga_shim.parse_claim_map("id=x")
+    """Claims can't overwrite the shim's own subject parameters (``id``, ``iss``, ``sub``, ``client_id``)."""
+    for param in ("id", "iss", "sub", "client_id"):
+        with pytest.raises(ValueError):
+            openfga_shim.parse_claim_map(f"{param}=x")
     assert openfga_shim.parse_claim_map("delegated=x") == {"delegated": "x"}
 
 

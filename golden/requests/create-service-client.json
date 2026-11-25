@@ -1,6 +1,6 @@
 {
   "case": "5d",
-  "description": "client-credentials subject without claims",
+  "description": "client-credentials subject without claims, not listed in the policy data",
   "expect": {
     "reference_policy": {
       "decision": false
