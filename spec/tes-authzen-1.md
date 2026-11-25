@@ -210,11 +210,13 @@ Switched on, `ListTasks` asks one evaluation per page, `ListTasks` on `tes_task_
 | `{"decision": true, "context": {"tes": {"list_scope": "own"}}}` | `own` | list with `owner = subject.id` |
 | `{"decision": true, "context": {"tes": {"list_scope": "all"}}}` | `all` | list without an owner filter |
 | `{"decision": true, "context": {"tes": {"list_scope": "none"}}}` | `none` | `200` with an empty list, without a store read |
-| `context`, `context.tes` not an object, or `list_scope` another value or type | – | failed decision (§4.1) |
+| an allow whose `context` or `context.tes` isn't an object, or whose `list_scope` has another value or type | – | failed decision (§4.1) |
+
+A deny is `none` whatever its `context`.
 
 A deny is an empty list, not `403`: listing is never forbidden, it just finds nothing the caller may see. `own` stays the request's set ID and a plain allow means `own`, because native AuthZEN PDPs (OpenFGA, Cerbos) return only `decision`; they answer `own` or `none`. `all` is an answer, not a request: only a decision service whose operator grants it sends `list_scope: "all"` (the reference policy never does, §7). `/1` and `/2` also defined `tes_task_set:all` as a request ("list without owner filter"); a TES never asks it (§3), and `tes-authzen/3` removes it from the request vocabulary (§13). Poiesis's response `scope` object (§12) is a different, Poiesis-only field outside the contract; `list_scope` has its own name so that the two can't be confused.
 
-The scope becomes a predicate in the TES's own query (`own`: the caller's owner; `all`: none), applied with the user's filters and cursor: pages are correct and complete (no duplicates, no gaps, no task outside the scope), with size ≤ `page_size` (TESK already returns short pages, since it filters names, tags and state after reading a page of jobs). The decision is re-evaluated on every page, with the same scope rules. Keyset cursors (Poiesis, Funnel, TESP) work unchanged, since the scope is applied again on every page. A TES whose page tokens are bound to the store query (Kubernetes continue tokens of a per-owner label selector, TESK) answers `400` for a token whose query no longer matches the page's scope (e.g. the scope changed from `own` to `all` between pages, or the token belongs to another owner). `ListTasks` with `view=FULL` triggers no per-task evaluations.
+The scope becomes a predicate in the TES's own query (`own`: the caller's owner; `all`: every task with an exact owner, since tasks without one count as missing, §3.3), applied with the user's filters and cursor: pages are correct and complete (no duplicates, no gaps, no task outside the scope), with size ≤ `page_size` (TESK already returns short pages, since it filters names, tags and state after reading a page of jobs). The decision is re-evaluated on every page, with the same scope rules. Keyset cursors (Poiesis, Funnel, TESP) work unchanged, since the scope is applied again on every page. A TES whose page tokens are bound to the store query (Kubernetes continue tokens of a per-owner label selector, TESK) answers `400` for a token whose query no longer matches the page's scope (e.g. the scope changed from `own` to `all` between pages, or the token belongs to another owner). `ListTasks` with `view=FULL` triggers no per-task evaluations.
 
 ### 3.6 Userinfo (identity resolution, in the TES)
 
@@ -254,7 +256,7 @@ Example (`GetTask` switched on, on the caller's own task):
 | GetTask/CancelTask not switched on: task missing, of another owner, or without an exact owner | 404, PDP not called (§3). Missing and foreign tasks cost the same (no call), also during a PDP outage, so there is no existence oracle |
 | ListTasks not switched on | the caller's own tasks, PDP not called |
 | GetTask switched on: deny, or allow for a missing task | 404 |
-| CancelTask switched on: deny | the hook decides `get` once more (asking `GetTask` if `get` is switched on, else the owner rule): allowed and the task exists → 403, else 404 |
+| CancelTask switched on: deny by the PDP | the hook decides `get` once more (asking `GetTask` if `get` is switched on, with `get`'s failure mode; else the owner rule): allowed and the task exists → 403, else 404. When `cancel` isn't switched on, or its decision fell back to the owner rule (`open`), the owner rule makes this choice too, without a call |
 | CancelTask switched on: allow for a missing task | 404 |
 | ListTasks switched on | by the list scope (§3.5): deny → `none`, empty list (200) |
 | Failed decision: PDP timeout (default 2 s), connection error, non-200, body not JSON, `decision` missing or not boolean, malformed list scope | `authz.failure.<operation>` (below): `closed` → 503 **[profile]** with a generic message; cause logged (D3) |
@@ -282,11 +284,11 @@ The meaning of `open` is a proposal, pending decision (Q12); `closed` and the de
 | `authz.decisionService.claims` | claim names in the resolved view (§3.1) |
 | `authz.decisionService.credentialFile` | optional file with a bearer credential for TES→PDP (AuthZEN §11.2: the PDP SHOULD authenticate the PEP) |
 | `authz.operations` | operations the decision service decides (§3): a list of `create`, `get`, `list`, `cancel`; default `[create]`; must contain `create` |
-| `authz.failure.<operation>` | `closed` (default) or `open` per operation (§4.1); `authz.failure.create` must be `closed` |
+| `authz.failure.<operation>` | `closed` (default) or `open` per operation (§4.1); `authz.failure.create` must be `closed`; `open` is provisional until Q12 is decided |
 
 List-valued settings (`requiredClaim.values`, `requiredClaim.prefixes`, `decisionService.claims`, `operations`) are JSON arrays when given as environment variables (group URNs can contain commas), e.g. `POIESIS_AUTHZ_REQUIRED_CLAIM_PREFIXES='["urn:geant:lifescience-ri.eu:group:vo:"]'`; config files and Helm values use their native lists. Existing CSV settings (Poiesis `POIESIS_AUTH_OIDC_REQUIRED_SCOPES`) stay CSV. Mapping: Poiesis env `POIESIS_` + upper snake (`POIESIS_AUTHZ_DECISION_SERVICE_URL`), Helm values verbatim. TESK Spring `tesk.api.authz.decision-service.url` (env `TESK_API_AUTHZ_DECISION_SERVICE_URL`) and a new `tesk.api.authz.required-claim.{name,values,prefixes}`, enforced as an AND gate before the SpEL expression of `CreateTask` only (§5). TESK's existing `tesk.api.authorisation.claim.*` is not reused: it sets `claimAuthorised`, an OR grant that admits users without groups (`isAuthorisedWithoutGroup()`, ORed with group membership in `TesService`'s `@PreAuthorize`), so reusing it would change existing deployments or make TESK's rule an OR. It stays part of TESK's built-in group model. TESK also needs `tesk.api.authz.issuer` (env `TESK_API_AUTHZ_ISSUER`), required with the decision service, because its opaque-token userinfo doesn't name the issuer; it fills `subject.properties.iss` and the `<iss>|<sub>` owner. TESK maps `authz.operations` and `authz.failure.<operation>` to `tesk.api.authz.operations` and `tesk.api.authz.failure.<operation>`. Funnel YAML `Server.Authz.DecisionService.URL`. TESP Dynaconf `[authz] decision_service.url`, env `TESP_API_AUTHZ__DECISION_SERVICE__URL`. #113 proposed `POIESIS_AUTH_OIDC_REQUIRED_CLAIM*`; the rule moves under `authz` because it decides (note on #113, §9).
 
-Startup checks: `authz.*` set while auth is disabled → refuse to start (no anonymous principal reaches a PDP). `authz.*` set while the TES's own read rule isn't owner only (Funnel `TaskAccess` other than `Owner`) → refuse to start (§5). `requiredClaim.name` without values and prefixes → refuse to start. `authz.operations` or `authz.failure.*` set without `authz.decisionService.url`, `authz.operations` without `create` or with an unknown value, `authz.failure.*` for an unknown operation or with a value other than `closed`/`open`, or `authz.failure.create: open` → refuse to start. Implementations SHOULD also refuse to start on (fail-safe checks from Poiesis): an empty string among `values` or `prefixes` (an empty prefix matches everything); any `authz.decisionService.*` key set without `url`, or a `url` that isn't `http(s)://` with a host; a `credentialFile` that is empty or unreadable. A non-loopback `http://` PDP URL → warning only: AuthZEN §11.1 requires a secured PEP–PDP connection, which a mesh (mTLS sidecar) usually provides; transport is the mesh's job.
+Startup checks: `authz.*` set while auth is disabled → refuse to start (no anonymous principal reaches a PDP). `authz.*` set while the TES's own read rule isn't owner only (Funnel `TaskAccess` other than `Owner`) → refuse to start (§5). `requiredClaim.name` without values and prefixes → refuse to start. `authz.operations` other than `[create]` or any `authz.failure.*` without `authz.decisionService.url`, `authz.operations` without `create` or with an unknown or repeated value, `authz.failure.*` for an unknown operation or with a value other than `closed`/`open`, or `authz.failure.create: open` → refuse to start. Implementations SHOULD also refuse to start on (fail-safe checks from Poiesis): an empty string among `values` or `prefixes` (an empty prefix matches everything); any `authz.decisionService.*` key set without `url`, or a `url` that isn't `http(s)://` with a host; a `credentialFile` that is empty or unreadable. A non-loopback `http://` PDP URL → warning only: AuthZEN §11.1 requires a secured PEP–PDP connection, which a mesh (mTLS sidecar) usually provides; transport is the mesh's job.
 
 ### 4.3 Security
 
@@ -335,26 +337,30 @@ CreateTask(p, task):  gate(p); drop client id/state/creation_time/logs
                       res = {type:"tes_task_set", id:"own", properties:{owner:p.owner_id, task:project(task)}}
                       if on("create") and not ask(p,"CreateTask",res).decision: 403   # Failed: 503
                       task.owner = p.owner_id; store(task)
-meta(t)           = {} if t is None or t has no exact owner else {owner, state, tags}
+meta(t)           = {} if t is None else {owner, state, tags}
 owner_rule(p, t)  = t is not None and t.owner == p.owner_id
-allowed(op, act, p, id, t, aprops)
+allowed(op, act, p, id, t, aprops)                                    # returns (allowed, decided by the PDP)
                   = if on(op):
-                        try: return ask(p, act, {type:"tes_task", id, properties:meta(t)}, aprops).decision
-                        except Failed: if not fallback(op): raise 503
-                    return owner_rule(p, t)                           # no PDP call; owners keep their tasks
-GetTask(p, id, view): t = store.read_meta(id)                         # may be None
-                      if not allowed("get","GetTask",p,id,t,{view}) or t is None: 404
+                        try: return (ask(p, act, {type:"tes_task", id, properties:meta(t)}, aprops).decision, true)
+                        except Failed: if not fallback(op): raise 503; log the fallback
+                    return (owner_rule(p, t), false)                  # no PDP call; owners keep their tasks
+GetTask(p, id, view): t = store.read_meta(id)                         # None if missing or without an exact owner
+                      if not allowed("get","GetTask",p,id,t,{view})[0] or t is None: 404
 CancelTask(p, id):    t = store.read_meta(id)
-                      if not allowed("cancel","CancelTask",p,id,t,{}):
-                          if allowed("get","GetTask",p,id,t,{}) and t is not None: 403 else 404
+                      ok, pdp_decided = allowed("cancel","CancelTask",p,id,t,{})
+                      if not ok:
+                          # 403/404: ask get only if the PDP denied cancel; an owner-rule deny
+                          # (not switched on, or fell open) uses the owner rule again, no call
+                          readable = allowed("get","GetTask",p,id,t,{})[0] if pdp_decided else owner_rule(p,t)
+                          if readable and t is not None: 403 else 404
                       if t is None: 404
                       proceed
 ListTasks(p, f, view):scope = "own"
                       if on("list"):
                           try: scope = list_scope(ask(p,"ListTasks",{type:"tes_task_set",id:"own"},{view}))
-                          except Failed: if not fallback("list"): raise 503
+                          except Failed: if not fallback("list"): raise 503; log the fallback
                       if scope == "none": return []                    # no store read
-                      store.list(f + (owner=p.owner_id if scope == "own"))
+                      store.list(f + (owner=p.owner_id if scope == "own" else has an exact owner))
 list_scope(a)     = "none" if not a.decision else a.context.tes.list_scope or "own"
                     # must be "own", "all" or "none"; a malformed context or another value raises Failed
 ```

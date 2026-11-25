@@ -1,5 +1,5 @@
 {
-  "case": "5e",
+  "case": "27",
   "description": "profile tes-authzen/3, get switched on: owner without a current entitlement reads",
   "expect": {
     "reference_policy": {

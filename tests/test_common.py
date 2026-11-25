@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -289,30 +290,30 @@ def test_parse_claim_map_rejects_reserved_parameters():
     assert openfga_shim.parse_claim_map("delegated=x") == {"delegated": "x"}
 
 
-def _create(profile: str, owner: object = None) -> dict:
+def _create(profile: str, owner: object = None) -> dict[str, Any]:
     req = _valid()
     req["context"]["tes"]["profile"] = profile
     req["action"] = {"name": "CreateTask", "properties": {}}
-    props: dict = {"task": {"executors": [{"image": "docker.io/library/alpine"}]}}
+    props: dict[str, Any] = {"task": {"executors": [{"image": "docker.io/library/alpine"}]}}
     if owner is not None:
         props["owner"] = owner
     req["resource"] = {"type": "tes_task_set", "id": "own", "properties": props}
     return req
 
 
-def test_validate_accepts_owner_on_create_in_profile_3():
+def test_validate_accepts_owner_on_create_in_profile_3() -> None:
     """Profile /3: CreateTask names the caller as owner (spec section 13)."""
     common.validate_request(_create("tes-authzen/3", owner="u"))
 
 
 @pytest.mark.parametrize("owner", [None, "someone-else", "", 42])
-def test_validate_rejects_create_without_the_caller_as_owner_in_profile_3(owner):
+def test_validate_rejects_create_without_the_caller_as_owner_in_profile_3(owner: object) -> None:
     """Profile /3: a CreateTask without the caller as owner is a contract error."""
     with pytest.raises(common.ContractError, match="owner"):
         common.validate_request(_create("tes-authzen/3", owner=owner))
 
 
 @pytest.mark.parametrize("profile", ["tes-authzen/1", "tes-authzen/2"])
-def test_validate_accepts_create_without_owner_before_profile_3(profile):
+def test_validate_accepts_create_without_owner_before_profile_3(profile: str) -> None:
     """Profiles /1 and /2 have no owner on CreateTask."""
     common.validate_request(_create(profile))

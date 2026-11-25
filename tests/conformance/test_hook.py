@@ -139,7 +139,7 @@ def test_case_07b_server_assigned_id_and_state(start, stub):
 
 def test_case_08_pdp_denies_create(start, stub):
     """Case 8: a CreateTask deny gives 403 and stores nothing."""
-    stub.script(default=DENY, rules=[rule(ALLOW, action="ListTasks", resource_id="own")])
+    stub.script(default=DENY)
     tes = start(decision_service="stub")
     assert tes.create(ALICE)[0] == 403
     assert tes.call("GET", "/tasks", ALICE)[1]["tasks"] == []
@@ -437,6 +437,44 @@ def test_case_29_fail_open_falls_back_to_the_owner_rule(start, stub):
     assert tes.call("GET", f"/tasks/{foreign_id}?view=BASIC", BOB)[1]["state"] == "QUEUED"
 
 
+def test_case_10b_get_only_switched_on(start, stub):
+    """Case 10b: with only get switched on, cancel follows the owner rule and asks nothing, even if get widens."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", operations=("create", "get"))
+    task_id = tes.create(BOB)[1]["id"]
+    stub.reset()
+    stub.script(default=ALLOW)
+    assert tes.call("GET", f"/tasks/{task_id}", ALICE)[0] == 200
+    assert tes.call("POST", f"/tasks/{task_id}:cancel", ALICE)[0] == 404
+    stub.script(default=DOWN)
+    assert tes.call("POST", f"/tasks/{task_id}:cancel", ALICE)[0] == 404
+    assert tes.call("POST", "/tasks/no-such-task:cancel", ALICE)[0] == 404
+    assert [r["body"]["action"]["name"] for r in stub.requests()] == ["GetTask"]
+
+
+def test_case_11d_second_call_fails(start, stub):
+    """Case 11d: a denied cancel whose GetTask call fails gives 503 when get fails closed."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", operations=ALL_OPERATIONS)
+    task_id = tes.create(ALICE)[1]["id"]
+    stub.script(default=ALLOW, rules=[rule(DENY, action="CancelTask"), rule(DOWN, action="GetTask")])
+    assert tes.call("POST", f"/tasks/{task_id}:cancel", ALICE)[0] == 503
+
+
+def test_case_29_cancel_open_needs_no_second_call(start, stub):
+    """Case 29: cancel failing open uses the owner rule for the 403/404 choice too, even with get closed."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", operations=ALL_OPERATIONS, failure=(("cancel", "open"),))
+    own_id = tes.create(ALICE)[1]["id"]
+    foreign_id = tes.create(BOB)[1]["id"]
+    stub.reset()
+    stub.script(default=DOWN)
+    assert tes.call("POST", f"/tasks/{foreign_id}:cancel", ALICE)[0] == 404
+    assert tes.call("POST", "/tasks/no-such-task:cancel", ALICE)[0] == 404
+    assert tes.call("POST", f"/tasks/{own_id}:cancel", ALICE)[0] == 200
+    assert [r["body"]["action"]["name"] for r in stub.requests()] == ["CancelTask"] * 3
+
+
 def test_case_29_failure_mode_is_per_operation(start, stub):
     """Case 29: only the operations set to open fall back; the others stay closed (503)."""
     stub.script(default=ALLOW)
@@ -461,7 +499,7 @@ def test_case_29_failure_mode_is_per_operation(start, stub):
 )
 def test_case_15_pdp_failure_is_503(start, stub, response):
     """Case 15: any PDP failure gives 503 and executes nothing."""
-    stub.script(default=response, rules=[rule(ALLOW, action="ListTasks")])
+    stub.script(default=response)
     tes = start(decision_service="stub", timeout=1.0)
     assert tes.create(ALICE)[0] == 503
     assert tes.call("GET", "/tasks", ALICE)[1]["tasks"] == []

@@ -1,5 +1,5 @@
 {
-  "case": "26",
+  "case": "27",
   "description": "profile tes-authzen/3, get switched on: member on someone else's task: denied",
   "expect": {
     "reference_policy": {

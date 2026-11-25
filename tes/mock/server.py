@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sys
 import threading
 import time
@@ -46,6 +47,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "oidc"))
 
 from common import strip_url
 from minijose import JoseError, UnknownKeyError, decode_unverified, verify_jwt
+
+log = logging.getLogger("tes-authz-mock-tes")
 
 PREFIX = "/ga4gh/tes/v1"
 PROFILE = "tes-authzen/3"
@@ -127,13 +130,18 @@ def check_settings(settings: Settings) -> None:
         settings: The settings.
 
     Raises:
-        ValueError: If the TES must refuse to start: an unknown operation or
-            failure mode, ``create`` missing from ``operations`` or set to
-            ``open``, or a switch without a decision service.
+        ValueError: If the TES must refuse to start: a switch other than the
+            default without a decision service, an unknown or repeated
+            operation, an unknown failure mode, or ``create`` missing from
+            ``operations`` or set to ``open``.
     """
+    if settings.pdp_url is None and (settings.operations != ("create",) or settings.failure):
+        raise ValueError("authz.operations and authz.failure need authz.decisionService.url")
     unknown = [op for op in (*settings.operations, *settings.failure) if op not in OPERATIONS]
     if unknown:
         raise ValueError(f"unknown operation(s): {unknown}")
+    if len(set(settings.operations)) != len(settings.operations):
+        raise ValueError("authz.operations lists an operation twice")
     modes = [mode for mode in settings.failure.values() if mode not in FAILURE_MODES]
     if modes:
         raise ValueError(f"unknown failure mode(s): {modes}")
@@ -141,8 +149,6 @@ def check_settings(settings: Settings) -> None:
         raise ValueError("authz.operations must contain create")
     if settings.failure.get("create", "closed") != "closed":
         raise ValueError("authz.failure.create must be closed: the TES has no create rule to fall back to")
-    if settings.pdp_url is None and (tuple(settings.operations) != ("create",) or settings.failure):
-        raise ValueError("authz.operations and authz.failure need authz.decisionService.url")
 
 
 @dataclass
@@ -556,9 +562,66 @@ class Hook:
             return {}
         return {"owner": task["_owner"], "state": task["state"], "tags": task.get("tags", {})}
 
-    def task_allowed(
+    def _lookup(self, task_id: str) -> dict[str, Any] | None:
+        """Read a stored task; one without an exact owner counts as missing (spec section 3.3).
+
+        Args:
+            task_id: The task ID.
+
+        Returns:
+            The task, or ``None``.
+        """
+        task = self.store.tasks.get(task_id)
+        if task is None or not isinstance(task.get("_owner"), str) or not task["_owner"]:
+            return None
+        return task
+
+    def _in_scope(self, scope: str, p: Principal, task: dict[str, Any]) -> bool:
+        """Tell whether a stored task is in a list scope (``own`` or ``all``).
+
+        Args:
+            scope: The list scope.
+            p: The caller.
+            task: The stored task.
+
+        Returns:
+            For ``all``, whether the task has an exact owner (spec section 3.3);
+            for ``own``, whether the caller owns it.
+        """
+        if scope == "all":
+            return isinstance(task.get("_owner"), str) and bool(task["_owner"])
+        return self.owner_rule(p, task)
+
+    @staticmethod
+    def owner_rule(p: Principal, task: dict[str, Any] | None) -> bool:
+        """Apply the TES's own owner rule.
+
+        Args:
+            p: The caller.
+            task: The stored task, or ``None``.
+
+        Returns:
+            Whether the task exists and the caller owns it.
+        """
+        return task is not None and task["_owner"] == p.owner_id
+
+    def fall_back(self, operation: str) -> None:
+        """Handle a failed decision: re-raise when failing closed, else log the fallback.
+
+        Args:
+            operation: The operation.
+
+        Raises:
+            DecisionServiceError: If ``authz.failure.<operation>`` is ``closed``.
+        """
+        if not self.fails_open(operation):
+            raise DecisionServiceError
+        # Identifiers only: no token, no claim values (spec section 4.3)
+        log.warning("decision failed; %s falls back to the owner rule (failure open)", operation)
+
+    def task_decision(
         self, operation: str, p: Principal, task_id: str, task: dict[str, Any] | None, aprops: dict[str, Any]
-    ) -> bool:
+    ) -> tuple[bool, bool]:
         """Decide ``get`` or ``cancel`` on one task ID (spec section 6).
 
         Switched on, the decision service decides, for every ID (missing ones
@@ -574,7 +637,7 @@ class Hook:
 
         Returns:
             Whether the operation is allowed (the caller still checks that the
-            task exists).
+            task exists), and whether the decision service decided it.
 
         Raises:
             DecisionServiceError: On a failed decision with ``closed``.
@@ -583,11 +646,10 @@ class Hook:
             action = {"get": "GetTask", "cancel": "CancelTask"}[operation]
             resource = {"type": "tes_task", "id": task_id, "properties": self._meta(task)}
             try:
-                return self.ask(p, action, resource, aprops)["decision"] is True
+                return self.ask(p, action, resource, aprops)["decision"] is True, True
             except DecisionServiceError:
-                if not self.fails_open(operation):
-                    raise
-        return task is not None and task["_owner"] == p.owner_id
+                self.fall_back(operation)
+        return self.owner_rule(p, task), False
 
     def create(self, p: Principal, task: dict[str, Any]) -> dict[str, Any]:
         """CreateTask.
@@ -600,7 +662,8 @@ class Hook:
             ``{"id": ...}``.
 
         Raises:
-            HttpError: On deny or failure.
+            HttpError: 403 on a failed claim rule or a deny, 400 on bad executors.
+            DecisionServiceError: On a failed decision (503; create always fails closed).
         """
         self.gate(p)
         executors = task.get("executors")
@@ -632,10 +695,12 @@ class Hook:
             The task.
 
         Raises:
-            HttpError: On deny, absence or failure.
+            HttpError: 404 on a deny or a missing task.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
-        task = self.store.tasks.get(task_id)
-        if not self.task_allowed("get", p, task_id, task, {"view": view}) or task is None:
+        task = self._lookup(task_id)
+        allowed, _ = self.task_decision("get", p, task_id, task, {"view": view})
+        if allowed is not True or task is None:
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
         return self._render(task, view)
 
@@ -650,12 +715,18 @@ class Hook:
             ``{}``.
 
         Raises:
-            HttpError: On deny, absence or failure.
+            HttpError: 404 on a missing task or a deny the caller may not
+                read; 403 on a deny the caller may read.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
-        task = self.store.tasks.get(task_id)
-        if not self.task_allowed("cancel", p, task_id, task, {}):
-            # Denied: 403 only if the caller may read the task (case 11d).
-            if self.task_allowed("get", p, task_id, task, {}) and task is not None:
+        task = self._lookup(task_id)
+        allowed, by_pdp = self.task_decision("cancel", p, task_id, task, {})
+        if allowed is not True:
+            # Denied: 403 only if the caller may read the task (case 11d). A
+            # deny of the owner rule is decided by the owner rule alone, so an
+            # operation that isn't switched on (or fell open) asks nothing more.
+            readable = self.task_decision("get", p, task_id, task, {})[0] if by_pdp else self.owner_rule(p, task)
+            if readable and task is not None:
                 raise HttpError(HTTPStatus.FORBIDDEN, "forbidden")
             raise HttpError(HTTPStatus.NOT_FOUND, "not found")
         if task is None:
@@ -664,7 +735,11 @@ class Hook:
         return {}
 
     def list(self, p: Principal, page_size: int, page_token: str | None, view: str) -> dict[str, Any]:
-        """ListTasks with keyset paging.
+        """ListTasks with keyset paging, in the list scope (spec section 3.5).
+
+        By default, and after a failed decision with ``open``, the scope is
+        ``own``; switched on, it comes from the answer, and a deny is ``none``
+        (an empty list, without reading the store).
 
         Args:
             p: The caller.
@@ -676,15 +751,15 @@ class Hook:
             The page.
 
         Raises:
-            HttpError: On deny or failure.
+            HttpError: 400 on a bad page token.
+            DecisionServiceError: On a failed decision when failing closed (503).
         """
         scope = "own"
         if self.switched_on("list"):
             try:
                 scope = list_scope(self.ask(p, "ListTasks", {"type": "tes_task_set", "id": "own"}, {"view": view}))
             except DecisionServiceError:
-                if not self.fails_open("list"):
-                    raise
+                self.fall_back("list")
         if scope == "none":
             return {"tasks": []}
         try:
@@ -696,7 +771,7 @@ class Hook:
             rows = [
                 t
                 for t in (self.store.tasks[i] for i in ids)
-                if self.store.order[t["id"]] > after and (scope == "all" or t["_owner"] == p.owner_id)
+                if self.store.order[t["id"]] > after and self._in_scope(scope, p, t)
             ]
         page = rows[:page_size]
         result: dict[str, Any] = {"tasks": [self._render(t, view) for t in page]}

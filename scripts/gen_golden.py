@@ -714,14 +714,14 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         ),
         (
             "get-own-no-entitlement-profile-3",
-            "5e",
+            "27",
             "profile tes-authzen/3, get switched on: owner without a current entitlement reads",
             request(FRANK, "GetTask", "tes_task", "task-f1", task_meta("frank-sub"), view, context=v3),
             T,
         ),
         (
             "get-other-profile-3",
-            "26",
+            "27",
             "profile tes-authzen/3, get switched on: member on someone else's task: denied",
             request(ALICE, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v3),
             F,
