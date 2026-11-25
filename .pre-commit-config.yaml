@@ -19,7 +19,7 @@ repos:
       - id: trailing-whitespace
   # Project rules and their tests in `.semgrep/`
   - repo: https://github.com/semgrep/pre-commit
-    rev: 14ad2383dd6f19216cc78ba8ea1d4f607fc29df1  # frozen: v1.185.0
+    rev: a68c2d451e989be0cfbe8234b6b1a9ea17424a0d  # frozen: v1.186.0
     hooks:
       - id: semgrep
         args:
