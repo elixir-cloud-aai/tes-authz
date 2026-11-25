@@ -4,7 +4,7 @@ COMPOSE := eval "$$(python3 harness/stack.py)" && docker compose -p "$$TES_AUTHZ
 export UV_CACHE_DIR := $(CURDIR)/.cache/uv
 export UV_PROJECT_ENVIRONMENT := $(CURDIR)/.venv
 
-.PHONY: test up down logs unit golden lint kubernetes
+.PHONY: test up down logs unit golden lint kubernetes image
 
 ## Run everything (lint, types, policy check, services, all suites, cleanup).
 test:
@@ -25,6 +25,10 @@ logs:
 ## Deploy deploy/kubernetes/ to the current kubectl context (e.g. kind) and test it.
 kubernetes:
 	bash scripts/test-kubernetes.sh
+
+## Build the image of Dockerfile (OPA decision service) and test a container of it.
+image:
+	bash scripts/test-image.sh
 
 ## Unit tests only (no containers).
 unit:
