@@ -16,6 +16,7 @@
     "resource": {
       "id": "own",
       "properties": {
+        "owner": "{{subject_id}}",
         "task": {
           "executors": [
             {

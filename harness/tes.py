@@ -43,6 +43,10 @@ class HookConfig:
         required_claim: ``authz.requiredClaim.*``, or ``None``.
         userinfo: ``auth.oidc.userinfo.enabled``.
         service_id: The service-info ID the TES reports.
+        operations: ``authz.operations``: the operations the decision service
+            decides (spec section 3; default ``create`` only).
+        failure: ``authz.failure.<operation>`` as pairs of operation and
+            ``closed`` or ``open`` (spec section 4.1; default closed).
     """
 
     decision_service: str | None = None
@@ -51,6 +55,8 @@ class HookConfig:
     required_claim: RequiredClaim | None = None
     userinfo: bool = False
     service_id: str = "tes-authz-test"
+    operations: tuple[str, ...] = ("create",)
+    failure: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
