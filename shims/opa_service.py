@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import signal
 import subprocess
@@ -124,8 +125,8 @@ def _check_front_settings(env: Mapping[str, str]) -> None:
         timeout = float(raw)
     except ValueError:
         raise ConfigError(f"SHIM_TIMEOUT is not a number: {raw!r}") from None
-    if not timeout > 0:
-        raise ConfigError(f"SHIM_TIMEOUT must be positive: {raw!r}")
+    if not (timeout > 0 and math.isfinite(timeout)):
+        raise ConfigError(f"SHIM_TIMEOUT must be positive and finite: {raw!r}")
     raw = env.get("SHIM_MAX_BODY_BYTES", "1048576")
     try:
         size = int(raw)
@@ -159,8 +160,8 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         startup_timeout = float(raw_timeout)
     except ValueError:
         raise ConfigError(f"TES_AUTHZ_STARTUP_TIMEOUT is not a number: {raw_timeout!r}") from None
-    if not startup_timeout > 0:
-        raise ConfigError(f"TES_AUTHZ_STARTUP_TIMEOUT must be positive: {raw_timeout!r}")
+    if not (startup_timeout > 0 and math.isfinite(startup_timeout)):
+        raise ConfigError(f"TES_AUTHZ_STARTUP_TIMEOUT must be positive and finite: {raw_timeout!r}")
     _check_front_settings(env)
     host = env.get("TES_AUTHZ_HOST", "0.0.0.0")  # noqa: S104 (inside a container)
     if not host:
@@ -291,9 +292,13 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
         "access_evaluation_endpoint": settings.base_url + "/access/v1/evaluation",
     }
     try:
-        return ThreadingHTTPServer((settings.host, settings.port), make_handler(opa_front.decide, metadata))
+        server = ThreadingHTTPServer((settings.host, settings.port), make_handler(opa_front.decide, metadata))
     except OSError as exc:
         raise ConfigError(f"front can't listen on {settings.host}:{settings.port}: {exc}") from None
+    # `server_close()` then waits for requests in progress (bounded by the
+    # socket and OPA timeouts), so that OPA is stopped only after them
+    server.daemon_threads = False
+    return server
 
 
 def run(settings: Settings) -> int:

@@ -45,3 +45,12 @@ test_other_apis_denied if {
 test_longer_decision_path_denied if {
 	not authz.allow with input as {"method": "POST", "path": array.concat(decision, ["x"])}
 }
+
+test_decision_query_with_parameters_denied if {
+	not authz.allow with input as {"method": "POST", "path": decision, "params": {"explain": ["full"]}}
+	not authz.allow with input as {"method": "POST", "path": decision, "params": {"provenance": [""]}}
+}
+
+test_decision_query_with_empty_parameters_allowed if {
+	authz.allow with input as {"method": "POST", "path": decision, "params": {}}
+}

@@ -9,10 +9,13 @@ package system.authz
 
 default allow := false
 
-# The decision the front asks for (`opa_front.DECISION_PATH`)
+# The decision the front asks for (`opa_front.DECISION_PATH`), without
+# query parameters: `?explain`, `?provenance`, `?metrics` and the like
+# would return traces with the data, or more than the decision
 allow if {
 	input.method == "POST"
 	input.path == ["v1", "data", "tes", "authz", "allow"]
+	count(object.get(input, "params", {})) == 0
 }
 
 # The health check of the entry point and of probes

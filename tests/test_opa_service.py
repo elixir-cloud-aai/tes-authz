@@ -96,6 +96,8 @@ def test_settings_from_the_environment():
         ({"TES_AUTHZ_HOST": ""}, "TES_AUTHZ_HOST is empty"),
         ({"SHIM_TIMEOUT": "abc"}, "SHIM_TIMEOUT is not a number"),
         ({"SHIM_TIMEOUT": "-1"}, "SHIM_TIMEOUT must be positive"),
+        ({"SHIM_TIMEOUT": "inf"}, "SHIM_TIMEOUT must be positive and finite"),
+        ({"TES_AUTHZ_STARTUP_TIMEOUT": "inf"}, "must be positive and finite"),
         ({"SHIM_MAX_BODY_BYTES": "1.5"}, "SHIM_MAX_BODY_BYTES is not an integer"),
         ({"SHIM_MAX_BODY_BYTES": "0"}, "SHIM_MAX_BODY_BYTES must be positive"),
         ({"SHIM_LOG_LEVEL": "verbose"}, "SHIM_LOG_LEVEL is not a log level"),
@@ -327,3 +329,14 @@ def test_service_exits_with_2_on_invalid_front_settings(service_env: dict[str, s
     """Invalid settings of the front's modules exit with 2 too, not with a traceback."""
     process = start({**service_env, "SHIM_LOG_LEVEL": "verbose"})
     assert process.wait(timeout=15) == 2
+
+
+def test_front_waits_for_requests_in_progress_on_close():
+    """The front's server joins its request threads on close, before OPA stops."""
+    settings = opa_service.load_settings({"TES_AUTHZ_HOST": "127.0.0.1", "TES_AUTHZ_PORT": str(_free_port())})
+    server = opa_service.make_server(settings)
+    try:
+        assert server.daemon_threads is False
+        assert server.block_on_close is True
+    finally:
+        server.server_close()

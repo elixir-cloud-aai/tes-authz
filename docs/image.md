@@ -11,7 +11,7 @@ The entry point (`shims/opa_service.py`) checks that the policy data is a JSON o
 | Port | What | Reachable |
 |---|---|---|
 | 8080 (`TES_AUTHZ_PORT`) | AuthZEN front: `POST /access/v1/evaluation`, `GET /.well-known/authzen-configuration`, `GET /health` | on `TES_AUTHZ_HOST` (default all interfaces) |
-| 8181 (`TES_AUTHZ_OPA_PORT`) | OPA's API, which answers only the front's decision query (`POST /v1/data/tes/authz/allow`) and `GET /health`; everything else, such as changing or reading policy and data, gets `401` (OPA's `--authorization=basic` with `engines/opa/system/authz.rego`) | loopback only, which all containers of a pod share |
+| 8181 (`TES_AUTHZ_OPA_PORT`) | OPA's API, which answers only the front's decision query (`POST /v1/data/tes/authz/allow`, without query parameters such as `explain`, whose traces would show the data) and `GET /health`; everything else, such as changing or reading policy and data, gets `401` (OPA's `--authorization=basic` with `engines/opa/system/authz.rego`) | loopback only, which all containers of a pod share |
 
 To look into the policy or the data of a running service, evaluate them with `opa eval` on your copy of the data and the policy of the release instead; OPA's API won't show them. (The [Kubernetes manifest](operators.md#kubernetes) and `compose.yaml` run OPA without this API policy: there, OPA's loopback is not shared with a TES, and in compose its API is published for the tests on purpose.)
 

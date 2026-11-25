@@ -114,6 +114,9 @@ for method, path, body in [
     ('GET', '/v1/data', None),
     ('GET', '/v1/policies', None),
     ('POST', '/v1/data/tes_authz', b'{}'),
+    # The decision, but with a trace that would show the data
+    ('POST', '/v1/data/tes/authz/allow?explain=full', b'{}'),
+    ('POST', '/v1/data/tes/authz/allow?provenance&metrics', b'{}'),
 ]:
     request = urllib.request.Request(base + path, data=body, method=method)
     try:
