@@ -1,8 +1,9 @@
 # Everything that must pass on pull requests and pushes to `dev`: the pull
 # request title, lint (ruff, mypy and the pre-commit hooks), the unit tests,
 # the documentation (`mkdocs build --strict`), all suites against the Docker
-# Compose services (`make test`), and the Kubernetes manifest on kind (`make
-# kubernetes`). The gate `passed` ("CI passed") is the only required check.
+# Compose services (`make test`), the Kubernetes manifest on kind (`make
+# kubernetes`), and the image of `Dockerfile` (`make image`, then a scan).
+# The gate `passed` ("CI passed") is the only required check.
 # No `paths:` filters, so that the gate always reports; skip jobs with `if:` instead (and allow the
 # skip in the gate). Runs also when a pull request is edited, so that the
 # title check follows the title; all jobs run then, as a run that skipped the
@@ -205,6 +206,51 @@ jobs:
       - name: Deploy and test the manifest
         run: make kubernetes
 
+  # The image of `Dockerfile` (the OPA decision service with the policy of
+  # this commit; `make image`, `scripts/test-image.sh`): build it, replay
+  # the golden requests against a hardened container, check that OPA
+  # listens on its loopback only, that it has no pip and that it refuses to
+  # start without policy data. Then scan it with Trivy (shared action
+  # `elixir-cloud-aai/.github/actions/scan-image`; fails on fixable critical
+  # and high findings, and on pip). The fixable findings go to code
+  # scanning of this repository, except for pull requests from forks, whose
+  # token can't write them. Nothing is pushed: images are published by
+  # `release.yml` only
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload the scan results to code scanning
+    env:
+      TES_AUTHZ_IMAGE: tes-authz:ci
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      # As in `lint`
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version-file: uv.lock
+      - name: Install dependencies
+        run: uv sync --locked --python "$(which python)"
+      - name: Build and test the image
+        run: make image
+      - name: Scan image
+        uses: elixir-cloud-aai/.github/actions/scan-image@bf3840c9c072aaf37d6cafe199aaa1994087d1ef # v1.2.0
+        with:
+          image: ${{ env.TES_AUTHZ_IMAGE }}
+          category: image
+          upload: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+          fail-on-pip: "true"
+
   # The documentation, as Read the Docs builds it (`.readthedocs.yaml`)
   docs:
     name: Docs
@@ -243,7 +289,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
-    needs: [title, lint, test, docs, integration, kubernetes]
+    needs: [title, lint, test, docs, integration, kubernetes, image]
     permissions: {}
     steps:
       - name: Check results of all jobs

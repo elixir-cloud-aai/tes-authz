@@ -58,6 +58,7 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 | `harness/` | Engine registry, golden loading and diffing, stub client, TES-under-test interface. |
 | `tes/mock/` | An in-process mock TES with the hook (test-only; executable form of the spec [§6](specification.md#6-the-hook) pseudo-code), with OIDC AuthN against the mock issuer and the optional userinfo lookup of spec [§3.6](specification.md#36-userinfo-identity-resolution-in-the-tes). |
 | `compose.yaml` | The engines, shims, stub, mock OIDC issuer and setup job, with pinned images, `tes-authz-*` container names and loopback ports. |
+| `Dockerfile`, `shims/opa_service.py` | The [container image](image.md) of the OPA decision service: OPA, the front and the policy of the release in one container, published by `.github/workflows/release.yml`. |
 
 ### What phase 2 needs
 
