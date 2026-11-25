@@ -14,6 +14,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -331,12 +332,34 @@ def test_service_exits_with_2_on_invalid_front_settings(service_env: dict[str, s
     assert process.wait(timeout=15) == 2
 
 
-def test_front_waits_for_requests_in_progress_on_close():
-    """The front's server joins its request threads on close, before OPA stops."""
-    settings = opa_service.load_settings({"TES_AUTHZ_HOST": "127.0.0.1", "TES_AUTHZ_PORT": str(_free_port())})
-    server = opa_service.make_server(settings)
-    try:
-        assert server.daemon_threads is False
-        assert server.block_on_close is True
-    finally:
-        server.server_close()
+def test_stop_waits_for_requests_in_progress(service_env: dict[str, str], start: Start):
+    """A request in progress at SIGTERM still gets OPA's decision, then the service stops with 0."""
+    process = start({**service_env, "FAKE_OPA_DELAY": "1", "SHIM_TIMEOUT": "5"})
+    url = f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}"
+    _wait_for_front(url, process)
+    allowed = copy.deepcopy(REQUEST)
+    allowed["subject"]["id"] = "allowed"
+    answers: list[tuple[int, object]] = []
+    request = threading.Thread(target=lambda: answers.append(http("POST", f"{url}/access/v1/evaluation", allowed)))
+    request.start()
+    time.sleep(0.5)  # the request waits for the fake OPA
+    process.send_signal(signal.SIGTERM)
+    request.join(timeout=15)
+    assert answers == [(200, {"decision": True})]
+    assert process.wait(timeout=15) == 0
+
+
+def test_service_exits_with_2_when_opas_port_is_taken(service_env: dict[str, str], start: Start):
+    """If something listens on OPA's port already, the service exits with 2 before starting OPA."""
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", int(service_env["TES_AUTHZ_OPA_PORT"])))
+        taken.listen()
+        process = start(service_env)
+        assert process.wait(timeout=15) == 2
+    assert not Path(service_env["FAKE_OPA_ARGS"]).exists(), "OPA was started"
+
+
+def test_service_exits_with_2_when_opa_cant_be_run(service_env: dict[str, str], start: Start, tmp_path: Path):
+    """A missing OPA executable exits with 2, not with a traceback."""
+    process = start({**service_env, "TES_AUTHZ_OPA": str(tmp_path / "no-opa")})
+    assert process.wait(timeout=15) == 2

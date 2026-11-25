@@ -45,6 +45,7 @@ import logging
 import math
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -301,6 +302,25 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
     return server
 
 
+def check_port_free(port: int) -> None:
+    """Check that nothing listens on OPA's loopback port yet.
+
+    Otherwise the health check could be answered by another process (e.g.
+    another OPA of the pod), and the front would send decisions there.
+
+    Args:
+        port: OPA's loopback port.
+
+    Raises:
+        ConfigError: If the port is taken.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError as exc:
+            raise ConfigError(f"OPA's port 127.0.0.1:{port} is taken (TES_AUTHZ_OPA_PORT): {exc}") from None
+
+
 def run(settings: Settings) -> int:
     """Run OPA and the front until a signal or until OPA exits.
 
@@ -312,28 +332,39 @@ def run(settings: Settings) -> int:
         on its own.
 
     Raises:
-        ConfigError: If the policy data is unusable or OPA doesn't start.
+        ConfigError: If the policy data is unusable, OPA's port is taken,
+            or OPA doesn't start.
     """
-    check_data(settings.data)
-    for directory in (settings.policy, settings.system_policy):
-        if not directory.is_dir():
-            raise ConfigError(f"policy directory {directory} not found")
     stopping = threading.Event()
-    process = subprocess.Popen(opa_command(settings))  # noqa: S603 (fixed arguments)
 
     # Only flags the stop: the main thread then stops the front first and
-    # OPA last, so that no request reaches the front without OPA behind it
+    # OPA last, so that no request reaches the front without OPA behind it.
+    # Installed first, so that a stop during startup is handled too
     def stop(signum: int, frame: FrameType | None) -> None:
         stopping.set()
 
     previous = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGINT)}
+    process: subprocess.Popen[bytes] | None = None
     server: ThreadingHTTPServer | None = None
+    serving = False
     try:
+        check_data(settings.data)
+        for directory in (settings.policy, settings.system_policy):
+            if not directory.is_dir():
+                raise ConfigError(f"policy directory {directory} not found")
+        check_port_free(settings.opa_port)
+        if stopping.is_set():
+            return 0
+        try:
+            process = subprocess.Popen(opa_command(settings))  # noqa: S603 (fixed arguments)
+        except OSError as exc:
+            raise ConfigError(f"OPA can't be started ({settings.opa}): {exc}") from None
         wait_for_opa(settings.opa_url, process, settings.startup_timeout, stopping)
         if stopping.is_set():  # stopped during startup
             return 0
         server = make_server(settings)
         threading.Thread(target=server.serve_forever, name="front", daemon=True).start()
+        serving = True
         log.info("OPA ready; front listening on %s:%d", settings.host, settings.port)
         while not stopping.wait(0.2):
             if process.poll() is not None:
@@ -342,9 +373,10 @@ def run(settings: Settings) -> int:
         return 0
     finally:
         if server is not None:
-            server.shutdown()
+            if serving:  # `shutdown()` would wait forever otherwise
+                server.shutdown()
             server.server_close()
-        if process.poll() is None:
+        if process is not None and process.poll() is None:
             process.terminate()
             try:
                 process.wait(timeout=10)

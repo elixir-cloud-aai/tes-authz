@@ -15,7 +15,9 @@ The entry point (`shims/opa_service.py`) checks that the policy data is a JSON o
 
 To look into the policy or the data of a running service, evaluate them with `opa eval` on your copy of the data and the policy of the release instead; OPA's API won't show them. (The [Kubernetes manifest](operators.md#kubernetes) and `compose.yaml` run OPA without this API policy: there, OPA's loopback is not shared with a TES, and in compose its API is published for the tests on purpose.)
 
-If OPA exits, the service exits with status 1, so that the container is restarted. Unusable settings or policy data, and a front port that is taken, make it exit with status 2. `SIGTERM` and `SIGINT` stop the front first, then OPA, with status 0. The process runs as `nobody` (65534:65534), writes nothing (the root file system can be read-only) and needs no capabilities. The image has no pip.
+The front trusts its callers, as every decision service of the specification does: the claims in a request are those the TES took from a validated token. Only the TES may reach it: on loopback as a sidecar, or behind a NetworkPolicy as in the [Kubernetes manifest](operators.md#kubernetes).
+
+If OPA exits, the service exits with status 1, so that the container is restarted. Unusable settings or policy data, a taken port (of the front or of OPA) and a missing OPA make it exit with status 2. `SIGTERM` and `SIGINT` stop the front first, then OPA, with status 0. The process runs as `nobody` (65534:65534), writes nothing (the root file system can be read-only) and needs no capabilities. The image has no pip.
 
 ## Run it
 

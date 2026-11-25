@@ -5,7 +5,8 @@ Takes OPA's command line, writes it as JSON to the file named by
 (``tes/authz/allow``) on the ``--addr`` it is given, allowing exactly the
 requests whose subject ID is ``allowed``. With ``FAKE_OPA_EXIT`` set, it
 exits at once with that status instead; with ``FAKE_OPA_UNHEALTHY`` set,
-its health check answers ``503`` (OPA never gets ready).
+its health check answers ``503`` (OPA never gets ready); with
+``FAKE_OPA_DELAY`` (seconds), it answers decisions that much later.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
@@ -56,6 +58,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(400)
             return
         body = json.loads(self.rfile.read(length))
+        time.sleep(float(os.environ.get("FAKE_OPA_DELAY", "0")))
         self._send({"result": body["input"]["subject"]["id"] == "allowed"})
 
 
