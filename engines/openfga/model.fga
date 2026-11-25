@@ -2,9 +2,10 @@ model
   schema 1.1
 
 # Reference TES AuthZ policy (tes-authzen/1 to /3) for OpenFGA, behind the shim:
-# owner only. The entitlement is needed only to create; owners keep get, cancel
-# and their own list without it. No admin relation, and no tuple on
-# tes_task_set:<service>/all, so ListTasks on "all" is always denied.
+# owner only. The entitlement (or a listed service client) is needed only to
+# create; owners keep get, cancel and their own list without it. No admin
+# relation, and no tuple on tes_task_set:<service>/all, so ListTasks on "all"
+# is always denied.
 # Source of truth for loading is model.json (same content, API format);
 # keep both in sync (tests/test_openfga_model.py compares them via the fga CLI).
 
@@ -14,9 +15,11 @@ type user
 type tes_task_set
   relations
     define creator: [user:* with entitled]
+    define service_client: [user:* with listed_client]
+    define may_create: creator or service_client
     define image_ok: [user:* with images_allowed]
     define lister: [user:*]
-    define CreateTask: creator and image_ok
+    define CreateTask: may_create and image_ok
     define ListTasks: lister
     define GetTask: [user]
     define CancelTask: [user]
@@ -32,6 +35,14 @@ type tes_service
 
 condition entitled(subject_entitlements: list<string>, allowed_values: list<string>, allowed_prefixes: list<string>) {
   subject_entitlements.exists(e, e in allowed_values || allowed_prefixes.exists(p, e.startsWith(p)))
+}
+
+# allowed_clients: "<iss> <client_id>" (one space) per listed client; the setup
+# job accepts only printable ASCII without spaces in both, so the pair is
+# unambiguous (OpenFGA refuses control characters in tuple context values,
+# finding F12)
+condition listed_client(subject_iss: string, subject_sub: string, subject_client_id: string, allowed_clients: list<string>) {
+  subject_client_id != "" && subject_sub == subject_client_id && !subject_iss.contains(" ") && (subject_iss + " " + subject_client_id) in allowed_clients
 }
 
 condition images_allowed(resource_images: list<string>, allowed_image_prefixes: list<string>) {

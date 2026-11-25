@@ -1,0 +1,76 @@
+{
+  "case": "31",
+  "description": "listed service client, service_id the policy doesn't answer for",
+  "expect": {
+    "reference_policy": {
+      "decision": false
+    }
+  },
+  "name": "create-listed-client-unknown-service",
+  "request": {
+    "action": {
+      "name": "CreateTask",
+      "properties": {}
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/1",
+        "service_id": "other-tes"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "properties": {
+        "task": {
+          "executors": [
+            {
+              "image": "docker.io/library/alpine:3.20"
+            }
+          ],
+          "inputs": [
+            {
+              "path": "/data/in.txt",
+              "type": "FILE",
+              "url": "s3://bucket/in.txt"
+            }
+          ],
+          "name": "hello",
+          "outputs": [
+            {
+              "path": "/data/out",
+              "type": "DIRECTORY",
+              "url": "https://storage.example.org/out/"
+            }
+          ],
+          "resources": {
+            "cpu_cores": 1,
+            "disk_gb": 5.0,
+            "preemptible": false,
+            "ram_gb": 1.0,
+            "zones": []
+          },
+          "tags": {
+            "project": "demo"
+          },
+          "volumes": [
+            "/vol/a"
+          ]
+        }
+      },
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "example-service-client",
+      "properties": {
+        "claims": {},
+        "client_id": "example-service-client",
+        "iss": "https://login.example.org/oidc/",
+        "scope": [
+          "openid"
+        ],
+        "sub": "example-service-client"
+      },
+      "type": "user"
+    }
+  }
+}

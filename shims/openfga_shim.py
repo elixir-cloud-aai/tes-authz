@@ -15,11 +15,12 @@ shim rewrites a profile request into a request OpenFGA can answer:
   characters (``https://iss|sub`` owners would fail); the real ID travels as
   the ``subject_id`` condition parameter.
 * Every condition parameter is always present (review 2, finding 3):
-  ``subject_id``, ``resource_owner`` (empty string when the task has no
-  owner or does not exist), ``resource_images`` and one list parameter per
-  mapped claim (empty when the claim is missing). OpenFGA answers a
-  missing parameter with HTTP 400, which would turn a missing task into
-  503.
+  ``subject_id``, ``subject_iss``, ``subject_sub`` and ``subject_client_id``
+  (empty strings when missing or not strings), ``resource_owner`` (empty
+  string when the task has no owner or does not exist), ``resource_images``
+  and one list parameter per mapped claim (empty when the claim is
+  missing). OpenFGA answers a missing parameter with HTTP 400, which would
+  turn a missing task into 503.
 
 No policy lives here: which entitlements count is in the tuples.
 
@@ -30,7 +31,8 @@ Settings (environment):
     FGA_STORE_ID / FGA_MODEL_ID: Override the state file.
     FGA_CLAIMS: Comma-separated ``param=claim`` pairs; each claim from
         ``subject.properties.claims`` is passed as list parameter
-        ``subject_<param>``. Default: taken from the state file, where the
+        ``subject_<param>`` (``id``, ``iss``, ``sub`` and ``client_id`` are
+        reserved). Default: taken from the state file, where the
         setup job writes ``entitlements=<entitlement_claim>`` from the
         policy data file; a disagreeing value refuses to start.
     SHIM_MAX_LIST_ITEMS: Largest claim or executor list (default 1024).
@@ -50,6 +52,13 @@ from common import UpstreamError, encode_id, hash_id, post_json, serve, string_l
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 TIMEOUT = float(os.environ.get("SHIM_TIMEOUT", "1.5"))
+SUBJECT_STRINGS = ("iss", "sub", "client_id")
+"""Subject properties passed as string condition parameters (``subject_<name>``).
+
+The ``listed_client`` condition matches service clients on them (spec section 7).
+"""
+RESERVED_PARAMS = frozenset({"id", *SUBJECT_STRINGS})
+"""Subject parameter names ``FGA_CLAIMS`` can't use."""
 MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
 """Largest claim or executor list passed to OpenFGA.
 
@@ -74,7 +83,7 @@ def parse_claim_map(spec: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for pair in filter(None, (part.strip() for part in spec.split(","))):
         param, sep, claim = pair.partition("=")
-        if not sep or not param.isidentifier() or not claim or param == "id":
+        if not sep or not param.isidentifier() or not claim or param in RESERVED_PARAMS:
             raise ValueError(f"bad FGA_CLAIMS entry: {pair!r}")
         mapping[param] = claim
     return mapping
@@ -109,6 +118,9 @@ def to_openfga(req: dict[str, Any], claim_map: dict[str, str]) -> dict[str, Any]
     if not isinstance(claims, dict):
         claims = {}
     subject_props: dict[str, Any] = {"id": subject["id"]}
+    for name in SUBJECT_STRINGS:
+        value = properties.get(name)
+        subject_props[name] = value if isinstance(value, str) else ""
     for param, claim in claim_map.items():
         subject_props[param] = string_list(claims.get(claim))
 

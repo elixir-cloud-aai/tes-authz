@@ -45,7 +45,7 @@ Every engine sits behind the same AuthZEN endpoint, so a TES can't tell them apa
 
 | Path | What |
 |---|---|
-| `config/reference-policy.json` | **The one place to configure the policy**: entitlement claim, the member entitlements that may create tasks (exact values + `:`-terminated prefixes; there are no admins: an `admins` key makes OPA deny everything and the OpenFGA setup job refuse to start), executor image prefixes, service IDs. OPA loads it as data; the OpenFGA setup job generates the tuples and the shim's claim map from it (a disagreeing `FGA_CLAIMS` refuses to start). |
+| `config/reference-policy.json` | **The one place to configure the policy**: entitlement claim, the member entitlements that may create tasks (exact values + `:`-terminated prefixes; there are no admins: an `admins` key makes OPA deny everything and the OpenFGA setup job refuse to start), the service clients that may create tasks without the entitlement (`{iss, client_id}` pairs), executor image prefixes, service IDs. OPA loads it as data; the OpenFGA setup job generates the tuples and the shim's claim map from it (a disagreeing `FGA_CLAIMS` refuses to start). |
 | `engines/opa/policy/tes_authz.rego` | The reference policy in Rego. It enforces the contract itself too (except the UTF-8 check, which only the front makes), so OPA gives the same golden decisions without the front. |
 | `shims/opa_front.py` | Thin AuthZEN front: request → `POST /v1/data/tes/authz/allow` → `{"decision": bool}` |
 | `engines/openfga/model.fga`, `model.json` | The OpenFGA model (DSL to read, JSON to load; a test checks that they agree). |

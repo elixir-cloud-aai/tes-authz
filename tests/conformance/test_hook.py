@@ -104,6 +104,31 @@ def test_case_05d_client_credentials_without_claim(start):
     assert tes.create(SERVICE_CLIENT)[0] == 403
 
 
+def test_case_31_service_client_identity_and_own_tasks(start, stub, adapter):
+    """Case 31: a client-credentials CreateTask names ``iss`` and ``sub`` = ``client_id``; the client owns its tasks."""
+    fixtures = adapter.subject_fixtures(SERVICE_CLIENT)
+    if fixtures.get("client_id") is None:
+        pytest.skip(f"{adapter.name} can't send client_id for client-credentials tokens")
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub")
+    status, body = tes.create(SERVICE_CLIENT)
+    assert status == 200, body
+    (recorded,) = stub.requests()
+    subject = recorded["body"]["subject"]
+    assert subject["id"] == adapter.owner_id(SERVICE_CLIENT)
+    assert subject["properties"]["iss"] == fixtures["iss"]
+    assert subject["properties"]["sub"] == subject["properties"]["client_id"] == SERVICE_CLIENT.sub
+    task_id, alice_task = body["id"], tes.create(ALICE)[1]["id"]
+    stub.reset()
+    stub.script(default=ALLOW)
+    assert tes.call("GET", f"/tasks/{task_id}", SERVICE_CLIENT)[0] == 200
+    assert [t["id"] for t in tes.call("GET", "/tasks", SERVICE_CLIENT)[1]["tasks"]] == [task_id]
+    assert tes.call("GET", f"/tasks/{alice_task}", SERVICE_CLIENT)[0] == 404
+    assert tes.call("POST", f"/tasks/{alice_task}:cancel", SERVICE_CLIENT)[0] == 404
+    assert tes.call("POST", f"/tasks/{task_id}:cancel", SERVICE_CLIENT)[0] == 200
+    assert stub.requests() == []
+
+
 def test_case_07_create_request_matches_golden(start, stub, adapter):
     """Case 7: the CreateTask request equals the golden file; no secrets."""
     stub.script(default=ALLOW)

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -26,6 +27,13 @@ sys.path.insert(0, os.environ.get("SHIMS_DIR", "/shims"))
 
 from common import UpstreamError, encode_id, post_json
 from openfga_shim import task_set_object, to_openfga
+
+PLAIN_ID = re.compile(r"[!-~]+")
+"""A service client's ``iss`` or ``client_id``: printable ASCII without spaces (``!`` to ``~``).
+
+Same check as ``plain_id`` in the OPA policy. It also keeps the ``listed_client``
+pairs (``<iss> <client_id>``, one space) unambiguous.
+"""
 
 FGA_URL = os.environ.get("FGA_URL", "http://openfga:8080").rstrip("/")
 MAX_LIST_ITEMS = int(os.environ.get("SHIM_MAX_LIST_ITEMS", "1024"))
@@ -42,12 +50,24 @@ def check_policy(policy: dict[str, Any]) -> None:
 
     Raises:
         SystemExit: If a prefix is empty (CEL ``"".startsWith("")`` would
-            match the shim's empty-image sentinel), or if the file still has
+            match the shim's empty-image sentinel), if the file still has
             ``admins`` (removed: nobody reaches other owners' tasks, so an
-            admin group would silently grant nothing).
+            admin group would silently grant nothing), or if
+            ``service_clients`` is malformed (OPA denies every request then).
     """
     if "admins" in policy:
         raise SystemExit("the policy data file has 'admins': the reference policy is owner only, remove it")
+    clients = policy.get("service_clients", [])
+    if not isinstance(clients, list) or not all(
+        isinstance(c, dict)
+        and set(c) == {"iss", "client_id"}
+        and all(isinstance(c[k], str) and PLAIN_ID.fullmatch(c[k]) for k in ("iss", "client_id"))
+        for c in clients
+    ):
+        raise SystemExit(
+            "malformed 'service_clients' in the policy data file: a list of {iss, client_id}, "
+            "both printable ASCII strings without spaces"
+        )
     prefixes = [*policy["members"]["prefixes"], *policy["image_prefixes"]]
     if any(not isinstance(p, str) or not p for p in prefixes):
         raise SystemExit("empty or non-string prefix in the policy data file")
@@ -62,7 +82,9 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
 
     Returns:
         Profile requests (non-matching entitlements, images matching only the
-        last prefix), each at ``MAX_LIST_ITEMS`` items of ``ITEM_LENGTH``.
+        last prefix; ``CreateTask`` once as a member and once as a caller
+        that is neither a member nor a listed client), each at
+        ``MAX_LIST_ITEMS`` items of ``ITEM_LENGTH``.
     """
     filler = "x" * ITEM_LENGTH
     entitlements = [f"urn:self-check:{i}:{filler}" for i in range(MAX_LIST_ITEMS)]
@@ -71,9 +93,14 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     claim = policy["entitlement_claim"]
     context = {"tes": {"profile": SELF_CHECK_PROFILE, "service_id": service}}
 
+    listed = {(c["iss"], c["client_id"]) for c in policy.get("service_clients", [])}
+    client = next(f"self-check-{i}" for i in range(len(listed) + 1) if ("self-check", f"self-check-{i}") not in listed)
+
     def req(action: str, rtype: str, rid: str, ents: list[str], props: dict[str, Any]) -> dict[str, Any]:
+        # A client that isn't listed, so listed_client walks the whole list too
+        subject = {"iss": "self-check", "sub": client, "client_id": client, "claims": {claim: ents}}
         return {
-            "subject": {"type": "user", "id": "self-check", "properties": {"claims": {claim: ents}}},
+            "subject": {"type": "user", "id": "self-check", "properties": subject},
             "action": {"name": action},
             "resource": {"type": rtype, "id": rid, "properties": props},
             "context": context,
@@ -83,6 +110,8 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     return [
         req("ListTasks", "tes_task_set", "own", entitlements, {}),
         req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
+        # Neither a member nor a listed client: both branches of may_create are evaluated
+        req("CreateTask", "tes_task_set", "own", entitlements, {"task": task}),
     ]
 
 
@@ -113,7 +142,8 @@ def self_check(policy: dict[str, Any], store_id: str, model_id: str) -> None:
 def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
     """Generate the tuples of the reference policy.
 
-    Owner only: the entitlement is needed only to create; ``GetTask`` and
+    Owner only: the entitlement, or a listed service client
+    (``listed_client``), is needed only to create; ``GetTask`` and
     ``CancelTask`` need ownership alone, and ``ListTasks`` on ``own`` is open
     to every caller (the TES lists only their tasks). No tuple on a
     service's ``all`` set, so ``ListTasks`` on it is always denied, and no
@@ -127,6 +157,7 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
     """
     members = {"allowed_values": policy["members"]["values"], "allowed_prefixes": policy["members"]["prefixes"]}
     images = {"allowed_image_prefixes": policy["image_prefixes"]}
+    clients = {"allowed_clients": [f"{c['iss']} {c['client_id']}" for c in policy.get("service_clients", [])]}
     tuples: list[dict[str, Any]] = []
 
     def add(obj: str, relation: str, condition: str | None, context: dict[str, Any] | None = None) -> None:
@@ -139,6 +170,7 @@ def tuples_for(policy: dict[str, Any]) -> list[dict[str, Any]]:
         own = "tes_task_set:" + task_set_object(service, "own")
         svc = "tes_service:" + encode_id(service)
         add(own, "creator", "entitled", members)
+        add(own, "service_client", "listed_client", clients)
         add(own, "image_ok", "images_allowed", images)
         add(own, "lister", None)
         add(svc, "owner", "is_owner")

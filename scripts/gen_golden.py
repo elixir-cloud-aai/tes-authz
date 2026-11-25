@@ -93,6 +93,33 @@ DAVE = subject("dave-sub", [ADMIN])
 FRANK = subject("frank-sub")
 SERVICE_CLIENT = subject("service-account-proxy", None, client_id="protes", claims=False)
 SERVICE_CLIENT["properties"]["scope"] = ["openid"]
+LISTED_CLIENT_ID = "example-service-client"
+"""Client ID of the service client listed in ``config/reference-policy.json`` (with ``CLIENT_ISS``)."""
+CLIENT_ISS = "https://login.example.org/oidc/"
+"""Issuer of the listed service client: an example issuer, so the shipped data grants nothing real."""
+
+
+def service_client(
+    client_id: str = LISTED_CLIENT_ID, *, sub: str | None = None, iss: str = CLIENT_ISS, owner_id: str | None = None
+) -> dict[str, Any]:
+    """Build the subject of a client-credentials token (LS Login: ``sub`` = ``client_id``).
+
+    Args:
+        client_id: The ``client_id`` property.
+        sub: The ``sub`` property, if it differs from the client ID.
+        iss: The issuer.
+        owner_id: The owner ID, if it differs from ``sub``.
+
+    Returns:
+        The subject object, without claims and with scope ``openid``.
+    """
+    subj = subject(sub or client_id, None, owner_id=owner_id, client_id=client_id, claims=False)
+    subj["properties"]["iss"] = iss
+    subj["properties"]["scope"] = ["openid"]
+    return subj
+
+
+LISTED_CLIENT = service_client()
 
 TASK = {
     "name": "hello",
@@ -240,6 +267,15 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         "create-executor-no-image": ("executor without image", {**TASK, "executors": [{"command": ["x"]}]}),
         "create-task-missing-executors": ("task without executors", {"name": "x"}),
     }
+    listed_multi = service_client(owner_id=f"{CLIENT_ISS}|{LISTED_CLIENT_ID}")
+    unlisted = service_client("unlisted-client")
+    listed_delegated = with_v2_properties(LISTED_CLIENT, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
+    no_client_id = service_client()
+    del no_client_id["properties"]["client_id"]
+    no_iss = service_client()
+    del no_iss["properties"]["iss"]
+    bad_client_id = service_client()
+    bad_client_id["properties"]["client_id"] = [LISTED_CLIENT_ID]
     T, F = True, False  # noqa: N806 (readable decision column)
     return [
         # CreateTask (cases 3, 4, 4b, 5, 5d, 6, 7, 17, plus contract checks)
@@ -261,7 +297,13 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             F,
         ),
         ("create-no-claim", "5", "claims object without the entitlement claim", create(FRANK), F),
-        ("create-service-client", "5d", "client-credentials subject without claims", create(SERVICE_CLIENT), F),
+        (
+            "create-service-client",
+            "5d",
+            "client-credentials subject without claims, not listed in the policy data",
+            create(SERVICE_CLIENT),
+            F,
+        ),
         ("create-string-claim", "6", "claim as a single string", create(erin), T),
         ("create-list-mixed-types", "6", "non-string list elements are ignored", create(mixed), T),
         ("create-number-claim", "6", "claim of the wrong type", create(number), F),
@@ -867,6 +909,150 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "17",
             "no task projection at all",
             request(ALICE, "CreateTask", "tes_task_set", "own", {}),
+            F,
+        ),
+        # Service clients listed in the policy data (case 31): create without an entitlement,
+        # own their tasks like any creator, nothing beyond
+        ("create-listed-client", "31", "listed (iss, client_id), sub = client_id: creates", create(LISTED_CLIENT), T),
+        (
+            "create-listed-client-profile-3",
+            "31",
+            "profile tes-authzen/3, listed service client creates; the request names it as owner",
+            create(LISTED_CLIENT, context=v3),
+            T,
+        ),
+        (
+            "create-listed-client-multi-issuer",
+            "31",
+            "profile tes-authzen/3, listed service client with an <iss>|<sub> owner ID",
+            create(listed_multi, context=v3),
+            T,
+        ),
+        (
+            "create-listed-client-other-owner",
+            "31",
+            "profile tes-authzen/3, listed service client names another owner: contract error",
+            create(LISTED_CLIENT, context=v3, owner="alice-sub"),
+            F,
+        ),
+        (
+            "create-listed-client-image-denied",
+            "31",
+            "listed service client, executor image outside the allowlist",
+            create(LISTED_CLIENT, with_images("quay.io/evil/miner:1")),
+            F,
+        ),
+        (
+            "create-listed-client-on-all",
+            "31",
+            "listed service client: CreateTask only on the 'own' set",
+            create(LISTED_CLIENT, set_id="all"),
+            F,
+        ),
+        (
+            "create-listed-client-unknown-service",
+            "31",
+            "listed service client, service_id the policy doesn't answer for",
+            create(LISTED_CLIENT, context=unknown_service),
+            F,
+        ),
+        (
+            "create-listed-client-actor",
+            "31",
+            "profile tes-authzen/2, delegated token whose subject is the listed client: the subject's powers",
+            create(listed_delegated, context=v2),
+            T,
+        ),
+        ("create-unlisted-client", "31", "client-credentials token of an unlisted client", create(unlisted), F),
+        (
+            "create-listed-client-other-issuer",
+            "31",
+            "listed client ID, but from another issuer",
+            create(service_client(iss="https://other-idp.example.org/")),
+            F,
+        ),
+        (
+            "create-listed-client-issuer-near-miss",
+            "31",
+            "listed client ID, issuer without the trailing slash: exact match only",
+            create(service_client(iss=CLIENT_ISS.rstrip("/"))),
+            F,
+        ),
+        (
+            "create-listed-client-case",
+            "31",
+            "client ID in another case: exact match only",
+            create(service_client(LISTED_CLIENT_ID.upper())),
+            F,
+        ),
+        (
+            "create-listed-client-user-token",
+            "31",
+            "user token issued to the listed client (client_id listed, sub a user): no service-client grant",
+            create(service_client(sub="frank-sub")),
+            F,
+        ),
+        (
+            "create-listed-client-sub-only",
+            "31",
+            "sub equals the listed client ID, client_id property missing",
+            create(no_client_id),
+            F,
+        ),
+        (
+            "create-listed-client-id-not-string",
+            "31",
+            "client_id property of the wrong type",
+            create(bad_client_id),
+            F,
+        ),
+        (
+            "create-listed-client-no-issuer",
+            "31",
+            "listed client ID, iss property missing",
+            create(no_iss),
+            F,
+        ),
+        (
+            "get-own-listed-client",
+            "31",
+            "listed service client reads its own task",
+            request(LISTED_CLIENT, "GetTask", "tes_task", "task-c1", task_meta(LISTED_CLIENT_ID), view),
+            T,
+        ),
+        (
+            "get-other-listed-client",
+            "31",
+            "listed service client and another owner's task: denied",
+            request(LISTED_CLIENT, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view),
+            F,
+        ),
+        (
+            "cancel-own-listed-client",
+            "31",
+            "listed service client cancels its own task",
+            request(LISTED_CLIENT, "CancelTask", "tes_task", "task-c1", task_meta(LISTED_CLIENT_ID)),
+            T,
+        ),
+        (
+            "cancel-other-listed-client",
+            "31",
+            "listed service client and another owner's task: denied",
+            request(LISTED_CLIENT, "CancelTask", "tes_task", "task-b1", task_meta("bob-sub")),
+            F,
+        ),
+        (
+            "list-own-listed-client",
+            "31",
+            "listed service client lists its own tasks",
+            request(LISTED_CLIENT, "ListTasks", "tes_task_set", "own", None, view),
+            T,
+        ),
+        (
+            "list-all-listed-client",
+            "31",
+            "listed service client: 'all' is never allowed",
+            request(LISTED_CLIENT, "ListTasks", "tes_task_set", "all", None, view),
             F,
         ),
     ]

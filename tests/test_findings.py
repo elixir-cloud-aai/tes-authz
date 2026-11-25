@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +20,8 @@ from harness.engines import ENGINES, OPENFGA_API
 from .conftest import http
 
 pytestmark = pytest.mark.services
+
+ENGINE_DIR = Path(__file__).resolve().parent.parent / "engines" / "openfga"
 
 # A member entitlement. Owners no longer need one (Q11, option a); it keeps the
 # requests realistic and the entitlement list in the condition context.
@@ -197,3 +200,30 @@ def test_openfga_missing_owner_without_entitlement_is_an_error(fga_eval):
     """``GetTask`` evaluates ``is_owner`` alone: a missing ``resource_owner`` is 400, also for non-members."""
     status, body = http("POST", fga_eval, _owner_req({"id": "u1", "entitlements": []}, {}))
     assert status == 400 and "resource_owner" in body["message"]
+
+
+@pytest.mark.parametrize(
+    ("separator", "status"), [(" ", 200), ("\n", 400), ("\t", 400), ("\x7f", 400), ("\x85", 400), ("\u00e9", 200)]
+)
+def test_openfga_refuses_control_characters_in_tuple_context(services, separator, status):
+    """F12: tuple condition context strings can't hold control characters, so ``listed_client`` joins with a space."""
+    model = json.loads((ENGINE_DIR / "model.json").read_text())
+    store = http("POST", f"{OPENFGA_API}/stores", {"name": "tes-authz-finding-f12"})[1]["id"]
+    model_id = http("POST", f"{OPENFGA_API}/stores/{store}/authorization-models", model)[1]["authorization_model_id"]
+    pair = f"https://iss.example.org/{separator}client"
+    key = {
+        "user": "user:*",
+        "relation": "service_client",
+        "object": "tes_task_set:s/own",
+        "condition": {"name": "listed_client", "context": {"allowed_clients": [pair]}},
+    }
+    try:
+        answer = http(
+            "POST",
+            f"{OPENFGA_API}/stores/{store}/write",
+            {"writes": {"tuple_keys": [key]}, "authorization_model_id": model_id},
+        )
+    finally:
+        http("DELETE", f"{OPENFGA_API}/stores/{store}")
+    assert answer[0] == status, answer
+    assert status == 200 or "forbidden characters" in answer[1]["message"]
