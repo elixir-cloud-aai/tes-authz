@@ -18,7 +18,7 @@
 
 FROM docker.io/openpolicyagent/opa:1.22.4-static@sha256:12cecac5a174368f7d3f09d3a19d040ebe0c91d576e520335ae7a985a26e39d3 AS opa
 
-FROM docker.io/library/python:3.13.18-slim@sha256:7249d5587b78209a006dc4a3b5340678f84ea729239193aa559962cd8c1fce50
+FROM docker.io/library/python:3.15.1-slim@sha256:533b0b2f9b5d46fd097091cf826f27902f1d6c3bca714b6dc74551356aa97a51
 
 # TEMPORARY, remove before the next release (D-435: no temporary apt fixes
 # in release images). The Python image (digest above, checked 2026-11-25)
