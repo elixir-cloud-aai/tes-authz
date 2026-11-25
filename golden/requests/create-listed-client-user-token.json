@@ -64,7 +64,7 @@
       "properties": {
         "claims": {},
         "client_id": "example-service-client",
-        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "iss": "https://login.example.org/oidc/",
         "scope": [
           "openid"
         ],

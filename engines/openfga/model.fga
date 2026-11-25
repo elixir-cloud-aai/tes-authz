@@ -38,8 +38,9 @@ condition entitled(subject_entitlements: list<string>, allowed_values: list<stri
 }
 
 # allowed_clients: "<iss> <client_id>" (one space) per listed client; the setup
-# job refuses spaces and control characters in both, so the pair is unambiguous
-# (OpenFGA refuses control characters such as a newline in tuple context values)
+# job accepts only printable ASCII without spaces in both, so the pair is
+# unambiguous (OpenFGA refuses control and many non-ASCII characters in tuple
+# context values, finding F12)
 condition listed_client(subject_iss: string, subject_sub: string, subject_client_id: string, allowed_clients: list<string>) {
   subject_client_id != "" && subject_sub == subject_client_id && !subject_iss.contains(" ") && (subject_iss + " " + subject_client_id) in allowed_clients
 }

@@ -26,10 +26,10 @@
 # whatever their entitlements, and tes_task_set:all is never allowed (it is
 # no longer in the vocabulary from tes-authzen/3 on). A listed service client
 # gets the create grant and nothing beyond: it owns its tasks like any
-# creator. Leftover policy data with an "admins" key (from before owner only)
-# or a malformed service_clients list denies every request. Anything else, and any
-# request outside the profiles, is denied (also the TES-specific resource
-# types of tes-authzen/2, such as poiesis_api_keys).
+# creator. Leftover policy data with an "admins" key (from before owner
+# only) or a malformed service_clients list denies every request. Anything
+# else, and any request outside the profiles, is denied (also the
+# TES-specific resource types of tes-authzen/2, such as poiesis_api_keys).
 package tes.authz
 
 import rego.v1
@@ -127,8 +127,8 @@ may_create if listed_client
 # Service clients (spec section 7): optional, a list of {iss, client_id}.
 service_clients := object.get(cfg, "service_clients", [])
 
-# Every entry has exactly iss and client_id, both strings without spaces or
-# ASCII control characters (the OpenFGA setup job refuses the same data), so a
+# Every entry has exactly iss and client_id, both non-empty strings of
+# printable ASCII without spaces (the OpenFGA setup job refuses the same data), so a
 # malformed list fails closed instead of being skipped in parts.
 service_clients_ok if {
 	is_array(service_clients)
@@ -142,7 +142,7 @@ service_clients_ok if {
 
 plain_id(x) if {
 	is_string(x)
-	regex.match(`^[^ \x00-\x1f\x7f]+$`, x)
+	regex.match(`^[!-~]+$`, x)
 }
 
 # A client-credentials caller listed by issuer and client ID: sub equals the

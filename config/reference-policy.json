@@ -5,7 +5,7 @@
     "prefixes": ["urn:geant:lifescience-ri.eu:group:example-vo:"]
   },
   "service_clients": [
-    {"iss": "https://login.aai.lifescience-ri.eu/oidc/", "client_id": "example-service-client"}
+    {"iss": "https://login.example.org/oidc/", "client_id": "example-service-client"}
   ],
   "image_prefixes": ["docker.io/library/", "ghcr.io/elixir-cloud-aai/"],
   "services": ["tes-authz-test", "org.ga4gh.poiesis", "org.ga4gh.funnel"]

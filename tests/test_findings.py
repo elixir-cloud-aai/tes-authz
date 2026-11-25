@@ -202,7 +202,9 @@ def test_openfga_missing_owner_without_entitlement_is_an_error(fga_eval):
     assert status == 400 and "resource_owner" in body["message"]
 
 
-@pytest.mark.parametrize(("separator", "status"), [(" ", 200), ("\n", 400), ("\t", 400)])
+@pytest.mark.parametrize(
+    ("separator", "status"), [(" ", 200), ("\n", 400), ("\t", 400), ("\x7f", 400), ("\x85", 400), ("\u00e9", 200)]
+)
 def test_openfga_refuses_control_characters_in_tuple_context(services, separator, status):
     """F12: tuple condition context strings can't hold control characters, so ``listed_client`` joins with a space."""
     model = json.loads((ENGINE_DIR / "model.json").read_text())
@@ -215,12 +217,13 @@ def test_openfga_refuses_control_characters_in_tuple_context(services, separator
         "object": "tes_task_set:s/own",
         "condition": {"name": "listed_client", "context": {"allowed_clients": [pair]}},
     }
-    answer = http(
-        "POST",
-        f"{OPENFGA_API}/stores/{store}/write",
-        {"writes": {"tuple_keys": [key]}, "authorization_model_id": model_id},
-    )
+    try:
+        answer = http(
+            "POST",
+            f"{OPENFGA_API}/stores/{store}/write",
+            {"writes": {"tuple_keys": [key]}, "authorization_model_id": model_id},
+        )
+    finally:
+        http("DELETE", f"{OPENFGA_API}/stores/{store}")
     assert answer[0] == status, answer
-    if status != 200:
-        assert "forbidden characters" in answer[1]["message"]
-    http("DELETE", f"{OPENFGA_API}/stores/{store}")
+    assert status == 200 or "forbidden characters" in answer[1]["message"]

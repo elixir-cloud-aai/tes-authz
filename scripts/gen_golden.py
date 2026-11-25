@@ -94,11 +94,13 @@ FRANK = subject("frank-sub")
 SERVICE_CLIENT = subject("service-account-proxy", None, client_id="protes", claims=False)
 SERVICE_CLIENT["properties"]["scope"] = ["openid"]
 LISTED_CLIENT_ID = "example-service-client"
-"""Client ID of the service client listed in ``config/reference-policy.json`` (with ``ISS``)."""
+"""Client ID of the service client listed in ``config/reference-policy.json`` (with ``CLIENT_ISS``)."""
+CLIENT_ISS = "https://login.example.org/oidc/"
+"""Issuer of the listed service client: an example issuer, so the shipped data grants nothing real."""
 
 
 def service_client(
-    client_id: str = LISTED_CLIENT_ID, *, sub: str | None = None, iss: str = ISS, owner_id: str | None = None
+    client_id: str = LISTED_CLIENT_ID, *, sub: str | None = None, iss: str = CLIENT_ISS, owner_id: str | None = None
 ) -> dict[str, Any]:
     """Build the subject of a client-credentials token (LS Login: ``sub`` = ``client_id``).
 
@@ -265,7 +267,7 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
         "create-executor-no-image": ("executor without image", {**TASK, "executors": [{"command": ["x"]}]}),
         "create-task-missing-executors": ("task without executors", {"name": "x"}),
     }
-    listed_multi = service_client(owner_id=f"{ISS}|{LISTED_CLIENT_ID}")
+    listed_multi = service_client(owner_id=f"{CLIENT_ISS}|{LISTED_CLIENT_ID}")
     unlisted = service_client("unlisted-client")
     listed_delegated = with_v2_properties(LISTED_CLIENT, via="oidc", actor={"iss": ISS, "sub": "proxy-client"})
     no_client_id = service_client()
@@ -973,7 +975,7 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             "create-listed-client-issuer-near-miss",
             "31",
             "listed client ID, issuer without the trailing slash: exact match only",
-            create(service_client(iss=ISS.rstrip("/"))),
+            create(service_client(iss=CLIENT_ISS.rstrip("/"))),
             F,
         ),
         (

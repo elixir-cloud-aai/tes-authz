@@ -14,6 +14,8 @@ import common
 import openfga_shim
 from harness.golden import load_cases
 
+from .service_clients import MALFORMED_SERVICE_CLIENTS
+
 ROOT = Path(__file__).resolve().parent.parent
 NO_CLIENT = {"iss": "", "sub": "", "client_id": ""}
 """The shim's ``iss``, ``sub`` and ``client_id`` parameters when the subject has none."""
@@ -105,24 +107,20 @@ def test_openfga_setup_service_client_tuple(openfga_setup):
     empty = [t for t in openfga_setup.tuples_for(without) if t["relation"] == "service_client"]
     assert all(t["condition"]["context"] == {"allowed_clients": []} for t in empty)
     openfga_setup.check_policy(without)
+    openfga_setup.check_policy({**POLICY, "service_clients": []})
 
 
-@pytest.mark.parametrize(
-    "clients",
-    [
-        {"iss": "https://iss", "client_id": "c"},
-        ["https://iss c"],
-        [{"iss": "https://iss"}],
-        [{"iss": "https://iss", "client_id": "c", "audiences": ["x"]}],
-        [{"iss": "https://iss", "client_id": ""}],
-        [{"iss": "", "client_id": "c"}],
-        [{"iss": "https://iss", "client_id": 7}],
-        [{"iss": "https://iss", "client_id": "a b"}],
-        [{"iss": "https://iss\n", "client_id": "c"}],
-        [{"iss": "https://iss", "client_id": "c\x7f"}],
-    ],
-    ids=["object", "string", "no-client-id", "extra-key", "empty-id", "empty-iss", "number", "space", "newline", "del"],
-)
+def test_openfga_self_check_walks_the_service_clients(openfga_setup):
+    """The self-check subject is an unlisted client, so ``listed_client`` compares against every pair."""
+    service = POLICY["services"][0]
+    for case in openfga_setup.worst_cases(POLICY, service):
+        props = case["subject"]["properties"]
+        assert props["sub"] == props["client_id"] == "self-check" and props["iss"] == "self-check"
+        mapped = openfga_shim.to_openfga(case, {"entitlements": POLICY["entitlement_claim"]})
+        assert mapped["subject"]["properties"]["client_id"] == "self-check"
+
+
+@pytest.mark.parametrize("clients", MALFORMED_SERVICE_CLIENTS.values(), ids=MALFORMED_SERVICE_CLIENTS.keys())
 def test_openfga_setup_refuses_malformed_service_clients(openfga_setup, clients):
     """Malformed ``service_clients`` stop the setup job (OPA denies every request for the same data)."""
     with pytest.raises(SystemExit, match="malformed 'service_clients'"):

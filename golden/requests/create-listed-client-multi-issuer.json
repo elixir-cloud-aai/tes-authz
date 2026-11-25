@@ -21,7 +21,7 @@
     "resource": {
       "id": "own",
       "properties": {
-        "owner": "https://login.aai.lifescience-ri.eu/oidc/|example-service-client",
+        "owner": "https://login.example.org/oidc/|example-service-client",
         "task": {
           "executors": [
             {
@@ -61,11 +61,11 @@
       "type": "tes_task_set"
     },
     "subject": {
-      "id": "https://login.aai.lifescience-ri.eu/oidc/|example-service-client",
+      "id": "https://login.example.org/oidc/|example-service-client",
       "properties": {
         "claims": {},
         "client_id": "example-service-client",
-        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "iss": "https://login.example.org/oidc/",
         "scope": [
           "openid"
         ],

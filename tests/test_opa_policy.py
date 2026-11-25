@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from .service_clients import LISTED_PAIR, MALFORMED_SERVICE_CLIENTS
+
 ROOT = Path(__file__).resolve().parent.parent
 POLICY = json.loads((ROOT / "config" / "reference-policy.json").read_text())
 OPA = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]["opa"]["image"]
@@ -44,7 +46,7 @@ LISTED_CREATE = {
 }
 """CreateTask by service client ``c1`` of ``https://iss.example.org/``."""
 
-LISTED = [{"iss": "https://iss.example.org/", "client_id": "c1"}]
+LISTED = [LISTED_PAIR]
 
 
 def _allow(data: dict, tmp_path: Path, request: dict = OWN_TASK) -> bool:
@@ -98,23 +100,12 @@ def test_service_clients_are_optional(tmp_path):
     without = {k: v for k, v in POLICY.items() if k != "service_clients"}
     assert _allow(without, tmp_path) is True
     assert _allow(without, tmp_path, LISTED_CREATE) is False
+    assert _allow({**POLICY, "service_clients": []}, tmp_path) is True
+    assert _allow({**POLICY, "service_clients": []}, tmp_path, LISTED_CREATE) is False
     assert _allow({**POLICY, "service_clients": LISTED}, tmp_path, LISTED_CREATE) is True
 
 
-@pytest.mark.parametrize(
-    "clients",
-    [
-        {"iss": "https://iss.example.org/", "client_id": "c1"},
-        [*LISTED, "https://iss.example.org/ c2"],
-        [*LISTED, {"iss": "https://iss.example.org/"}],
-        [{**LISTED[0], "audiences": ["x"]}],
-        [*LISTED, {"iss": "https://iss.example.org/", "client_id": ""}],
-        [*LISTED, {"iss": "https://iss.example.org/", "client_id": 7}],
-        [*LISTED, {"iss": "https://iss.example.org/", "client_id": "a b"}],
-        [*LISTED, {"iss": "https://iss.example.org/\n", "client_id": "c2"}],
-    ],
-    ids=["object", "string", "no-client-id", "extra-key", "empty-id", "number", "space", "newline"],
-)
+@pytest.mark.parametrize("clients", MALFORMED_SERVICE_CLIENTS.values(), ids=MALFORMED_SERVICE_CLIENTS.keys())
 def test_malformed_service_clients_deny_everything(tmp_path, clients):
     """A malformed ``service_clients`` list denies every request, as the OpenFGA setup job refuses it."""
     tmp_path.chmod(0o755)

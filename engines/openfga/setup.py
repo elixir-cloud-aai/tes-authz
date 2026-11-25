@@ -28,8 +28,8 @@ sys.path.insert(0, os.environ.get("SHIMS_DIR", "/shims"))
 from common import UpstreamError, encode_id, post_json
 from openfga_shim import task_set_object, to_openfga
 
-PLAIN_ID = re.compile(r"[^ \x00-\x1f\x7f]+")
-"""A service client's ``iss`` or ``client_id``: no spaces or ASCII control characters.
+PLAIN_ID = re.compile(r"[!-~]+")
+"""A service client's ``iss`` or ``client_id``: printable ASCII without spaces (``!`` to ``~``).
 
 Same check as ``plain_id`` in the OPA policy. It also keeps the ``listed_client``
 pairs (``<iss> <client_id>``, one space) unambiguous.
@@ -66,7 +66,7 @@ def check_policy(policy: dict[str, Any]) -> None:
     ):
         raise SystemExit(
             "malformed 'service_clients' in the policy data file: a list of {iss, client_id}, "
-            "both strings without spaces or control characters"
+            "both printable ASCII strings without spaces"
         )
     prefixes = [*policy["members"]["prefixes"], *policy["image_prefixes"]]
     if any(not isinstance(p, str) or not p for p in prefixes):
@@ -82,7 +82,9 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
 
     Returns:
         Profile requests (non-matching entitlements, images matching only the
-        last prefix), each at ``MAX_LIST_ITEMS`` items of ``ITEM_LENGTH``.
+        last prefix; ``CreateTask`` once as a member and once as a caller
+        that is neither a member nor a listed client), each at
+        ``MAX_LIST_ITEMS`` items of ``ITEM_LENGTH``.
     """
     filler = "x" * ITEM_LENGTH
     entitlements = [f"urn:self-check:{i}:{filler}" for i in range(MAX_LIST_ITEMS)]
@@ -105,6 +107,8 @@ def worst_cases(policy: dict[str, Any], service: str) -> list[dict[str, Any]]:
     return [
         req("ListTasks", "tes_task_set", "own", entitlements, {}),
         req("CreateTask", "tes_task_set", "own", [*entitlements[:-1], member], {"task": task}),
+        # Neither a member nor a listed client: both branches of may_create are evaluated
+        req("CreateTask", "tes_task_set", "own", entitlements, {"task": task}),
     ]
 
 
