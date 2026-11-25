@@ -2,8 +2,9 @@
 # Build the image of `Dockerfile` (the OPA decision service) and test a
 # container of it, hardened as in `compose.yaml` (read-only, no
 # capabilities, no new privileges): the golden requests against the front
-# (`tests/test_image.py`), that OPA answers on the container's loopback only,
-# that the image has no pip, and that it refuses to start without policy
+# (`tests/test_image.py`), that OPA answers on the container's loopback only
+# and refuses everything but the decision query and the health check, that
+# the image has no pip, and that it refuses to start without policy
 # data. The container is removed afterwards; the image is kept for the scan.
 #
 # Usage: scripts/test-image.sh [pytest args...]
@@ -87,6 +88,31 @@ except OSError:
     print('[ok] OPA listens on the container loopback only')
 else:
     sys.exit('[FAIL] OPA answers on the container address')
+"
+
+# OPA's API answers only the decision query and the health check
+# (`engines/opa/system/authz.rego`): no other container of a pod, which
+# shares the loopback, can read or replace policy or data
+docker exec "$container" python -c "
+import sys, urllib.error, urllib.request
+base = 'http://127.0.0.1:8181'
+for method, path, body in [
+    ('PUT', '/v1/policies/x', b'package tes.authz\\nallow := true'),
+    ('PUT', '/v1/data/tes_authz', b'{}'),
+    ('PATCH', '/v1/data', b'[]'),
+    ('GET', '/v1/data', None),
+    ('GET', '/v1/policies', None),
+    ('POST', '/v1/data/tes_authz', b'{}'),
+]:
+    request = urllib.request.Request(base + path, data=body, method=method)
+    try:
+        urllib.request.urlopen(request, timeout=5)
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (401, 403):
+            sys.exit(f'[FAIL] OPA answered {exc.code} to {method} {path}')
+    else:
+        sys.exit(f'[FAIL] OPA allowed {method} {path}')
+print('[ok] OPA refuses changes and reads of policy and data')
 "
 
 uv sync --project "$root" --locked --quiet

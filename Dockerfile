@@ -2,8 +2,9 @@
 # static binary of the official image), the AuthZEN front
 # (`shims/opa_front.py`, `shims/common.py`) and the reference policy
 # (`engines/opa/policy/`) of the commit it is built from, started by
-# `shims/opa_service.py`. OPA listens on the container's loopback only; the
-# front on port 8080. The policy DATA is not in the image: mount the
+# `shims/opa_service.py`. OPA listens on the container's loopback only and
+# answers only the decision query and the health check
+# (`engines/opa/system/authz.rego`); the front listens on port 8080. The policy DATA is not in the image: mount the
 # operator's copy of `config/reference-policy.json` at
 # `/etc/tes-authz/data.json` (or set `TES_AUTHZ_DATA`). See
 # `docs/image.md`.
@@ -27,16 +28,18 @@ RUN python -m pip uninstall --yes --root-user-action=ignore pip \
 
 COPY --from=opa /opa /usr/local/bin/opa
 COPY engines/opa/policy/ /opt/tes-authz/policy/
+COPY engines/opa/system/ /opt/tes-authz/system/
 COPY shims/common.py shims/opa_front.py shims/opa_service.py /opt/tes-authz/
 
 # The policy is checked when the image is built, so that an image never
 # ships a policy that OPA would refuse at start
-RUN opa check --strict /opt/tes-authz/policy
+RUN opa check --strict /opt/tes-authz/policy /opt/tes-authz/system
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/opt/tes-authz \
     TES_AUTHZ_POLICY=/opt/tes-authz/policy \
+    TES_AUTHZ_SYSTEM_POLICY=/opt/tes-authz/system \
     TES_AUTHZ_DATA=/etc/tes-authz/data.json
 
 WORKDIR /opt/tes-authz

@@ -47,6 +47,7 @@ def test_defaults_are_those_of_the_image():
     settings = opa_service.load_settings({})
     assert settings.data == Path("/etc/tes-authz/data.json")
     assert settings.policy == Path("/opt/tes-authz/policy")
+    assert settings.system_policy == Path("/opt/tes-authz/system")
     assert (settings.host, settings.port, settings.opa_port) == ("0.0.0.0", 8080, 8181)
     assert settings.opa == "opa"
     assert settings.startup_timeout == 30
@@ -60,6 +61,7 @@ def test_settings_from_the_environment():
         {
             "TES_AUTHZ_DATA": "/d/x.json",
             "TES_AUTHZ_POLICY": "/p",
+            "TES_AUTHZ_SYSTEM_POLICY": "/s",
             "TES_AUTHZ_HOST": "127.0.0.1",
             "TES_AUTHZ_PORT": "9000",
             "TES_AUTHZ_OPA_PORT": "9001",
@@ -71,6 +73,7 @@ def test_settings_from_the_environment():
     assert settings == opa_service.Settings(
         data=Path("/d/x.json"),
         policy=Path("/p"),
+        system_policy=Path("/s"),
         host="127.0.0.1",
         port=9000,
         opa_port=9001,
@@ -91,6 +94,11 @@ def test_settings_from_the_environment():
         ({"TES_AUTHZ_STARTUP_TIMEOUT": "0"}, "must be positive"),
         ({"TES_AUTHZ_STARTUP_TIMEOUT": "nan"}, "must be positive"),
         ({"TES_AUTHZ_HOST": ""}, "TES_AUTHZ_HOST is empty"),
+        ({"SHIM_TIMEOUT": "abc"}, "SHIM_TIMEOUT is not a number"),
+        ({"SHIM_TIMEOUT": "-1"}, "SHIM_TIMEOUT must be positive"),
+        ({"SHIM_MAX_BODY_BYTES": "1.5"}, "SHIM_MAX_BODY_BYTES is not an integer"),
+        ({"SHIM_MAX_BODY_BYTES": "0"}, "SHIM_MAX_BODY_BYTES must be positive"),
+        ({"SHIM_LOG_LEVEL": "verbose"}, "SHIM_LOG_LEVEL is not a log level"),
     ],
 )
 def test_invalid_settings_are_refused(env: dict[str, str], message: str):
@@ -131,16 +139,18 @@ def test_reference_policy_data_passes():
 
 
 def test_opa_listens_on_loopback_and_loads_data_as_tes_authz():
-    """OPA binds to loopback, skips hidden files and loads the data under `tes_authz`."""
+    """OPA binds to loopback, guards its API, skips hidden files, loads the data as `tes_authz`."""
     settings = opa_service.load_settings({"TES_AUTHZ_OPA_PORT": "9181", "TES_AUTHZ_DATA": "/etc/x/my.json"})
     assert opa_service.opa_command(settings) == [
         "opa",
         "run",
         "--server",
         "--addr=127.0.0.1:9181",
+        "--authorization=basic",
         "--log-level=info",
         "--ignore=.*",
         "/opt/tes-authz/policy",
+        "/opt/tes-authz/system",
         "tes_authz:/etc/x/my.json",
     ]
 
@@ -155,6 +165,7 @@ def service_env(tmp_path: Path) -> dict[str, str]:
     fake.write_text(f"#!{sys.executable}\nimport runpy\nrunpy.run_path({str(FAKE_OPA)!r}, run_name='__main__')\n")
     fake.chmod(0o755)
     (tmp_path / "policy").mkdir()
+    (tmp_path / "system").mkdir()
     (tmp_path / "data.json").write_text("{}")
     port = _free_port()
     env = {k: v for k, v in os.environ.items() if not k.startswith(("TES_AUTHZ_", "SHIM_", "FAKE_OPA_"))}
@@ -162,6 +173,8 @@ def service_env(tmp_path: Path) -> dict[str, str]:
         {
             "TES_AUTHZ_OPA": str(fake),
             "TES_AUTHZ_POLICY": str(tmp_path / "policy"),
+            "TES_AUTHZ_SYSTEM_POLICY": str(tmp_path / "system"),
+            "OPA_DECISION_PATH": "not/used",
             "TES_AUTHZ_DATA": str(tmp_path / "data.json"),
             "TES_AUTHZ_HOST": "127.0.0.1",
             "TES_AUTHZ_PORT": str(port),
@@ -298,3 +311,18 @@ def test_sigterm_during_startup_stops_with_0(service_env: dict[str, str], start:
     assert process.wait(timeout=15) == 0
     with pytest.raises(OSError):
         http("GET", f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}/health", timeout=1)
+
+
+def test_service_exits_with_2_when_the_port_is_taken(service_env: dict[str, str], start: Start):
+    """If the front's port is taken (e.g. by the TES in the pod), the service exits with 2."""
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", int(service_env["TES_AUTHZ_PORT"])))
+        taken.listen()
+        process = start(service_env)
+        assert process.wait(timeout=15) == 2
+
+
+def test_service_exits_with_2_on_invalid_front_settings(service_env: dict[str, str], start: Start):
+    """Invalid settings of the front's modules exit with 2 too, not with a traceback."""
+    process = start({**service_env, "SHIM_LOG_LEVEL": "verbose"})
+    assert process.wait(timeout=15) == 2

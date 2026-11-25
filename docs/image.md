@@ -11,9 +11,9 @@ The entry point (`shims/opa_service.py`) checks that the policy data is a JSON o
 | Port | What | Reachable |
 |---|---|---|
 | 8080 (`TES_AUTHZ_PORT`) | AuthZEN front: `POST /access/v1/evaluation`, `GET /.well-known/authzen-configuration`, `GET /health` | on `TES_AUTHZ_HOST` (default all interfaces) |
-| 8181 (`TES_AUTHZ_OPA_PORT`) | OPA's Data API (unauthenticated) | the container's loopback only |
+| 8181 (`TES_AUTHZ_OPA_PORT`) | OPA's API, which answers only the front's decision query (`POST /v1/data/tes/authz/allow`) and `GET /health`; everything else, such as changing or reading policy and data, gets `401` (OPA's `--authorization=basic` with `engines/opa/system/authz.rego`) | loopback only, which all containers of a pod share |
 
-If OPA exits, the service exits with status 1, so that the container is restarted. Unusable settings or policy data make it exit with status 2 before anything listens. `SIGTERM` stops both with status 0. The process runs as `nobody` (65534:65534), writes nothing (the root file system can be read-only) and needs no capabilities. The image has no pip.
+If OPA exits, the service exits with status 1, so that the container is restarted. Unusable settings or policy data, and a front port that is taken, make it exit with status 2. `SIGTERM` and `SIGINT` stop the front first, then OPA, with status 0. The process runs as `nobody` (65534:65534), writes nothing (the root file system can be read-only) and needs no capabilities. The image has no pip.
 
 ## Run it
 
@@ -43,10 +43,13 @@ The policy data follows the [reference policy](operators.md#reference-policy) of
 | `SHIM_MAX_BODY_BYTES` | `1048576` | Largest request body the front accepts |
 | `SHIM_LOG_LEVEL` | `INFO` | Log level of the front |
 | `TES_AUTHZ_POLICY` | `/opt/tes-authz/policy` | Policy directory; leave it, so that the image's policy is used |
+| `TES_AUTHZ_SYSTEM_POLICY` | `/opt/tes-authz/system` | Policy of OPA's own API; leave it, so that OPA answers only the decision query and the health check |
+
+The front's `OPA_URL` and `OPA_DECISION_PATH` are not used: the front always asks this OPA for `tes/authz/allow`.
 
 ## As a sidecar
 
-In the pod of the TES API, the TES reaches the service on loopback, so no Service and no NetworkPolicy are needed for it:
+In the pod of the TES API, the TES reaches the service on loopback, so no Service and no NetworkPolicy are needed for it. Containers of a pod share their ports: give the front a port that no other container of the pod uses (the TESK API listens on 8080, so the example uses 8090), and change `TES_AUTHZ_OPA_PORT` if another container uses 8181:
 
 ```yaml
 - name: tes-authz
@@ -54,13 +57,18 @@ In the pod of the TES API, the TES reaches the service on loopback, so no Servic
   env:
     - name: TES_AUTHZ_HOST
       value: 127.0.0.1
+    - name: TES_AUTHZ_PORT
+      value: "8090"
     - name: SHIM_BASE_URL
-      value: http://127.0.0.1:8080
+      value: http://127.0.0.1:8090
   # The front listens on loopback, where kubelet's HTTP probes can't reach
-  # it: probe from inside the container
+  # it: probe the front and OPA from inside the container
   readinessProbe:
     exec:
-      command: [python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      command:
+        - python
+        - -c
+        - "import urllib.request as u; [u.urlopen(f'http://127.0.0.1:{p}/health', timeout=2) for p in (8090, 8181)]"
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
@@ -71,7 +79,7 @@ In the pod of the TES API, the TES reaches the service on loopback, so no Servic
       readOnly: true
 ```
 
-The TES fails closed (503) while the service isn't ready. The TES's decision service URL is then `http://127.0.0.1:8080/access/v1/evaluation`. A change of the policy data takes effect when the container restarts (restart the pod after changing the ConfigMap).
+The TES fails closed (503) while the service isn't ready. The TES's decision service URL is then `http://127.0.0.1:8090/access/v1/evaluation`. A change of the policy data takes effect when the container restarts (restart the pod after changing the ConfigMap).
 
 ## Verify an image
 

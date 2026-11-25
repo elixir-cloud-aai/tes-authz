@@ -2,19 +2,26 @@
 
 The image (``Dockerfile``) runs this module as its entry point. It starts
 OPA with the policy baked into the image and the operator's policy data,
-bound to loopback, so that OPA's unauthenticated Data API is never reachable
-from outside the container; waits until OPA is healthy; then serves the
-AuthZEN front (``opa_front.decide`` behind ``common.make_handler``) on
-``TES_AUTHZ_HOST``:``TES_AUTHZ_PORT``. If OPA exits, the front stops and the
-process exits with status 1, so that the container restarts instead of
-answering ``502`` for good. ``SIGTERM`` and ``SIGINT`` stop both, with
-status 0.
+bound to loopback (which all containers of a pod share) and answering only
+the decision query and the health check (``--authorization=basic`` with the
+API policy ``engines/opa/system/authz.rego``), so that nobody can change or
+read policy and data through OPA's API; waits until OPA is healthy; then
+serves the AuthZEN front (``opa_front.decide`` behind
+``common.make_handler``) on ``TES_AUTHZ_HOST``:``TES_AUTHZ_PORT``. If OPA
+exits, the front stops and the process exits with status 1, so that the
+container restarts instead of answering ``502`` for good. Unusable settings
+or data, and a taken front port, exit with status 2. ``SIGTERM`` and
+``SIGINT`` stop the front first, then OPA, with status 0.
 
 Settings (environment):
     TES_AUTHZ_DATA: Policy data file, a JSON object (default
         ``/etc/tes-authz/data.json``); loaded as ``data.tes_authz``.
     TES_AUTHZ_POLICY: Directory of the Rego policy (default
         ``/opt/tes-authz/policy``, the policy of the image).
+    TES_AUTHZ_SYSTEM_POLICY: Directory of the policy of OPA's own API
+        (default ``/opt/tes-authz/system``, the image's
+        ``engines/opa/system/authz.rego``: only the decision query and the
+        health check).
     TES_AUTHZ_HOST: Address of the front (default ``0.0.0.0``; ``127.0.0.1``
         for a sidecar that only its pod may reach).
     TES_AUTHZ_PORT: Port of the front (default ``8080``).
@@ -23,7 +30,12 @@ Settings (environment):
     TES_AUTHZ_STARTUP_TIMEOUT: Seconds to wait for OPA (default ``30``).
     SHIM_BASE_URL: Base URL served in ``/.well-known/authzen-configuration``
         (default ``http://localhost:<port>``).
-    SHIM_TIMEOUT, SHIM_LOG_LEVEL, SHIM_MAX_BODY_BYTES: As for the front.
+    SHIM_TIMEOUT, SHIM_LOG_LEVEL, SHIM_MAX_BODY_BYTES: As for the front;
+        checked here, so that bad values exit with status 2.
+
+``OPA_URL`` and ``OPA_DECISION_PATH`` of the front are not used: the front
+asks this OPA for ``tes/authz/allow``, the only query that OPA's API
+policy allows.
 """
 
 from __future__ import annotations
@@ -45,10 +57,10 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
-import opa_front
-from common import make_handler
-
 log = logging.getLogger("tes-authz-service")
+
+DECISION_PATH = "tes/authz/allow"
+"""Data API path of the decision, as allowed by OPA's API policy."""
 
 
 class ConfigError(ValueError):
@@ -62,6 +74,7 @@ class Settings:
     Attributes:
         data: Policy data file.
         policy: Directory of the Rego policy.
+        system_policy: Directory of the policy of OPA's own API.
         host: Address of the front.
         port: Port of the front.
         opa_port: Loopback port of OPA.
@@ -72,6 +85,7 @@ class Settings:
 
     data: Path
     policy: Path
+    system_policy: Path
     host: str
     port: int
     opa_port: int
@@ -94,6 +108,34 @@ def _port(env: Mapping[str, str], name: str, default: int) -> int:
     if not 0 < port < 65536:
         raise ConfigError(f"{name} is not a port: {raw!r}")
     return port
+
+
+def _check_front_settings(env: Mapping[str, str]) -> None:
+    """Check the settings that the front's modules read at import.
+
+    Args:
+        env: The environment.
+
+    Raises:
+        ConfigError: If one is invalid.
+    """
+    raw = env.get("SHIM_TIMEOUT", "1.5")
+    try:
+        timeout = float(raw)
+    except ValueError:
+        raise ConfigError(f"SHIM_TIMEOUT is not a number: {raw!r}") from None
+    if not timeout > 0:
+        raise ConfigError(f"SHIM_TIMEOUT must be positive: {raw!r}")
+    raw = env.get("SHIM_MAX_BODY_BYTES", "1048576")
+    try:
+        size = int(raw)
+    except ValueError:
+        raise ConfigError(f"SHIM_MAX_BODY_BYTES is not an integer: {raw!r}") from None
+    if size < 1:
+        raise ConfigError(f"SHIM_MAX_BODY_BYTES must be positive: {raw!r}")
+    level = env.get("SHIM_LOG_LEVEL", "INFO")
+    if not isinstance(logging.getLevelNamesMapping().get(level), int):
+        raise ConfigError(f"SHIM_LOG_LEVEL is not a log level: {level!r}")
 
 
 def load_settings(env: Mapping[str, str]) -> Settings:
@@ -119,12 +161,14 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         raise ConfigError(f"TES_AUTHZ_STARTUP_TIMEOUT is not a number: {raw_timeout!r}") from None
     if not startup_timeout > 0:
         raise ConfigError(f"TES_AUTHZ_STARTUP_TIMEOUT must be positive: {raw_timeout!r}")
+    _check_front_settings(env)
     host = env.get("TES_AUTHZ_HOST", "0.0.0.0")  # noqa: S104 (inside a container)
     if not host:
         raise ConfigError("TES_AUTHZ_HOST is empty")
     return Settings(
         data=Path(env.get("TES_AUTHZ_DATA", "/etc/tes-authz/data.json")),
         policy=Path(env.get("TES_AUTHZ_POLICY", "/opt/tes-authz/policy")),
+        system_policy=Path(env.get("TES_AUTHZ_SYSTEM_POLICY", "/opt/tes-authz/system")),
         host=host,
         port=port,
         opa_port=opa_port,
@@ -162,7 +206,11 @@ def check_data(path: Path) -> None:
 def opa_command(settings: Settings) -> list[str]:
     """Build the command line of OPA.
 
-    OPA listens on loopback only. The data file is loaded under the path
+    OPA listens on loopback only, and its API answers only what the API
+    policy (``system_policy``, ``--authorization=basic``) allows: the
+    decision query and the health check, so that no other container of a
+    pod (which shares the loopback) can change or read policy and data.
+    The data file is loaded under the path
     ``tes_authz`` (``<path>:<file>``), whatever its file name. Hidden files
     and directories (e.g. the ``..data`` links of Kubernetes ConfigMap
     volumes) are ignored, so that nothing is loaded twice.
@@ -178,26 +226,31 @@ def opa_command(settings: Settings) -> list[str]:
         "run",
         "--server",
         f"--addr=127.0.0.1:{settings.opa_port}",
+        "--authorization=basic",
         "--log-level=info",
         "--ignore=.*",
         str(settings.policy),
+        str(settings.system_policy),
         f"tes_authz:{settings.data}",
     ]
 
 
-def wait_for_opa(url: str, process: subprocess.Popen[bytes], timeout: float) -> None:
-    """Wait until OPA answers its health check.
+def wait_for_opa(
+    url: str, process: subprocess.Popen[bytes], timeout: float, stopping: threading.Event | None = None
+) -> None:
+    """Wait until OPA answers its health check, or until a stop.
 
     Args:
         url: Base URL of OPA.
         process: The OPA process.
         timeout: Seconds to wait.
+        stopping: Set when the service is to stop; returns at once then.
 
     Raises:
         ConfigError: If OPA exits or isn't healthy in time.
     """
     deadline = time.monotonic() + timeout
-    while True:
+    while stopping is None or not stopping.is_set():
         if process.poll() is not None:
             raise ConfigError(f"OPA exited with status {process.returncode} during startup")
         try:
@@ -214,22 +267,33 @@ def wait_for_opa(url: str, process: subprocess.Popen[bytes], timeout: float) -> 
 def make_server(settings: Settings) -> ThreadingHTTPServer:
     """Build the AuthZEN front for the OPA of these settings.
 
-    The front's decision function asks OPA at ``opa_front.OPA_URL``, which
-    is set to OPA's loopback URL here (``OPA_URL`` of the environment is not
-    used).
+    The front's modules read ``SHIM_*`` settings at import, so they are
+    imported here, after ``load_settings`` checked them. The front asks this
+    OPA (``OPA_URL``) for ``DECISION_PATH``, whatever the environment says.
 
     Args:
         settings: The settings.
 
     Returns:
         The bound, not yet serving, server.
+
+    Raises:
+        ConfigError: If the front's address can't be bound (e.g. the port
+            is taken by another container of the pod).
     """
+    import opa_front
+    from common import make_handler
+
     opa_front.OPA_URL = settings.opa_url
+    opa_front.DECISION_PATH = DECISION_PATH
     metadata: dict[str, Any] = {
         "policy_decision_point": settings.base_url,
         "access_evaluation_endpoint": settings.base_url + "/access/v1/evaluation",
     }
-    return ThreadingHTTPServer((settings.host, settings.port), make_handler(opa_front.decide, metadata))
+    try:
+        return ThreadingHTTPServer((settings.host, settings.port), make_handler(opa_front.decide, metadata))
+    except OSError as exc:
+        raise ConfigError(f"front can't listen on {settings.host}:{settings.port}: {exc}") from None
 
 
 def run(settings: Settings) -> int:
@@ -246,35 +310,31 @@ def run(settings: Settings) -> int:
         ConfigError: If the policy data is unusable or OPA doesn't start.
     """
     check_data(settings.data)
-    if not settings.policy.is_dir():
-        raise ConfigError(f"policy directory {settings.policy} not found")
+    for directory in (settings.policy, settings.system_policy):
+        if not directory.is_dir():
+            raise ConfigError(f"policy directory {directory} not found")
     stopping = threading.Event()
     process = subprocess.Popen(opa_command(settings))  # noqa: S603 (fixed arguments)
 
+    # Only flags the stop: the main thread then stops the front first and
+    # OPA last, so that no request reaches the front without OPA behind it
     def stop(signum: int, frame: FrameType | None) -> None:
         stopping.set()
-        if process.poll() is None:
-            process.terminate()
 
     previous = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGINT)}
     server: ThreadingHTTPServer | None = None
     try:
-        try:
-            wait_for_opa(settings.opa_url, process, settings.startup_timeout)
-        except ConfigError:
-            if stopping.is_set():  # stopped during startup
-                return 0
-            raise
-        if stopping.is_set():
+        wait_for_opa(settings.opa_url, process, settings.startup_timeout, stopping)
+        if stopping.is_set():  # stopped during startup
             return 0
         server = make_server(settings)
         threading.Thread(target=server.serve_forever, name="front", daemon=True).start()
         log.info("OPA ready; front listening on %s:%d", settings.host, settings.port)
-        status = process.wait()
-        if stopping.is_set():
-            return 0
-        log.error("OPA exited with status %s; stopping", status)
-        return 1
+        while not stopping.wait(0.2):
+            if process.poll() is not None:
+                log.error("OPA exited with status %s; stopping", process.returncode)
+                return 1
+        return 0
     finally:
         if server is not None:
             server.shutdown()
@@ -292,9 +352,15 @@ def run(settings: Settings) -> int:
 
 def main() -> None:
     """Run the service; exit with status 2 on unusable settings."""
+    try:
+        settings = load_settings(os.environ)
+    except ConfigError as exc:
+        logging.basicConfig(level="INFO")
+        log.error("%s", exc)
+        sys.exit(2)
     logging.basicConfig(level=os.environ.get("SHIM_LOG_LEVEL", "INFO"))
     try:
-        sys.exit(run(load_settings(os.environ)))
+        sys.exit(run(settings))
     except ConfigError as exc:
         log.error("%s", exc)
         sys.exit(2)

@@ -1,7 +1,7 @@
 """A stand-in for ``opa run --server`` in the tests of ``shims/opa_service.py``.
 
 Takes OPA's command line, writes it as JSON to the file named by
-``FAKE_OPA_ARGS`` (if set), and serves ``/health`` and the decision path on
+``FAKE_OPA_ARGS`` (if set), and serves ``/health`` and the decision path (``tes/authz/allow``) on
 the ``--addr`` it is given, allowing exactly the requests whose subject ID is
 ``allowed``. With ``FAKE_OPA_EXIT`` set, it exits at once with that
 status instead; with ``FAKE_OPA_UNHEALTHY`` set, its health check answers
@@ -47,7 +47,10 @@ class Handler(BaseHTTPRequestHandler):
         self._send({})
 
     def do_POST(self) -> None:
-        """Allow exactly the subject ID ``allowed``."""
+        """Allow exactly the subject ID ``allowed``, at the decision path only."""
+        if self.path != "/v1/data/tes/authz/allow":
+            self.send_error(404)
+            return
         length = int(self.headers["Content-Length"])
         if length < 0 or length > MAX_BODY_BYTES:
             self.send_error(400)

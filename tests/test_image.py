@@ -63,7 +63,7 @@ def test_image_runs_the_service_as_nobody_without_pip():
     assert ("ENTRYPOINT", '["python", "/opt/tes-authz/opa_service.py"]') in instructions
     runs = " ".join(args for keyword, args in instructions if keyword == "RUN")
     assert "pip uninstall --yes" in runs
-    assert "opa check --strict /opt/tes-authz/policy" in runs
+    assert "opa check --strict /opt/tes-authz/policy /opt/tes-authz/system" in runs
 
 
 def test_copied_files_exist_and_are_the_only_build_context():

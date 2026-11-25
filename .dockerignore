@@ -3,6 +3,7 @@
 # context. Re-include only what a `COPY` needs, right below `*`
 *
 !engines/opa/policy/
+!engines/opa/system/
 !shims/common.py
 !shims/opa_front.py
 !shims/opa_service.py
