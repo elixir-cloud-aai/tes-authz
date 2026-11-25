@@ -35,8 +35,9 @@ PROFILES = frozenset({"tes-authzen/1", "tes-authzen/2", "tes-authzen/3"})
 
 ``tes-authzen/2`` only adds optional subject and task properties, a
 response ``context.tes`` and TES-specific resource types (spec section 12);
-``tes-authzen/3`` removes the task set ``all`` (spec section 13). One
-validation and one owner-only policy serve all three versions.
+``tes-authzen/3`` removes the task set ``all`` from requests and adds the
+owner to ``CreateTask`` (spec section 13). One validation and one
+owner-only policy serve all three versions.
 """
 
 ACTIONS = frozenset({"CreateTask", "GetTask", "ListTasks", "CancelTask"})
@@ -51,7 +52,15 @@ TASK_SET_IDS = frozenset({"own", "all"})
 TASK_SET_IDS_BY_PROFILE = {"tes-authzen/3": frozenset({"own"})}
 """Task set IDs of the profiles that differ from ``TASK_SET_IDS``.
 
-``tes-authzen/3`` removes ``all`` from the vocabulary (spec section 13).
+``tes-authzen/3`` removes ``all`` from the request vocabulary (spec
+section 13); a TES that lists every task gets the list scope ``all`` in
+the answer instead (section 3.5).
+"""
+
+OWNER_ON_CREATE = frozenset({"tes-authzen/3"})
+"""Profiles whose ``CreateTask`` carries ``resource.properties.owner`` (spec section 13).
+
+The owner is the caller: ``resource.properties.owner == subject.id``.
 """
 
 MAX_BODY_BYTES = int(os.environ.get("SHIM_MAX_BODY_BYTES", str(1024 * 1024)))
@@ -121,6 +130,12 @@ def validate_request(req: Any) -> None:
     set_ids = TASK_SET_IDS_BY_PROFILE.get(profile, TASK_SET_IDS)
     if resource["type"] == "tes_task_set" and resource["id"] not in set_ids:
         raise ContractError("unknown task set")
+    if (
+        profile in OWNER_ON_CREATE
+        and action["name"] == "CreateTask"
+        and resource.get("properties", {}).get("owner") != subject["id"]
+    ):
+        raise ContractError("CreateTask must carry the caller as resource.properties.owner")
     try:
         json.dumps(req, ensure_ascii=False).encode("utf-8")
     except UnicodeEncodeError as exc:

@@ -1,6 +1,6 @@
 {
   "case": "7",
-  "description": "profile tes-authzen/3, member creates",
+  "description": "profile tes-authzen/3, member creates; the request names the caller as owner",
   "expect": {
     "reference_policy": {
       "decision": true
@@ -21,6 +21,7 @@
     "resource": {
       "id": "own",
       "properties": {
+        "owner": "alice-sub",
         "task": {
           "executors": [
             {

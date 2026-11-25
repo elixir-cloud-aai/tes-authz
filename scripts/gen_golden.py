@@ -137,8 +137,16 @@ def request(
     return {"subject": subj, "action": act, "resource": resource, "context": ctx}
 
 
+_CALLER = object()
+"""Default of ``create(owner=...)``: the caller, as ``tes-authzen/3`` sends it."""
+
+
 def create(
-    subj: dict[str, Any], task: dict[str, Any] | None = None, set_id: str = "own", context: dict[str, Any] | None = None
+    subj: dict[str, Any],
+    task: dict[str, Any] | None = None,
+    set_id: str = "own",
+    context: dict[str, Any] | None = None,
+    owner: Any = _CALLER,
 ) -> dict[str, Any]:
     """Build a CreateTask request.
 
@@ -147,13 +155,20 @@ def create(
         task: The task projection (default ``TASK``).
         set_id: The task set.
         context: Replacement for the default context.
+        owner: ``resource.properties.owner``; by default the caller's
+            ``subject.id`` under ``tes-authzen/3`` (spec section 13) and left
+            out under ``/1`` and ``/2``; ``None`` leaves it out.
 
     Returns:
         The AuthZEN request.
     """
-    return request(
-        subj, "CreateTask", "tes_task_set", set_id, {"task": TASK if task is None else task}, {}, context=context
-    )
+    props: dict[str, Any] = {"task": TASK if task is None else task}
+    profile = (context or {}).get("tes", {}).get("profile")
+    if owner is _CALLER:
+        owner = subj["id"] if profile == PROFILE else None
+    if owner is not None:
+        props["owner"] = owner
+    return request(subj, "CreateTask", "tes_task_set", set_id, props, {}, context=context)
 
 
 def task_meta(owner: str | None) -> dict[str, Any]:
@@ -667,8 +682,71 @@ def cases() -> list[tuple[str, str, str, dict[str, Any], bool]]:
             request(dave_delegated, "ListTasks", "tes_task_set", "own", None, view, context=v2),
             T,
         ),
-        # Profile tes-authzen/3 (spec section 13): tes_task_set:all is no longer in the vocabulary
-        ("create-profile-3", "7", "profile tes-authzen/3, member creates", create(ALICE, context=v3), T),
+        # Profile tes-authzen/3 (spec section 13): tes_task_set:all is no longer in the vocabulary,
+        # CreateTask names the caller as owner, reads are asked only when switched on (section 3)
+        (
+            "create-profile-3",
+            "7",
+            "profile tes-authzen/3, member creates; the request names the caller as owner",
+            create(ALICE, context=v3),
+            T,
+        ),
+        (
+            "create-profile-3-no-owner",
+            "7",
+            "profile tes-authzen/3, CreateTask without resource.properties.owner: contract error",
+            create(ALICE, context=v3, owner=None),
+            F,
+        ),
+        (
+            "create-profile-3-other-owner",
+            "7",
+            "profile tes-authzen/3, CreateTask naming another owner than the caller: contract error",
+            create(ALICE, context=v3, owner="bob-sub"),
+            F,
+        ),
+        (
+            "create-profile-3-no-entitlement",
+            "5",
+            "profile tes-authzen/3, caller without the entitlement",
+            create(FRANK, context=v3),
+            F,
+        ),
+        (
+            "get-own-no-entitlement-profile-3",
+            "5e",
+            "profile tes-authzen/3, get switched on: owner without a current entitlement reads",
+            request(FRANK, "GetTask", "tes_task", "task-f1", task_meta("frank-sub"), view, context=v3),
+            T,
+        ),
+        (
+            "get-other-profile-3",
+            "26",
+            "profile tes-authzen/3, get switched on: member on someone else's task: denied",
+            request(ALICE, "GetTask", "tes_task", "task-b1", task_meta("bob-sub"), view, context=v3),
+            F,
+        ),
+        (
+            "get-missing-profile-3",
+            "27",
+            "profile tes-authzen/3, get switched on: a missing task (empty properties) is nobody's",
+            request(ALICE, "GetTask", "tes_task", "no-such-task", {}, view, context=v3),
+            F,
+        ),
+        (
+            "cancel-missing-profile-3",
+            "27",
+            "profile tes-authzen/3, cancel switched on: a missing task (empty properties) is nobody's",
+            request(ALICE, "CancelTask", "tes_task", "no-such-task", {}, context=v3),
+            F,
+        ),
+        (
+            "list-own-no-entitlement-profile-3",
+            "28",
+            "profile tes-authzen/3, list switched on: a caller without the entitlement gets the scope own",
+            request(FRANK, "ListTasks", "tes_task_set", "own", None, view, context=v3),
+            T,
+        ),
         (
             "create-on-all-profile-3",
             "7",
@@ -895,7 +973,7 @@ def hook_create() -> dict[str, Any]:
         "CreateTask",
         "tes_task_set",
         "own",
-        {"task": task},
+        {"owner": "{{subject_id}}", "task": task},
         aprops={},
         context={"tes": {"profile": PROFILE, "service_id": SERVICE}},
     )

@@ -10,11 +10,15 @@
 #   services           service-info IDs this policy answers for
 #
 # Rules:
-#   CreateTask on tes_task_set:own   member, and every executor image allowed
+#   CreateTask on tes_task_set:own   member, and every executor image allowed;
+#                                    under tes-authzen/3 the request names the
+#                                    caller as resource owner
 #   GetTask, CancelTask on tes_task  resource owner == subject.id, also after
 #                                    the entitlement is revoked; a missing or
 #                                    empty owner: nobody
-#   ListTasks on tes_task_set:own    any caller (the TES lists own tasks only)
+#   ListTasks on tes_task_set:own    any caller; a plain allow is the list
+#                                    scope "own" (spec section 3.5), so the
+#                                    TES lists the caller's tasks only
 # There is no admin: nobody reads, lists or cancels another owner's tasks,
 # whatever their entitlements, and tes_task_set:all is never allowed (it is
 # no longer in the vocabulary from tes-authzen/3 on). Leftover policy data
@@ -34,6 +38,7 @@ allow if {
 	input.action.name == "CreateTask"
 	input.resource.type == "tes_task_set"
 	input.resource.id == "own"
+	create_owner_ok
 	member
 	images_ok
 }
@@ -96,6 +101,14 @@ entitled(group) if {
 	some e in entitlements
 	some p in group.prefixes
 	startswith(e, p)
+}
+
+# tes-authzen/3: CreateTask names the caller as the new task's owner.
+create_owner_ok if input.context.tes.profile != "tes-authzen/3"
+
+create_owner_ok if {
+	input.context.tes.profile == "tes-authzen/3"
+	object.get(input.resource, ["properties", "owner"], null) == input.subject.id
 }
 
 # Only CreateTask needs the entitlement; owners keep their tasks without it.

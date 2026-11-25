@@ -1,0 +1,42 @@
+{
+  "case": "28",
+  "description": "profile tes-authzen/3, list switched on: a caller without the entitlement gets the scope own",
+  "expect": {
+    "reference_policy": {
+      "decision": true
+    }
+  },
+  "name": "list-own-no-entitlement-profile-3",
+  "request": {
+    "action": {
+      "name": "ListTasks",
+      "properties": {
+        "view": "MINIMAL"
+      }
+    },
+    "context": {
+      "tes": {
+        "profile": "tes-authzen/3",
+        "service_id": "tes-authz-test"
+      }
+    },
+    "resource": {
+      "id": "own",
+      "type": "tes_task_set"
+    },
+    "subject": {
+      "id": "frank-sub",
+      "properties": {
+        "claims": {},
+        "client_id": "tes-client",
+        "iss": "https://login.aai.lifescience-ri.eu/oidc/",
+        "scope": [
+          "openid",
+          "eduperson_entitlement"
+        ],
+        "sub": "frank-sub"
+      },
+      "type": "user"
+    }
+  }
+}
