@@ -70,6 +70,7 @@ nav:
   - Reference tooling:
       - Getting started: getting-started.md
       - Operators: operators.md
+      - Container image: image.md
       - Adding a TES: adding-a-tes.md
       - Adding an engine: adding-an-engine.md
       - Testing: testing.md

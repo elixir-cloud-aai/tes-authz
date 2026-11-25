@@ -1,7 +1,14 @@
-# No image is built from the repository root yet (the services in
-# `compose.yaml` mount their code read-only); should one be, re-include only
-# the files it needs right below `*`
+# The image of `Dockerfile` (the OPA decision service) needs only the
+# policy and the shims it copies: everything else stays out of the build
+# context. Re-include only what a `COPY` needs, right below `*`
 *
+!engines/opa/policy/
+!engines/opa/system/
+# The tests of the API policy, run by `scripts/test-image.sh`, not shipped
+engines/opa/system/*_test.rego
+!shims/common.py
+!shims/opa_front.py
+!shims/opa_service.py
 
 # Local secrets (e.g. `.env`, `.env.local`, `.envrc`) and other secret files
 # must never reach a build, also not within re-included paths. Keep these

@@ -49,6 +49,22 @@ updates:
     groups:
       docker-compose:
         patterns: ["*"]
+  # Base images of the decision service image (`Dockerfile`: OPA's static
+  # binary and Python), tag and digest together. Python is bumped within
+  # its minor version only, as for `compose.yaml`. A new version (not only
+  # a new digest) must also be set in `compose.yaml`, in the same pull
+  # request (`tests/test_image.py` fails until then)
+  - package-ecosystem: docker
+    directory: /
+    labels: ["type: dependencies"]
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    groups:
+      image:
+        patterns: ["*"]
   # The image of the Pulsar server for the TESP smoke run, which CI doesn't
   # build: Python is bumped within its minor version only, as the pinned
   # Pulsar release may not install on a newer one

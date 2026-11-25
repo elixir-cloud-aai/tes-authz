@@ -1,0 +1,24 @@
+# Vulnerabilities accepted in the image of `Dockerfile`, which the scans of
+# CI and of the release (the shared action
+# `elixir-cloud-aai/.github/actions/scan-image`) ignore: each with the reason
+# (`statement`) and an expiry date (`expired_at`), after which Trivy reports
+# it again, so that the decision is reviewed. Limit entries to the affected
+# package versions (`purls`), so that other packages with the same
+# vulnerability are still reported.
+#
+# See https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+vulnerabilities:
+  # GO-2026-6860 (and GO-2026-6866, not reported by Trivy) in the package
+  # `golang.org/x/net/html` of the OPA binary (OPA 1.22.4, the latest
+  # release, requires golang.org/x/net v0.60.0; fixed in v0.62.0). Checked
+  # on 2026-11-25 with `govulncheck -mode=binary` on the binary of
+  # `openpolicyagent/opa:1.22.4-static`: OPA doesn't import the package, so
+  # no code of the image can reach it. Remove the entry with the next OPA
+  # release
+  - id: CVE-2026-78661
+    purls: ["pkg:golang/golang.org/x/net@v0.60.0"]
+    statement: >-
+      golang.org/x/net/html is in OPA's module graph but not imported by the
+      OPA binary (govulncheck -mode=binary, 2026-11-25); no fixed OPA
+      release yet
+    expired_at: 2026-12-31

@@ -22,12 +22,41 @@ guide][contributing] and mind our [code of conduct][code-of-conduct].
   make unit                             # tests without containers
   make test                             # everything, with the services (needs Docker; pulls the images of compose.yaml)
   make kubernetes                       # deploy/kubernetes/ on the current kubectl context (needs a disposable cluster, e.g. kind)
+  make image                            # build the image of Dockerfile and test a container of it (needs Docker)
   uv run --isolated --only-group docs mkdocs build --strict  # these docs (leaves .venv as is); fails on warnings
   ```
 
 - Documentation lives in `docs/` (MkDocs Material, `mkdocs.yml`), published
   on Read the Docs from `.readthedocs.yaml`. Changes to behaviour,
   configuration or the workflow update the docs in the same pull request.
+
+## Releases
+
+A release publishes the [container image](image.md) (OPA, the front and the
+policy of the tagged commit) and creates the GitHub release; the
+specification and the rest of the tooling are versioned with it. Releases
+come from `dev` (`.github/workflows/release.yml`), as pre-releases until
+1.0.0:
+
+1. A release-prep pull request sets the version in `pyproject.toml` and the
+   version and `date-released` in `CITATION.cff`, and adds the curated
+   notes `docs/releases/<version>.md` (in the organisation's format; add
+   them to the `nav` of `mkdocs.yml`, or the strict docs build fails).
+2. Once it is merged and CI passed for the push to `dev`, a maintainer tags
+   the merge commit with a signed, annotated tag `v<version>` and pushes
+   it.
+3. The workflow checks the tag, the commit, the versions and the notes,
+   then builds the image and pushes it by digest, scans it (Trivy; fixable
+   critical and high findings fail the release, `.trivyignore.yaml` lists
+   the accepted ones), signs it, attests it and tags it `<version>`, and
+   creates the GitHub release. Pushing and tagging the image need approval
+   in the `release` environment.
+
+Released images and tags don't change: if a release fails after the image
+was tagged, release a new patch version. To test the workflow in a fork,
+set the fork's repository variable `DOCKERHUB_ORG` to a Docker Hub
+organisation of your own first (the image goes to `elixircloud`
+otherwise).
 
 ## Project rules
 
