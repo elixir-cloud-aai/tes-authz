@@ -20,9 +20,12 @@ FROM docker.io/openpolicyagent/opa:1.22.4-static@sha256:12cecac5a174368f7d3f09d3
 
 FROM docker.io/library/python:3.13.18-slim@sha256:7249d5587b78209a006dc4a3b5340678f84ea729239193aa559962cd8c1fce50
 
-# Debian security updates released after the base image was built (e.g.
-# libzstd1 1.5.7+dfsg-1+deb13u1, CVE-2026-124851), so that the image scan
-# doesn't fail on fixable findings until the Python image is rebuilt
+# TEMPORARY, remove before the next release (D-435: no temporary apt fixes
+# in release images). The Python image (digest above, checked 2026-11-25)
+# still ships libzstd1 1.5.7+dfsg-1 (CVE-2026-124851, HIGH, fixed in
+# 1.5.7+dfsg-1+deb13u1), which fails the image scan of every PR. Once
+# upstream rebuilds the tag with the fix, bump the digest above and
+# delete this step.
 RUN apt-get update \
     && apt-get upgrade --yes --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
