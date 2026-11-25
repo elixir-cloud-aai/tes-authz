@@ -13,6 +13,8 @@ The entry point (`shims/opa_service.py`) checks that the policy data is a JSON o
 | 8080 (`TES_AUTHZ_PORT`) | AuthZEN front: `POST /access/v1/evaluation`, `GET /.well-known/authzen-configuration`, `GET /health` | on `TES_AUTHZ_HOST` (default all interfaces) |
 | 8181 (`TES_AUTHZ_OPA_PORT`) | OPA's API, which answers only the front's decision query (`POST /v1/data/tes/authz/allow`) and `GET /health`; everything else, such as changing or reading policy and data, gets `401` (OPA's `--authorization=basic` with `engines/opa/system/authz.rego`) | loopback only, which all containers of a pod share |
 
+To look into the policy or the data of a running service, evaluate them with `opa eval` on your copy of the data and the policy of the release instead; OPA's API won't show them. (The [Kubernetes manifest](operators.md#kubernetes) and `compose.yaml` run OPA without this API policy: there, OPA's loopback is not shared with a TES, and in compose its API is published for the tests on purpose.)
+
 If OPA exits, the service exits with status 1, so that the container is restarted. Unusable settings or policy data, and a front port that is taken, make it exit with status 2. `SIGTERM` and `SIGINT` stop the front first, then OPA, with status 0. The process runs as `nobody` (65534:65534), writes nothing (the root file system can be read-only) and needs no capabilities. The image has no pip.
 
 ## Run it

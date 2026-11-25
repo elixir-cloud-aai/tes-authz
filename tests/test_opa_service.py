@@ -272,9 +272,10 @@ def test_service_exits_with_2_without_data(service_env: dict[str, str], start: S
     assert not Path(service_env["FAKE_OPA_ARGS"]).exists(), "OPA was started"
 
 
-def test_service_exits_with_2_without_policy(service_env: dict[str, str], start: Start, tmp_path: Path):
-    """Without the policy directory, the service exits with 2 before starting OPA."""
-    process = start({**service_env, "TES_AUTHZ_POLICY": str(tmp_path / "missing")})
+@pytest.mark.parametrize("variable", ["TES_AUTHZ_POLICY", "TES_AUTHZ_SYSTEM_POLICY"])
+def test_service_exits_with_2_without_policy(service_env: dict[str, str], start: Start, tmp_path: Path, variable: str):
+    """Without the policy or the API policy directory, the service exits with 2 before starting OPA."""
+    process = start({**service_env, variable: str(tmp_path / "missing")})
     assert process.wait(timeout=15) == 2
     assert not Path(service_env["FAKE_OPA_ARGS"]).exists(), "OPA was started"
 

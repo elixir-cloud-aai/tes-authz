@@ -4,10 +4,10 @@
 # (`engines/opa/policy/`) of the commit it is built from, started by
 # `shims/opa_service.py`. OPA listens on the container's loopback only and
 # answers only the decision query and the health check
-# (`engines/opa/system/authz.rego`); the front listens on port 8080. The policy DATA is not in the image: mount the
-# operator's copy of `config/reference-policy.json` at
-# `/etc/tes-authz/data.json` (or set `TES_AUTHZ_DATA`). See
-# `docs/image.md`.
+# (`engines/opa/system/authz.rego`); the front listens on port 8080. The
+# policy DATA is not in the image: mount the operator's copy of
+# `config/reference-policy.json` at `/etc/tes-authz/data.json` (or set
+# `TES_AUTHZ_DATA`). See `docs/image.md`.
 #
 # The base images have the versions of `compose.yaml` (which the tests
 # check), pinned by index digest (`docker buildx imagetools inspect

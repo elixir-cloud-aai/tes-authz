@@ -31,6 +31,17 @@ if [[ "${TES_AUTHZ_IMAGE_SKIP_BUILD:-0}" != "1" ]]; then
   docker build -t "$image" "$root"
 fi
 
+# The API policy of OPA (`engines/opa/system/authz.rego`) passes its tests,
+# with the OPA of the image; the tests themselves aren't in the image
+docker run --rm --entrypoint opa "${hardening[@]}" \
+  -v "$root/engines/opa/system:/system:ro" "$image" \
+  test --verbose /system
+if docker run --rm --entrypoint sh "$image" -c 'ls /opt/tes-authz/system/*_test.rego' >/dev/null 2>&1; then
+  echo "[FAIL] the image has the tests of the API policy" >&2
+  exit 1
+fi
+echo "[ok] API policy tests pass and aren't in the image"
+
 # No installer in the image
 if docker run --rm --entrypoint python "$image" -c "import pip" 2>/dev/null; then
   echo "[FAIL] the image has pip" >&2

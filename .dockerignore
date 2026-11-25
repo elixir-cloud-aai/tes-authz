@@ -4,6 +4,8 @@
 *
 !engines/opa/policy/
 !engines/opa/system/
+# The tests of the API policy, run by `scripts/test-image.sh`, not shipped
+engines/opa/system/*_test.rego
 !shims/common.py
 !shims/opa_front.py
 !shims/opa_service.py
