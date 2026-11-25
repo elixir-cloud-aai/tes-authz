@@ -25,6 +25,7 @@ pseudo-code of the hook. It is not a TES implementation:
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import logging
 import sys
@@ -519,7 +520,7 @@ class Hook:
                 if response.status != HTTPStatus.OK:
                     raise DecisionServiceError
                 answer = json.loads(response.read())
-        except (urllib.error.URLError, OSError, ValueError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as exc:
             raise DecisionServiceError from exc
         if not isinstance(answer, dict) or not isinstance(answer.get("decision"), bool):
             raise DecisionServiceError
@@ -762,8 +763,13 @@ class Hook:
                 self.fall_back("list")
         if scope == "none":
             return {"tasks": []}
+        # Page tokens are bound to the list scope (spec section 3.5): a keyset
+        # cursor from one scope would skip tasks of a wider one.
+        token_scope, _, position = (page_token or "").partition(".")
+        if page_token and token_scope != scope:
+            raise HttpError(HTTPStatus.BAD_REQUEST, "page token of another list scope")
         try:
-            after = int(page_token) if page_token else -1
+            after = int(position) if page_token else -1
         except ValueError as exc:
             raise HttpError(HTTPStatus.BAD_REQUEST, "bad page token") from exc
         with self.store.lock:
@@ -776,7 +782,7 @@ class Hook:
         page = rows[:page_size]
         result: dict[str, Any] = {"tasks": [self._render(t, view) for t in page]}
         if len(rows) > page_size:
-            result["next_page_token"] = str(self.store.order[page[-1]["id"]])
+            result["next_page_token"] = f"{scope}.{self.store.order[page[-1]['id']]}"
         return result
 
     @staticmethod

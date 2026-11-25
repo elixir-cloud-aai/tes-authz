@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import pytest
@@ -133,3 +135,39 @@ def test_task_without_owner_counts_as_missing() -> None:
     assert [r["properties"] for r in asked] == [{}, {}]
     assert store.tasks["t-legacy"]["state"] == "QUEUED"
     assert [t["id"] for t in hook.list(alice, 10, None, "MINIMAL")["tasks"]] == ["t-alice", "t-bob"]
+
+
+class _TruncatingPdp(BaseHTTPRequestHandler):
+    """A decision service that announces a longer body than it sends."""
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+        """Silence access logs.
+
+        Args:
+            format: The format string.
+            *args: The format arguments.
+        """
+
+    def do_POST(self) -> None:
+        """Answer with a truncated body and close the connection."""
+        self.rfile.read(min(int(self.headers.get("Content-Length", "0")), server.MAX_BODY_BYTES))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "100")
+        self.end_headers()
+        self.wfile.write(b'{"decision"')
+        self.close_connection = True
+
+
+def test_truncated_answer_is_a_failed_decision() -> None:
+    """Case 15: a body shorter than announced is a failed decision (503 or the fallback), not a dropped call."""
+    pdp = ThreadingHTTPServer(("127.0.0.1", 0), _TruncatingPdp)
+    threading.Thread(target=pdp.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{pdp.server_address[1]}/access/v1/evaluation"
+        hook = server.Hook(server.Settings(pdp_url=url, timeout=2.0), server.Store())
+        with pytest.raises(server.DecisionServiceError):
+            hook.ask(server.Principal({"sub": "u"}, owner_id="u"), "CreateTask", {"type": "tes_task_set", "id": "own"})
+    finally:
+        pdp.shutdown()
+        pdp.server_close()

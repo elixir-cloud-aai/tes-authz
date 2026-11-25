@@ -406,6 +406,18 @@ def test_case_28_list_scope(start, stub, response, expected):
     assert {r["body"]["resource"]["id"] for r in stub.requests()} == {"own"}
 
 
+def test_case_28_page_token_is_bound_to_the_scope(start, stub):
+    """Case 28: a page token from one list scope is 400 under another, so widening can't skip tasks."""
+    stub.script(default=ALLOW)
+    tes = start(decision_service="stub", operations=ALL_OPERATIONS)
+    for who in (BOB, ALICE, ALICE):
+        tes.create(who)
+    status, page = tes.call("GET", "/tasks?page_size=1", ALICE)
+    assert status == 200 and page["next_page_token"]
+    stub.script(default=scope("all"))
+    assert tes.call("GET", f"/tasks?page_size=1&page_token={page['next_page_token']}", ALICE)[0] == 400
+
+
 @pytest.mark.parametrize(
     "response",
     [scope("group:x"), scope(["all"]), {"status": 200, "body": {"decision": True, "context": "all"}}],
