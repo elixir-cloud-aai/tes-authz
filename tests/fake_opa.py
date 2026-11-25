@@ -4,7 +4,8 @@ Takes OPA's command line, writes it as JSON to the file named by
 ``FAKE_OPA_ARGS`` (if set), and serves ``/health`` and the decision path on
 the ``--addr`` it is given, allowing exactly the requests whose subject ID is
 ``allowed``. With ``FAKE_OPA_EXIT`` set, it exits at once with that
-status instead.
+status instead; with ``FAKE_OPA_UNHEALTHY`` set, its health check answers
+``503`` (OPA never gets ready).
 """
 
 from __future__ import annotations
@@ -39,7 +40,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self) -> None:
-        """Answer the health check."""
+        """Answer the health check (``503`` with ``FAKE_OPA_UNHEALTHY``)."""
+        if os.environ.get("FAKE_OPA_UNHEALTHY"):
+            self.send_error(503)
+            return
         self._send({})
 
     def do_POST(self) -> None:

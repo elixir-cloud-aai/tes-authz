@@ -15,7 +15,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import opa_service
@@ -27,6 +27,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICE = ROOT / "shims" / "opa_service.py"
 FAKE_OPA = Path(__file__).resolve().parent / "fake_opa.py"
 REQUEST = json.loads((ROOT / "golden" / "requests" / "create-member-exact.json").read_text())["request"]
+
+
+Start = Callable[[dict[str, str]], "subprocess.Popen[bytes]"]
+"""Starts the service with an environment (fixture ``start``)."""
 
 
 def _free_port() -> int:
@@ -171,7 +175,7 @@ def service_env(tmp_path: Path) -> dict[str, str]:
 
 
 @pytest.fixture
-def start() -> Iterator[object]:
+def start() -> Iterator[Start]:
     """Start the service as the image does; stop it after the test."""
     processes: list[subprocess.Popen[bytes]] = []
 
@@ -209,7 +213,7 @@ def _opa_pid(process: subprocess.Popen[bytes]) -> int:
     return int(pids[0])
 
 
-def test_front_answers_with_opas_decision_and_stops_on_sigterm(service_env, start):
+def test_front_answers_with_opas_decision_and_stops_on_sigterm(service_env: dict[str, str], start: Start):
     """The front serves OPA's decisions; SIGTERM stops OPA and the service with 0."""
     process = start(service_env)
     url = f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}"
@@ -229,10 +233,12 @@ def test_front_answers_with_opas_decision_and_stops_on_sigterm(service_env, star
     opa_pid = _opa_pid(process)
     process.send_signal(signal.SIGTERM)
     assert process.wait(timeout=15) == 0
-    assert not Path(f"/proc/{opa_pid}").exists() or "zombie" in Path(f"/proc/{opa_pid}/status").read_text()
+    # The service has terminated and reaped OPA
+    with pytest.raises(ProcessLookupError):
+        os.kill(opa_pid, 0)
 
 
-def test_service_exits_with_1_when_opa_dies(service_env, start):
+def test_service_exits_with_1_when_opa_dies(service_env: dict[str, str], start: Start):
     """If OPA exits on its own, the service exits with 1 (the container restarts)."""
     process = start(service_env)
     _wait_for_front(f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}", process)
@@ -240,27 +246,55 @@ def test_service_exits_with_1_when_opa_dies(service_env, start):
     assert process.wait(timeout=15) == 1
 
 
-def test_service_exits_with_2_when_opa_fails_to_start(service_env, start):
+def test_service_exits_with_2_when_opa_fails_to_start(service_env: dict[str, str], start: Start):
     """If OPA exits during startup, the service exits with 2."""
     process = start({**service_env, "FAKE_OPA_EXIT": "1"})
     assert process.wait(timeout=15) == 2
 
 
-def test_service_exits_with_2_without_data(service_env, start, tmp_path: Path):
+def test_service_exits_with_2_without_data(service_env: dict[str, str], start: Start, tmp_path: Path):
     """Without the data file, the service exits with 2 before starting OPA."""
     process = start({**service_env, "TES_AUTHZ_DATA": str(tmp_path / "missing.json")})
     assert process.wait(timeout=15) == 2
     assert not Path(service_env["FAKE_OPA_ARGS"]).exists(), "OPA was started"
 
 
-def test_service_exits_with_2_without_policy(service_env, start, tmp_path: Path):
+def test_service_exits_with_2_without_policy(service_env: dict[str, str], start: Start, tmp_path: Path):
     """Without the policy directory, the service exits with 2 before starting OPA."""
     process = start({**service_env, "TES_AUTHZ_POLICY": str(tmp_path / "missing")})
     assert process.wait(timeout=15) == 2
     assert not Path(service_env["FAKE_OPA_ARGS"]).exists(), "OPA was started"
 
 
-def test_service_exits_with_2_on_invalid_settings(service_env, start):
+def test_service_exits_with_2_on_invalid_settings(service_env: dict[str, str], start: Start):
     """Invalid settings make the service exit with 2."""
     process = start({**service_env, "TES_AUTHZ_PORT": "http"})
     assert process.wait(timeout=15) == 2
+
+
+def test_service_stops_on_sigint(service_env: dict[str, str], start: Start):
+    """SIGINT stops the service with 0, as SIGTERM does."""
+    process = start(service_env)
+    _wait_for_front(f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}", process)
+    process.send_signal(signal.SIGINT)
+    assert process.wait(timeout=15) == 0
+
+
+def test_service_exits_with_2_when_opa_never_gets_healthy(service_env: dict[str, str], start: Start):
+    """If OPA isn't healthy within the startup timeout, the service exits with 2."""
+    process = start({**service_env, "FAKE_OPA_UNHEALTHY": "1", "TES_AUTHZ_STARTUP_TIMEOUT": "1"})
+    assert process.wait(timeout=15) == 2
+
+
+def test_sigterm_during_startup_stops_with_0(service_env: dict[str, str], start: Start):
+    """A SIGTERM before OPA is healthy stops the service with 0, without serving."""
+    process = start({**service_env, "FAKE_OPA_UNHEALTHY": "1"})
+    args = Path(service_env["FAKE_OPA_ARGS"])
+    deadline = time.monotonic() + 15
+    while not args.exists():  # OPA started, the service waits for it
+        assert time.monotonic() < deadline, "OPA not started"
+        time.sleep(0.05)
+    process.send_signal(signal.SIGTERM)
+    assert process.wait(timeout=15) == 0
+    with pytest.raises(OSError):
+        http("GET", f"http://127.0.0.1:{service_env['TES_AUTHZ_PORT']}/health", timeout=1)

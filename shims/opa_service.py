@@ -45,6 +45,9 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
+import opa_front
+from common import make_handler
+
 log = logging.getLogger("tes-authz-service")
 
 
@@ -211,8 +214,9 @@ def wait_for_opa(url: str, process: subprocess.Popen[bytes], timeout: float) -> 
 def make_server(settings: Settings) -> ThreadingHTTPServer:
     """Build the AuthZEN front for the OPA of these settings.
 
-    ``opa_front`` reads ``OPA_URL`` at import, so it is imported here, after
-    the URL is set.
+    The front's decision function asks OPA at ``opa_front.OPA_URL``, which
+    is set to OPA's loopback URL here (``OPA_URL`` of the environment is not
+    used).
 
     Args:
         settings: The settings.
@@ -220,10 +224,6 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
     Returns:
         The bound, not yet serving, server.
     """
-    os.environ["OPA_URL"] = settings.opa_url
-    import opa_front
-    from common import make_handler
-
     opa_front.OPA_URL = settings.opa_url
     metadata: dict[str, Any] = {
         "policy_decision_point": settings.base_url,
