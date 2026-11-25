@@ -95,13 +95,13 @@ yq 'del(.spec.template.spec.securityContext.runAsUser, .spec.template.spec.secur
 
 ## Reference policy
 
-The policy implements spec [§7](specification.md#7-reference-decision-service-and-engines) with LS Login entitlements. It is owner only (spec [§3](specification.md#3-the-contract-authzen-mapping)): a TES returns, lists and cancels only the caller's own tasks, whatever the decision service answers, and the policy matches that.
+The policy implements spec [§7](specification.md#7-reference-decision-service-and-engines) with LS Login entitlements. It is owner only, like a TES's default (spec [§3](specification.md#3-the-contract-authzen-mapping)): by default a TES asks the decision service only whether the caller may create a task, and decides reading, listing and cancelling itself (the caller's own tasks only). Operators can switch those operations on in the TES (`authz.operations`, below); the decision service then decides them alone, and with this policy the results stay the same.
 
 | Action | Resource | Allowed if |
 |---|---|---|
-| `CreateTask` | `tes_task_set:own` | the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
+| `CreateTask` | `tes_task_set:own` | under `tes-authzen/3`, `resource.properties.owner` is the caller; the caller is a member (exact group, or a subgroup via the `…:example-vo:` prefix) and every executor image starts with an allowed prefix (an empty prefix list allows any image) |
 | `GetTask`, `CancelTask` | `tes_task:<id>` | `resource.properties.owner == subject.id` (owner present and not empty), with or without a current entitlement; a task without an owner: nobody |
-| `ListTasks` | `tes_task_set:own` | always (the TES lists only the caller's tasks) |
+| `ListTasks` | `tes_task_set:own` | always, as a plain allow: the list scope `own` (the TES lists only the caller's tasks); never the scope `all` |
 | `ListTasks` | `tes_task_set:all` | never (profile `tes-authzen/3` doesn't have it) |
 
 There are no admins: no entitlement reads, lists or cancels another owner's tasks. Operators inspect and clean up tasks through the infrastructure (the TES's database or cluster), and sharing belongs in clients. A delegated token (an `actor` in `subject.properties`) has its subject's powers.
@@ -118,11 +118,28 @@ Poiesis sends `tes-authzen/2` (spec [§12](specification.md#12-tes-authzen2-delt
 - **API keys of other owners**: the policy denies `RevokeApiKeys` and `ListApiKeys` on `poiesis_api_keys`, so admins can't list or revoke other owners' keys while Poiesis uses it. Callers still list and revoke their own keys, as long as they don't pass `?owner=` (with it, even for their own owner, Poiesis asks and is denied).
 - **Responses**: the policy never answers with a `context.tes`.
 
-To change any of this, extend the policy; a policy that grants other owners' tasks has no effect on a conforming TES.
+Service clients (client-credentials tokens, e.g. proTES in front of a TES) carry no entitlements, so this policy denies them `CreateTask`. Their create grant belongs in the policy data, not in the TES (spec §5): the TES lists them for authentication only. The reference policy data has no service-client list yet.
+
+To change any of this, extend the policy. A policy that grants more than owner access (another owner's task, the list scope `all`) takes effect only for the operations a TES switches on.
+
+### TES configuration for the decision service
+
+These settings are on the TES side (spec [§4.2](specification.md#42-configuration-keys)); names are the generic ones, each TES maps them (TESK: `tesk.api.authz.operations`, `tesk.api.authz.failure.<operation>`).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `authz.operations` | `[create]` | operations the decision service decides: `create` (always), `get`, `list`, `cancel`. Operations not listed are owner only, decided by the TES without a call. |
+| `authz.failure.<operation>` | `closed` | what a failed decision (timeout, error, malformed answer) means for that operation: `closed` answers `503`; `open` falls back to the owner rule (own tasks only, never allow-all). `create` must stay `closed`. The meaning of `open` is still a proposal (spec Q12). |
+
+With the default, a decision-service outage stops only task creation (`503`); callers keep reading, listing and cancelling their own tasks. Switch `get`, `list` or `cancel` on only for a policy that decides more than the owner rule (e.g. sharing, or ending access with the entitlement); with this reference policy, switching them on adds calls and makes the operations depend on the decision service, but changes no result.
+
+A switched-on `ListTasks` asks once per page. The answer's list scope decides what the TES lists: a plain allow (or `context.tes.list_scope: "own"`) lists the caller's tasks, `"all"` every task, and a deny (or `"none"`) gives an empty list. Only a policy you write answers `all`.
 
 ### Upgrade notes
 
 **Owner only and `tes-authzen/3`** ([#23](https://github.com/elixir-cloud-aai/tes-authz/issues/23), breaking):
+
+- TESes on `/3` ask the decision service on `CreateTask` only, unless you switch further operations on (`authz.operations`). They send the caller as `resource.properties.owner` on `CreateTask`; this version of the decision services denies a `/3` `CreateTask` without it. A switched-on `ListTasks` that is denied gives an empty list (`200`), not `403`.
 
 - Remove `admins` from your policy data. With it, OPA denies every request and the OpenFGA setup job refuses to start (`the policy data file has 'admins'`), so that nobody assumes admins still see other tasks.
 - `members` now means "may create tasks" only. Owners keep get, cancel and their own list after their entitlement is revoked (it was the other way round before, spec Q11); users without the entitlement get an empty list instead of `403`.
