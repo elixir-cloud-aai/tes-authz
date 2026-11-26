@@ -62,7 +62,7 @@ services:
 
   openfga:
     <<: *hardening
-    image: openfga/openfga:v1.22.1
+    image: openfga/openfga:v1.23.0
     container_name: ${TES_AUTHZ_PROJECT:-tes-authz}-openfga
     command: ["run"]
     environment:
